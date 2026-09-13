@@ -29,7 +29,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | Persistence | No domain model or repository yet; screen content is hard-coded and shell counters are ephemeral |
 | Voice and STT | Button drives a sample transcript; no microphone access |
 | AI pipeline | E1–E7 screens are timed local state transitions |
-| Backend | Supabase schema, RLS, functions, and jobs are not present |
+| Backend | Local Supabase stack and client bootstrap configured; schema, RLS, functions, and jobs are not present |
 | Offline | Draft persistence and retry queue are not present |
 | Notifications | Morning/night and completion notifications are not present |
 | Completion | S14 and PDF export are not present |

@@ -182,7 +182,7 @@ echo "OK"
 **구현**
 
 - `[신규] supabase/` 디렉터리 초기화 (`supabase init`).
-- `[신규] lib/core/env/env.dart` — `String.fromEnvironment('ENV')`로 dev/staging/prod 분기. URL·anon key를 환경별 상수로 분리한다. **service_role 키는 앱에 절대 넣지 않는다.**
+- `[신규] lib/core/env/env.dart` — `String.fromEnvironment('ENV')`로 dev/staging/prod 분기. URL·공개 publishable key(구 anon key)를 환경별 상수로 분리한다. **service_role·secret 키는 앱에 절대 넣지 않는다.** `supabase_flutter` 2.17 이상에서는 `publishableKey` 인자를 사용한다.
 - `[신규] .env.example`, `[수정] .gitignore` — `.env*` 제외.
 - `[신규] Makefile` — `make dev`, `make mock`, `make db-reset`.
 

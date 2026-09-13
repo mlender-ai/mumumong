@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/design/design_system.dart';
+import 'core/env/env.dart';
 import 'ui/archive/archive_screen.dart';
 import 'ui/capture/capture_flow.dart';
 import 'ui/home/home_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Supabase.initialize(
+    url: AppEnv.supabaseUrl,
+    publishableKey: AppEnv.supabasePublishableKey,
+  );
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

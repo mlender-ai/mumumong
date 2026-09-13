@@ -44,9 +44,11 @@
 ## 실행
 
 ```bash
-flutter pub get
-flutter run
+cp .env.example .env
+make dev
 ```
+
+로컬 Supabase 없이 UI·Mock 엔진 모드만 실행하려면 `make mock`을 사용합니다.
 
 ## 검증
 
@@ -60,5 +62,5 @@ flutter build web --release
 
 - 음성 버튼은 STT 결과를 보여주는 시뮬레이션입니다.
 - 화면의 꿈·원고 콘텐츠는 아직 하드코딩되어 있고, 진행 카운터만 실행 중 임시 상태로 유지됩니다.
-- Supabase, AI 모델, 푸시, 앱 잠금, PDF 출력은 아직 연결되지 않았습니다.
+- 로컬 Supabase 부트스트랩만 연결되어 있습니다. 스키마·인증·실데이터와 AI 모델, 푸시, 앱 잠금, PDF 출력은 아직 연결되지 않았습니다.
 - 원문과 생성 문장은 향후에도 분석·서버·에러 로그에 남기지 않습니다.
