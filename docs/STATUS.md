@@ -26,7 +26,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | Area | Current boundary |
 |---|---|
 | Authentication | Apple Sign In not connected |
-| Persistence | In-memory state only |
+| Persistence | No domain model or repository yet; screen content is hard-coded and shell counters are ephemeral |
 | Voice and STT | Button drives a sample transcript; no microphone access |
 | AI pipeline | E1–E7 screens are timed local state transitions |
 | Backend | Supabase schema, RLS, functions, and jobs are not present |

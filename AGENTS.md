@@ -6,9 +6,13 @@ Read these before changing product behavior or visual language:
 
 1. `docs/MUMUMONG_PRODUCT_PDR_v0.1.md`
 2. `docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md`
-3. `docs/STATUS.md`
+3. `docs/MUMUMONG_M1_Report.md`
+4. `docs/MUMUMONG_M1_WorkOrders.md`
+5. `docs/STATUS.md`
 
 When documents conflict, preserve the seven-step product loop and the non-negotiable rules below, then record the unresolved conflict instead of guessing.
+
+For M1, the user decisions recorded in `docs/MUMUMONG_M1_Report.md` v0.3 override the older pending-decision placeholders in the v0.1 PDR.
 
 ## Product north star
 

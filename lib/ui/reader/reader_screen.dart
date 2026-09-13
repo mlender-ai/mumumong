@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'design_system.dart';
+import '../../core/design/design_system.dart';
 
 enum PassageOrigin { dream, connection, user }
 

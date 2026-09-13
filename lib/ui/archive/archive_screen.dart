@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'design_system.dart';
+import '../../core/design/design_system.dart';
 
 class ArchiveScreen extends StatefulWidget {
   const ArchiveScreen({

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mumumong/capture_flow.dart';
-import 'package:mumumong/design_system.dart';
+import 'package:mumumong/core/design/design_system.dart';
 import 'package:mumumong/main.dart';
+import 'package:mumumong/ui/capture/capture_flow.dart';
 
 void main() {
   void usePhoneViewport(WidgetTester tester) {

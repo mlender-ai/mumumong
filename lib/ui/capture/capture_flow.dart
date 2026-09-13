@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'design_system.dart';
-import 'dot_field.dart';
+import '../../core/design/design_system.dart';
+import '../../core/design/dot_field.dart';
 
 enum CaptureStep { capture, recall, processing, reveal }
 

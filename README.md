@@ -11,6 +11,8 @@
 |---|---|
 | 제품 기획·PDR | [`docs/MUMUMONG_PRODUCT_PDR_v0.1.md`](docs/MUMUMONG_PRODUCT_PDR_v0.1.md) |
 | 비주얼 시스템 | [`docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md`](docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md) |
+| M1 개발 지시서 | [`docs/MUMUMONG_M1_Report.md`](docs/MUMUMONG_M1_Report.md) |
+| M1 작업지시서 | [`docs/MUMUMONG_M1_WorkOrders.md`](docs/MUMUMONG_M1_WorkOrders.md) |
 | 현재 구현 상태 | [`docs/STATUS.md`](docs/STATUS.md) |
 | 에이전트 규칙 | [`AGENTS.md`](AGENTS.md) |
 
@@ -30,8 +32,10 @@
 
 | 경로 | 역할 |
 |---|---|
-| `lib/` | Flutter 앱과 도트 상태 언어 |
-| `test/` | 핵심 화면 위젯 테스트 |
+| `lib/core/` | 디자인 토큰과 공통 기반 |
+| `lib/domain/`, `lib/data/` | 후속 WO를 위한 도메인·데이터 계층 |
+| `lib/ui/` | 화면별 Flutter UI |
+| `test/ui/` | 핵심 화면 위젯 테스트 |
 | `assets/fonts/` | MaruBuri·Pretendard 및 배포 고지 |
 | `assets/brand/` | 앱 아이콘 원본 |
 | `docs/` | 제품·비주얼 정본과 현재 상태 |
@@ -55,6 +59,6 @@ flutter build web --release
 ## 현재 경계
 
 - 음성 버튼은 STT 결과를 보여주는 시뮬레이션입니다.
-- 데이터는 메모리에만 남아 앱을 재시작하면 초기화됩니다.
+- 화면의 꿈·원고 콘텐츠는 아직 하드코딩되어 있고, 진행 카운터만 실행 중 임시 상태로 유지됩니다.
 - Supabase, AI 모델, 푸시, 앱 잠금, PDF 출력은 아직 연결되지 않았습니다.
 - 원문과 생성 문장은 향후에도 분석·서버·에러 로그에 남기지 않습니다.

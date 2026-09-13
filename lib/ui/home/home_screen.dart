@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'design_system.dart';
-import 'dot_field.dart';
-import 'reader_screen.dart';
+import '../../core/design/design_system.dart';
+import '../../core/design/dot_field.dart';
+import '../reader/reader_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({

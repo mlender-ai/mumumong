@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'archive_screen.dart';
-import 'capture_flow.dart';
-import 'design_system.dart';
-import 'home_screen.dart';
+import 'core/design/design_system.dart';
+import 'ui/archive/archive_screen.dart';
+import 'ui/capture/capture_flow.dart';
+import 'ui/home/home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +17,7 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-  runApp(const MumumongApp());
+  runApp(const ProviderScope(child: MumumongApp()));
 }
 
 class MumumongApp extends StatelessWidget {
