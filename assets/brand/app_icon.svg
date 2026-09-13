@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#FBFAF7"/>
+  <defs>
+    <pattern id="outer" width="36" height="36" patternUnits="userSpaceOnUse">
+      <circle cx="18" cy="18" r="5.5" fill="#1E1D1B"/>
+    </pattern>
+    <pattern id="middle" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="16" cy="16" r="7.5" fill="#1E1D1B"/>
+    </pattern>
+    <pattern id="inner" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="14" cy="14" r="10" fill="#1E1D1B"/>
+    </pattern>
+    <clipPath id="circle"><circle cx="570" cy="566" r="286"/></clipPath>
+  </defs>
+  <circle cx="570" cy="566" r="286" fill="url(#outer)"/>
+  <circle cx="570" cy="566" r="215" fill="url(#middle)"/>
+  <circle cx="570" cy="566" r="126" fill="url(#inner)"/>
+  <g fill="#1E1D1B">
+    <circle cx="296" cy="318" r="7"/><circle cx="265" cy="386" r="5"/>
+    <circle cx="328" cy="274" r="4"/><circle cx="365" cy="319" r="6"/>
+    <circle cx="238" cy="453" r="4"/><circle cx="303" cy="505" r="5"/>
+  </g>
+  <circle cx="250" cy="337" r="8" fill="#93B9CF"/>
+</svg>
