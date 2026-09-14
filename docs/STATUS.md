@@ -21,13 +21,14 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | S13 Dream Detail | Prototype | Original text, recall metadata, derived scene |
 | Brand system | Implemented | MaruBuri, Pretendard, paper/ink/sky tokens, app icon |
 | Domain contract | Implemented | Nine immutable models, centralized DB enum mapping, serialization, and pure MU/clarity rules |
+| Repository boundary | Implemented | Reusable repository contract, seeded memory implementation, mutation streams, and default Riverpod provider; UI wiring is pending |
 
 ## Simulated or not connected
 
 | Area | Current boundary |
 |---|---|
 | Authentication | Apple Sign In not connected |
-| Persistence | Domain models and DB serialization are present; no repository is connected yet, so screen content remains hard-coded and shell counters are ephemeral |
+| Persistence | Repository contract and memory implementation are present, but screens are not connected yet and no data survives an app restart |
 | Voice and STT | Button drives a sample transcript; no microphone access |
 | AI pipeline | E1–E7 screens are timed local state transitions |
 | Backend | Local migrations 0001–0007, deterministic seed data, full RLS, locked-passage trigger, transactional RPCs, atomic job claiming, and zombie reaping cron are present; pipeline workers are not connected |
@@ -39,7 +40,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 ## Verified baseline
 
 - `dart analyze lib test`: no issues
-- `flutter test`: 34 tests passing (9 model round trips, enum/invariant checks, 8 MU cases, 6 clarity boundaries, and existing tests)
+- `flutter test`: 46 tests passing (repository contract/provider, domain rules and serialization, and existing UI/core tests)
 - `flutter build web --release`: passing
 - `flutter build ios --simulator --no-codesign`: passing
 - `supabase db reset`: migrations 0001–0007 and seed passing
@@ -51,10 +52,10 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 
 Replace the simulated capture boundary with real, privacy-safe persistence:
 
-1. Repository interface and `MemoryRepository`
-2. Replace hard-coded screen literals with repository-backed state
+1. Replace hard-coded screen literals with repository-backed state
+2. Drift local schema and durable repository
 3. Apple authentication and session lifecycle
-4. Local draft persistence and offline retry queue
+4. Offline retry queue and synchronization
 5. Real recording/STT evaluation
 6. E1–E7 API contracts and mock/real provider boundary
 
