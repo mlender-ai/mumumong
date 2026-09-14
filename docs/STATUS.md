@@ -29,7 +29,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | Persistence | No domain model or repository yet; screen content is hard-coded and shell counters are ephemeral |
 | Voice and STT | Button drives a sample transcript; no microphone access |
 | AI pipeline | E1–E7 screens are timed local state transitions |
-| Backend | Local migrations 0001–0006, deterministic seed data, RLS on all 12 public tables, queue tables, and atomic `claim_job()` are present; pipeline functions/workers are not connected |
+| Backend | Local migrations 0001–0007, deterministic seed data, full RLS, locked-passage trigger, transactional RPCs, atomic job claiming, and zombie reaping cron are present; pipeline workers are not connected |
 | Offline | Draft persistence and retry queue are not present |
 | Notifications | Morning/night and completion notifications are not present |
 | Completion | S14 and PDF export are not present |
@@ -41,8 +41,8 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 - `flutter test`: 8 tests passing
 - `flutter build web --release`: passing
 - `flutter build ios --simulator --no-codesign`: passing
-- `supabase db reset`: migrations 0001–0006 and seed passing
-- `supabase test db`: 53 database tests passing (4 constraints + 49 RLS checks across all 12 public tables)
+- `supabase db reset`: migrations 0001–0007 and seed passing
+- `supabase test db`: 108 database tests passing (4 constraints + 49 RLS + 55 trigger/RPC checks)
 - `supabase db lint --local --schema public --level warning`: no schema errors
 - Mobile visual QA at 390×844: capture through reveal, manuscript growth, Reader, source sheet, and Night Paper
 
@@ -50,7 +50,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 
 Replace the simulated capture boundary with real, privacy-safe persistence:
 
-1. Database triggers and transactional RPCs
+1. Domain models and serialization
 2. Apple authentication and session lifecycle
 3. Repository layer and local draft persistence
 4. Offline job queue and idempotency contract
