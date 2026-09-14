@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/design/design_system.dart';
-
-enum PassageOrigin { dream, connection, user }
+import '../../domain/model/enums.dart';
 
 class ReaderScreen extends StatefulWidget {
   const ReaderScreen({super.key, this.initialNight = false});
