@@ -1,13 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/memory/memory_repository.dart';
+import '../data/local/database.dart';
+import '../data/local/drift_repository.dart';
 import '../domain/model/models.dart';
 import '../domain/repository/mumumong_repository.dart';
 
+final databaseProvider = Provider<AppDatabase>((ref) {
+  final database = AppDatabase();
+  ref.onDispose(database.close);
+  return database;
+});
+
 final repositoryProvider = Provider<MumumongRepository>((ref) {
-  final repository = MemoryRepository();
-  ref.onDispose(repository.dispose);
-  return repository;
+  return DriftRepository(ref.watch(databaseProvider));
 });
 
 final activeVolumeProvider = StreamProvider<Volume?>((ref) {
