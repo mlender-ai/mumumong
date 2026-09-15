@@ -45,6 +45,7 @@ class DreamDraft {
 abstract class MumumongRepository {
   Stream<Volume?> watchActiveVolume();
   Stream<List<Dream>> watchDreams(DreamStatusFilter filter);
+  Stream<List<DreamElement>> watchDreamElements(String dreamId);
   Stream<List<Scene>> watchScenes(String volumeId);
   Stream<List<Passage>> watchPassages(String sceneId);
   Stream<List<ProgressEvent>> watchRecentProgress(String volumeId);

@@ -1,5 +1,9 @@
 import 'model/enums.dart';
 
+double progressRatio({required double progressMu, required double targetMu}) {
+  return targetMu <= 0 ? 0 : (progressMu / targetMu).clamp(0.0, 1.0);
+}
+
 double materialUnits({
   required DreamClarity clarity,
   required int recallAnswers,

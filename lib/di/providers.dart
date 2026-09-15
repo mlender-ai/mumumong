@@ -21,6 +21,12 @@ final dreamsProvider = StreamProvider.family<List<Dream>, DreamStatusFilter>((
   return ref.watch(repositoryProvider).watchDreams(filter);
 });
 
+final dreamElementsProvider = StreamProvider.family<List<DreamElement>, String>(
+  (ref, dreamId) {
+    return ref.watch(repositoryProvider).watchDreamElements(dreamId);
+  },
+);
+
 final scenesProvider = StreamProvider.family<List<Scene>, String>((
   ref,
   volumeId,

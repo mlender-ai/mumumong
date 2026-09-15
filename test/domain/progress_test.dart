@@ -3,6 +3,10 @@ import 'package:mumumong/domain/model/enums.dart';
 import 'package:mumumong/domain/progress.dart';
 
 void main() {
+  test('progress ratio caps values above the target at one', () {
+    expect(progressRatio(progressMu: 120, targetMu: 80), 1.0);
+  });
+
   group('materialUnits', () {
     test('fragment base is 1.0 MU', () {
       expect(

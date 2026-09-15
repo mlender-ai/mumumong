@@ -5,6 +5,7 @@ import '../../core/design/design_system.dart';
 import '../../core/design/dot_field.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
+import '../../domain/progress.dart';
 import '../../domain/repository/mumumong_repository.dart';
 import '../reader/reader_screen.dart';
 
@@ -138,9 +139,9 @@ class _HomeContentState extends State<_HomeContent>
   Widget build(BuildContext context) {
     _schedulePendingGrowth();
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final progress = (widget.volume.progressMu / widget.volume.targetMu).clamp(
-      0.0,
-      1.0,
+    final progress = progressRatio(
+      progressMu: widget.volume.progressMu,
+      targetMu: widget.volume.targetMu,
     );
     final latestDream = widget.dreams.isEmpty ? null : widget.dreams.first;
     final openScene = _latestOpenScene(widget.scenes);

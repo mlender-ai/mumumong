@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:uuid/uuid.dart';
 
@@ -41,6 +42,7 @@ class MemoryRepository implements MumumongRepository {
   Volume? _volume;
   DreamDraft? _draft;
   final List<Dream> _dreams;
+  final List<DreamElement> _elements = [];
   final List<Scene> _scenes;
   final List<Passage> _passages;
   final List<ProgressEvent> _progressEvents;
@@ -75,6 +77,15 @@ class MemoryRepository implements MumumongRepository {
             return byDate != 0 ? byDate : b.recordedAt.compareTo(a.recordedAt);
           });
       return List.unmodifiable(dreams);
+    });
+  }
+
+  @override
+  Stream<List<DreamElement>> watchDreamElements(String dreamId) {
+    return _watch(() {
+      return List.unmodifiable(
+        _elements.where((element) => element.dreamId == dreamId),
+      );
     });
   }
 
@@ -332,6 +343,7 @@ class MemoryRepository implements MumumongRepository {
         _detachDreamSources(dreamId);
     }
 
+    _elements.removeWhere((element) => element.dreamId == dreamId);
     _dreams.removeAt(index);
     _jobs.remove(dreamId);
     _linkDecisions.removeWhere((decision) => decision.dreamId == dreamId);
@@ -403,6 +415,7 @@ class MemoryRepository implements MumumongRepository {
         .toSet();
     _scenes.removeWhere((scene) => sceneIds.contains(scene.id));
     _passages.removeWhere((passage) => sceneIds.contains(passage.sceneId));
+    _elements.removeWhere((element) => element.dreamId == dreamId);
   }
 
   void _detachDreamSources(String dreamId) {
@@ -450,7 +463,7 @@ class MemoryRepository implements MumumongRepository {
       userPassages: 0,
     );
     _volume = volume.copyWith(
-      progressMu: (volume.progressMu - delta).clamp(0, volume.targetMu),
+      progressMu: math.max(0, volume.progressMu - delta),
     );
     _progressEvents.add(
       ProgressEvent(
@@ -505,6 +518,26 @@ class MemoryRepository implements MumumongRepository {
         openImage: '문틈으로 물소리가 새어 나오고 있었다.',
       ),
     );
+    // E1 will replace these fixed elements. Until then, each generated D
+    // passage references a real element owned by the source dream.
+    final elementIds = <String>[];
+    for (final label in const ['물이 찬 복도', '붉은 문', '우산을 든 여자']) {
+      final id = _uuid.v4();
+      _elements.add(
+        DreamElement(
+          id: id,
+          dreamId: dreamId,
+          type: DreamElementType.object,
+          label: label,
+          detail: null,
+          salience: DreamElementSalience.high,
+          source: DreamElementSource.raw,
+          span: null,
+        ),
+      );
+      elementIds.add(id);
+    }
+
     final passageTexts = [
       '복도 바닥에 물이 차 있었다. 끝에 닫힌 붉은 문 하나가 보였다.',
       '문 옆에는 우산을 든 여자가 서 있었다. 여자는 고개를 들지 않은 채 손잡이를 세 번 두드렸다.',
@@ -519,7 +552,7 @@ class MemoryRepository implements MumumongRepository {
           text: passageTexts[index],
           origin: PassageOrigin.dream,
           sourceDreamId: dreamId,
-          sourceElementIds: [_uuid.v4()],
+          sourceElementIds: [elementIds[index]],
           cReason: null,
           originalText: null,
           locked: false,
@@ -537,7 +570,7 @@ class MemoryRepository implements MumumongRepository {
       userPassages: 0,
     );
     _volume = volume.copyWith(
-      progressMu: (volume.progressMu + delta).clamp(0, volume.targetMu),
+      progressMu: math.max(0, volume.progressMu + delta),
     );
     _progressEvents.add(
       ProgressEvent(
@@ -801,6 +834,16 @@ class MemoryRepository implements MumumongRepository {
           {'type': 'new_scene', 'n': 1},
         ],
         createdAt: DateTime.utc(2026, 9, 11, 7),
+      ),
+      ProgressEvent(
+        id: '00000000-0000-4000-8000-000000000603',
+        volumeId: MemorySeedIds.volume,
+        dreamId: null,
+        deltaMu: 27.75,
+        reasons: const [
+          {'type': 'seed_balance', 'n': 1},
+        ],
+        createdAt: DateTime.utc(2026, 8, 1, 7),
       ),
     ];
   }
