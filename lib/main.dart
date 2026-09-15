@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/design/design_system.dart';
 import 'core/env/env.dart';
+import 'di/providers.dart';
+import 'domain/repository/mumumong_repository.dart';
 import 'ui/archive/archive_screen.dart';
 import 'ui/capture/capture_flow.dart';
 import 'ui/home/home_screen.dart';
@@ -40,32 +42,33 @@ class MumumongApp extends StatelessWidget {
   }
 }
 
-class MumumongShell extends StatefulWidget {
+class MumumongShell extends ConsumerStatefulWidget {
   const MumumongShell({super.key});
 
   @override
-  State<MumumongShell> createState() => _MumumongShellState();
+  ConsumerState<MumumongShell> createState() => _MumumongShellState();
 }
 
-class _MumumongShellState extends State<MumumongShell> {
+class _MumumongShellState extends ConsumerState<MumumongShell> {
   int _tab = 0;
-  double _progress = .42;
-  int _dreams = 7;
-  int _scenes = 11;
-  bool _showGrowth = false;
 
   Future<void> _openCapture() async {
+    final volume = ref.read(activeVolumeProvider).value;
+    if (volume == null) {
+      return;
+    }
+    final dreams = ref.read(dreamsProvider(DreamStatusFilter.all)).value;
+    final scenes = ref.read(scenesProvider(volume.id)).value;
     final created = await Navigator.of(context).push<bool>(
       quietPageRoute(
-        CaptureFlow(dreamNumber: _dreams + 1, sceneNumber: _scenes + 1),
+        CaptureFlow(
+          dreamNumber: (dreams?.length ?? 0) + 1,
+          sceneNumber: (scenes?.length ?? 0) + 1,
+        ),
       ),
     );
     if (created == true && mounted) {
       setState(() {
-        _progress = (_progress + .06).clamp(0, 1);
-        _dreams += 1;
-        _scenes += 1;
-        _showGrowth = true;
         _tab = 0;
       });
     }
@@ -74,17 +77,8 @@ class _MumumongShellState extends State<MumumongShell> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      HomeScreen(
-        progress: _progress,
-        dreams: _dreams,
-        scenes: _scenes,
-        animateGrowth: _showGrowth,
-        onGrowthFinished: () {
-          if (mounted) setState(() => _showGrowth = false);
-        },
-        onCapture: _openCapture,
-      ),
-      ArchiveScreen(includeNewDream: _dreams > 7, onCapture: _openCapture),
+      HomeScreen(onCapture: _openCapture),
+      ArchiveScreen(onCapture: _openCapture),
     ];
 
     return Scaffold(

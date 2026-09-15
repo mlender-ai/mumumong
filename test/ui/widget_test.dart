@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mumumong/core/design/design_system.dart';
+import 'package:mumumong/data/memory/memory_repository.dart';
+import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/main.dart';
 import 'package:mumumong/ui/capture/capture_flow.dart';
 
@@ -14,7 +17,14 @@ void main() {
 
   testWidgets('원고 홈과 보관함을 이동한다', (tester) async {
     usePhoneViewport(tester);
-    await tester.pumpWidget(const MumumongApp());
+    final repository = MemoryRepository();
+    addTearDown(repository.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(repository)],
+        child: const MumumongApp(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('이름 없는 원고'), findsOneWidget);
@@ -29,10 +39,15 @@ void main() {
 
   testWidgets('꿈 기록 플로우의 첫 화면을 보여준다', (tester) async {
     usePhoneViewport(tester);
+    final repository = MemoryRepository();
+    addTearDown(repository.dispose);
     await tester.pumpWidget(
-      MaterialApp(
-        theme: mumumongTheme(),
-        home: const CaptureFlow(dreamNumber: 8, sceneNumber: 12),
+      ProviderScope(
+        overrides: [repositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          theme: mumumongTheme(),
+          home: const CaptureFlow(dreamNumber: 8, sceneNumber: 12),
+        ),
       ),
     );
     await tester.pump();

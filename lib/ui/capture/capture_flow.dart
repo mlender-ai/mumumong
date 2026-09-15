@@ -2,13 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/design/design_system.dart';
 import '../../core/design/dot_field.dart';
+import '../../data/memory/mock_voice_transcript.dart';
+import '../../di/providers.dart';
+import '../../domain/model/models.dart';
+import '../../domain/repository/mumumong_repository.dart';
 
 enum CaptureStep { capture, recall, processing, reveal }
 
-class CaptureFlow extends StatefulWidget {
+class CaptureFlow extends ConsumerStatefulWidget {
   const CaptureFlow({
     super.key,
     required this.dreamNumber,
@@ -19,10 +25,10 @@ class CaptureFlow extends StatefulWidget {
   final int sceneNumber;
 
   @override
-  State<CaptureFlow> createState() => _CaptureFlowState();
+  ConsumerState<CaptureFlow> createState() => _CaptureFlowState();
 }
 
-class _CaptureFlowState extends State<CaptureFlow>
+class _CaptureFlowState extends ConsumerState<CaptureFlow>
     with SingleTickerProviderStateMixin {
   final _controller = TextEditingController();
   late final AnimationController _motion;
@@ -31,14 +37,18 @@ class _CaptureFlowState extends State<CaptureFlow>
   int _dotCount = 20;
   Timer? _recordingTimer;
   Timer? _processingTimer;
+  StreamSubscription<JobProgress?>? _jobSubscription;
   int _recordingTicks = 0;
   int _processingStage = 0;
   final Map<String, String> _answers = {};
   String? _linkChoice;
-
-  static const _transcript =
-      '복도 바닥에 물이 차 있었고 끝에 붉은 문이 있었어요. '
-      '문 옆에는 우산을 든 여자가 서 있었는데 얼굴은 보이지 않았어요.';
+  String? _dreamId;
+  Scene? _revealScene;
+  List<Passage> _revealPassages = const [];
+  int _revealDeltaPercent = 0;
+  bool _jobDone = false;
+  bool _usedVoice = false;
+  bool _revealScheduled = false;
 
   @override
   void initState() {
@@ -53,6 +63,7 @@ class _CaptureFlowState extends State<CaptureFlow>
   void dispose() {
     _recordingTimer?.cancel();
     _processingTimer?.cancel();
+    _jobSubscription?.cancel();
     _motion.dispose();
     _controller.dispose();
     super.dispose();
@@ -66,6 +77,7 @@ class _CaptureFlowState extends State<CaptureFlow>
     HapticFeedback.selectionClick();
     setState(() {
       _recording = true;
+      _usedVoice = true;
       _recordingTicks = 0;
     });
     _recordingTimer = Timer.periodic(const Duration(milliseconds: 500), (
@@ -76,7 +88,7 @@ class _CaptureFlowState extends State<CaptureFlow>
         _recordingTicks += 1;
         _dotCount = (_dotCount + 6).clamp(20, 300);
         if (_recordingTicks == 3 && _controller.text.isEmpty) {
-          _controller.text = _transcript;
+          _controller.text = mockVoiceTranscript;
           _controller.selection = TextSelection.collapsed(
             offset: _controller.text.length,
           );
@@ -98,7 +110,7 @@ class _CaptureFlowState extends State<CaptureFlow>
     setState(() => _dotCount = (20 + words).clamp(20, 300));
   }
 
-  void _saveDream() {
+  Future<void> _saveDream() async {
     if (_controller.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -111,27 +123,173 @@ class _CaptureFlowState extends State<CaptureFlow>
     }
     _stopRecording();
     HapticFeedback.lightImpact();
-    setState(() => _step = CaptureStep.recall);
+    final now = DateTime.now();
+    final draft = DreamDraft(
+      id: const Uuid().v4(),
+      rawText: _controller.text,
+      inputMode: _usedVoice ? DreamInputMode.voice : DreamInputMode.text,
+      dreamDate: _dreamDate(now),
+      isBackfill: false,
+      updatedAt: now.toUtc(),
+    );
+    try {
+      final dreamId = await ref.read(repositoryProvider).submitDream(draft);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _dreamId = dreamId;
+        _step = CaptureStep.recall;
+      });
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('꿈을 저장하지 못했어요. 다시 시도해 주세요.'),
+          backgroundColor: MongColor.ink,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
-  void _startProcessing() {
+  Future<void> _startProcessing() async {
+    final dreamId = _dreamId;
+    if (dreamId == null) {
+      return;
+    }
     setState(() {
       _step = CaptureStep.processing;
       _processingStage = 0;
+      _jobDone = false;
     });
+    await _jobSubscription?.cancel();
+    _jobSubscription = ref
+        .read(repositoryProvider)
+        .watchJob(dreamId)
+        .listen(_onJobProgress);
+    try {
+      await ref.read(repositoryProvider).answerRecall(dreamId, _answers);
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      _processingTimer?.cancel();
+      setState(() => _step = CaptureStep.recall);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('기억 보강을 저장하지 못했어요.'),
+          backgroundColor: MongColor.ink,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     _processingTimer = Timer.periodic(
       Duration(milliseconds: reduceMotion ? 300 : 950),
       (timer) {
         if (!mounted) return;
-        if (_processingStage >= 3) {
-          timer.cancel();
-          setState(() => _step = CaptureStep.reveal);
-        } else {
+        if (_processingStage < 3) {
           setState(() => _processingStage += 1);
         }
+        _finishProcessingIfReady();
       },
     );
+  }
+
+  void _onJobProgress(JobProgress? progress) {
+    if (!mounted || progress == null) {
+      return;
+    }
+    if (progress.status == JobStatus.failed) {
+      _processingTimer?.cancel();
+      setState(() => _step = CaptureStep.recall);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('장면을 만들지 못했어요. 꿈은 보관함에 저장되어 있어요.'),
+          backgroundColor: MongColor.ink,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (progress.status == JobStatus.done) {
+      _jobDone = true;
+      if (mounted) {
+        setState(() {});
+      }
+      _finishProcessingIfReady();
+    }
+  }
+
+  void _prepareRevealData() {
+    final dreamId = _dreamId;
+    if (dreamId == null ||
+        !_jobDone ||
+        _revealScene != null ||
+        _revealScheduled) {
+      return;
+    }
+    final volume = ref.watch(activeVolumeProvider).value;
+    if (volume == null) {
+      return;
+    }
+    final scenes = ref.watch(scenesProvider(volume.id)).value;
+    if (scenes == null) {
+      return;
+    }
+    Scene? revealScene;
+    for (final scene in scenes.reversed) {
+      if (scene.sourceDreamIds.contains(dreamId)) {
+        revealScene = scene;
+        break;
+      }
+    }
+    if (revealScene == null) {
+      return;
+    }
+    final passages = ref.watch(passagesProvider(revealScene.id)).value;
+    final progressEvents = ref.watch(recentProgressProvider(volume.id)).value;
+    if (passages == null || progressEvents == null) {
+      return;
+    }
+    ProgressEvent? event;
+    for (final candidate in progressEvents) {
+      if (candidate.dreamId == dreamId && candidate.deltaMu > 0) {
+        event = candidate;
+        break;
+      }
+    }
+    _revealScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _revealScheduled = false;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _revealScene = revealScene;
+        _revealPassages = passages;
+        _revealDeltaPercent = event == null
+            ? 0
+            : (event.deltaMu / volume.targetMu * 100).round();
+      });
+      _finishProcessingIfReady();
+    });
+  }
+
+  void _finishProcessingIfReady() {
+    if (!mounted || !_jobDone || _processingStage < 3 || _revealScene == null) {
+      return;
+    }
+    _processingTimer?.cancel();
+    setState(() => _step = CaptureStep.reveal);
   }
 
   String get _title => switch (_step) {
@@ -143,6 +301,7 @@ class _CaptureFlowState extends State<CaptureFlow>
 
   @override
   Widget build(BuildContext context) {
+    _prepareRevealData();
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -389,6 +548,7 @@ class _CaptureFlowState extends State<CaptureFlow>
   }
 
   Widget _buildReveal() {
+    final scene = _revealScene!;
     return SingleChildScrollView(
       key: const ValueKey('reveal'),
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
@@ -401,17 +561,20 @@ class _CaptureFlowState extends State<CaptureFlow>
               MetaText(
                 'DREAM ${widget.dreamNumber.toString().padLeft(3, '0')}  →  SCENE ${widget.sceneNumber}',
               ),
-              const MetaText('+6%', color: MongColor.ink),
+              MetaText(
+                '${_revealDeltaPercent >= 0 ? '+' : ''}$_revealDeltaPercent%',
+                color: MongColor.ink,
+              ),
             ],
           ),
           const SizedBox(height: 34),
-          Text('문 밖의 여자', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 24),
-          _NewPassage(text: '복도 바닥에 물이 차 있었다. 끝에 닫힌 붉은 문 하나가 보였다.'),
-          _NewPassage(
-            text: '문 옆에는 우산을 든 여자가 서 있었다. 여자는 고개를 들지 않은 채 손잡이를 세 번 두드렸다.',
+          Text(
+            scene.title ?? '제목 없는 장면',
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
-          _NewPassage(text: '그때 문틈으로 물소리가 새어 나오기 시작했다.'),
+          const SizedBox(height: 24),
+          for (final passage in _revealPassages)
+            _NewPassage(text: passage.text),
           const SizedBox(height: 28),
           const Divider(),
           const SizedBox(height: 24),
@@ -440,10 +603,7 @@ class _CaptureFlowState extends State<CaptureFlow>
                 '이어지는 장면으로 넣었어요.',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
-              QuietTextButton(
-                label: '다르게 넣기',
-                onPressed: () => _showPlacementSheet(),
-              ),
+              QuietTextButton(label: '다르게 넣기', onPressed: _showPlacementSheet),
             ],
           ),
           const SizedBox(height: 18),
@@ -480,7 +640,17 @@ class _CaptureFlowState extends State<CaptureFlow>
                 contentPadding: EdgeInsets.zero,
                 title: const Text('사이 장면으로 넣기'),
                 trailing: const Icon(Icons.arrow_forward, size: 18),
-                onTap: () => Navigator.pop(context),
+                onTap: () async {
+                  await ref
+                      .read(repositoryProvider)
+                      .changePlacement(
+                        _revealScene!.id,
+                        PlacementKind.interlude,
+                      );
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                  }
+                },
               ),
               const Divider(),
               ListTile(
@@ -488,7 +658,17 @@ class _CaptureFlowState extends State<CaptureFlow>
                 title: const Text('원고에서 빼기'),
                 subtitle: const Text('꿈은 보관함에 그대로 남아요.'),
                 trailing: const Icon(Icons.arrow_forward, size: 18),
-                onTap: () => Navigator.pop(context),
+                onTap: () async {
+                  final dreamId = _dreamId;
+                  if (dreamId != null) {
+                    await ref
+                        .read(repositoryProvider)
+                        .removeDreamFromManuscript(dreamId);
+                  }
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                  }
+                },
               ),
             ],
           ),
@@ -685,4 +865,9 @@ class _DotCluster extends StatelessWidget {
       ),
     );
   }
+}
+
+DateTime _dreamDate(DateTime now) {
+  final adjusted = now.hour < 4 ? now.subtract(const Duration(days: 1)) : now;
+  return DateTime(adjusted.year, adjusted.month, adjusted.day);
 }

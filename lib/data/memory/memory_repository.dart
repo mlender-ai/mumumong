@@ -15,23 +15,28 @@ abstract final class MemorySeedIds {
 }
 
 class MemoryRepository implements MumumongRepository {
-  MemoryRepository({DateTime Function()? now, Uuid? uuid})
-    : _now = now ?? DateTime.now,
-      _uuid = uuid ?? const Uuid(),
-      _volume = _seedVolume(),
-      _dreams = _seedDreams(),
-      _scenes = _seedScenes(),
-      _passages = _seedPassages(),
-      _progressEvents = _seedProgressEvents(),
-      _linkDecisions = _seedLinkDecisions();
+  MemoryRepository({
+    DateTime Function()? now,
+    Uuid? uuid,
+    this.processingDelay = const Duration(seconds: 3),
+  }) : _now = now ?? DateTime.now,
+       _uuid = uuid ?? const Uuid(),
+       _volume = _seedVolume(),
+       _dreams = _seedDreams(),
+       _scenes = _seedScenes(),
+       _passages = _seedPassages(),
+       _progressEvents = _seedProgressEvents(),
+       _linkDecisions = _seedLinkDecisions();
 
   final DateTime Function() _now;
   final Uuid _uuid;
+  final Duration processingDelay;
   final StreamController<void> _changes = StreamController.broadcast(
     sync: true,
   );
   final Map<String, JobProgress> _jobs = {};
   final Map<String, PassageOrigin> _originBeforeEdit = {};
+  final Map<String, Timer> _processingTimers = {};
 
   Volume? _volume;
   DreamDraft? _draft;
@@ -196,6 +201,11 @@ class MemoryRepository implements MumumongRepository {
       stageLabel: '꿈을 읽는 중',
     );
     _notify();
+    _processingTimers[dreamId]?.cancel();
+    _processingTimers[dreamId] = Timer(
+      processingDelay,
+      () => _completeMockDream(dreamId),
+    );
   }
 
   @override
@@ -334,6 +344,10 @@ class MemoryRepository implements MumumongRepository {
       return;
     }
     _disposed = true;
+    for (final timer in _processingTimers.values) {
+      timer.cancel();
+    }
+    _processingTimers.clear();
     _changes.close();
   }
 
@@ -450,6 +464,104 @@ class MemoryRepository implements MumumongRepository {
         createdAt: _now().toUtc(),
       ),
     );
+  }
+
+  void _completeMockDream(String dreamId) {
+    _processingTimers.remove(dreamId);
+    if (_disposed) {
+      return;
+    }
+    final dreamIndex = _dreams.indexWhere((dream) => dream.id == dreamId);
+    if (dreamIndex < 0) {
+      return;
+    }
+    final dream = _dreams[dreamIndex];
+    if (dream.status != DreamStatus.processing) {
+      return;
+    }
+    final volume = _volume;
+    if (volume == null || dream.volumeId != volume.id) {
+      return;
+    }
+
+    final completedDream = dream.copyWith(
+      clarity: DreamClarity.vivid,
+      status: DreamStatus.inManuscript,
+    );
+    _dreams[dreamIndex] = completedDream;
+
+    final sceneId = _uuid.v4();
+    final sceneNumber = _scenes.length + 1;
+    _scenes.add(
+      Scene(
+        id: sceneId,
+        volumeId: volume.id,
+        orderKey: 'a${sceneNumber.toString().padLeft(2, '0')}',
+        chapterNo: 3,
+        kind: SceneKind.dream,
+        placement: PlacementKind.continuation,
+        title: '문 밖의 여자',
+        sourceDreamIds: [dreamId],
+        openImage: '문틈으로 물소리가 새어 나오고 있었다.',
+      ),
+    );
+    final passageTexts = [
+      '복도 바닥에 물이 차 있었다. 끝에 닫힌 붉은 문 하나가 보였다.',
+      '문 옆에는 우산을 든 여자가 서 있었다. 여자는 고개를 들지 않은 채 손잡이를 세 번 두드렸다.',
+      '그때 문틈으로 물소리가 새어 나오기 시작했다.',
+    ];
+    for (var index = 0; index < passageTexts.length; index++) {
+      _passages.add(
+        Passage(
+          id: _uuid.v4(),
+          sceneId: sceneId,
+          orderKey: 'a${(index + 1).toString().padLeft(2, '0')}',
+          text: passageTexts[index],
+          origin: PassageOrigin.dream,
+          sourceDreamId: dreamId,
+          sourceElementIds: [_uuid.v4()],
+          cReason: null,
+          originalText: null,
+          locked: false,
+          firstReadAt: null,
+        ),
+      );
+    }
+
+    final validRecallAnswers = completedDream.recallAnswers.values
+        .where((answer) => answer.trim().isNotEmpty && answer != '모름')
+        .length;
+    final delta = materialUnits(
+      clarity: DreamClarity.vivid,
+      recallAnswers: validRecallAnswers,
+      userPassages: 0,
+    );
+    _volume = volume.copyWith(
+      progressMu: (volume.progressMu + delta).clamp(0, volume.targetMu),
+    );
+    _progressEvents.add(
+      ProgressEvent(
+        id: _uuid.v4(),
+        volumeId: volume.id,
+        dreamId: dreamId,
+        deltaMu: delta,
+        reasons: [
+          const {'type': 'new_scene', 'n': 1},
+          if (validRecallAnswers > 0)
+            {'type': 'recall', 'n': validRecallAnswers},
+        ],
+        createdAt: _now().toUtc(),
+      ),
+    );
+    final previousJob = _jobs[dreamId];
+    _jobs[dreamId] = JobProgress(
+      dreamId: dreamId,
+      type: JobType.commit,
+      status: JobStatus.done,
+      attempt: previousJob?.attempt ?? 1,
+      stageLabel: '장면이 원고에 들어갔어요',
+    );
+    _notify();
   }
 
   static Volume _seedVolume() {

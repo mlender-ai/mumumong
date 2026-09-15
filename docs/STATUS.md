@@ -4,31 +4,31 @@ Last updated: 2026-09-15
 
 ## Summary
 
-The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. It is suitable for product-language and flow validation, but it is not yet connected to production data or AI services.
+The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. Its four primary screens are wired to a repository-backed memory implementation, but it is not yet connected to durable storage or production AI services.
 
 ## Implemented locally
 
 | Area | Status | Notes |
 |---|---|---|
-| S03 Manuscript Home | Prototype | Dot cover, MU percentage, delta reason, open scene |
-| S04 Capture | Prototype | Text input and simulated voice transcription |
+| S03 Manuscript Home | Repository-backed prototype | Dot cover, MU percentage, event-derived delta reason, open scene |
+| S04 Capture | Repository-backed prototype | Dream submission, recall answers, mock job completion, and simulated voice transcription |
 | S05 Recall | Prototype | Three fixed-bank questions and skip action |
 | S06 Processing | Prototype | Four stage-driven dot states |
-| S07 Reveal | Prototype | New passage marks, D1 decision, D2 placement sheet |
-| S08 Reader | Prototype | Vertical reading, running header, Night Paper |
+| S07 Reveal | Repository-backed prototype | Generated passage marks and repository placement mutations |
+| S08 Reader | Repository-backed prototype | Repository scene/passages, vertical reading, running header, Night Paper |
 | S09 Source Sheet | Prototype | D/C/U source display and highlighted excerpt |
-| S12 Archive | Prototype | Monthly list and filters |
-| S13 Dream Detail | Prototype | Original text, recall metadata, derived scene |
+| S12 Archive | Repository-backed prototype | Typed monthly dream list and status filters |
+| S13 Dream Detail | Repository-backed prototype | Original text, recall metadata, derived scene |
 | Brand system | Implemented | MaruBuri, Pretendard, paper/ink/sky tokens, app icon |
 | Domain contract | Implemented | Nine immutable models, centralized DB enum mapping, serialization, and pure MU/clarity rules |
-| Repository boundary | Implemented | Reusable repository contract, seeded memory implementation, mutation streams, and default Riverpod provider; UI wiring is pending |
+| Repository boundary | Implemented | Reusable repository contract, seeded memory implementation, mutation streams, Riverpod providers, and four-screen UI wiring |
 
 ## Simulated or not connected
 
 | Area | Current boundary |
 |---|---|
 | Authentication | Apple Sign In not connected |
-| Persistence | Repository contract and memory implementation are present, but screens are not connected yet and no data survives an app restart |
+| Persistence | Repository-backed memory implementation; screens react to repository streams, but no data survives an app restart |
 | Voice and STT | Button drives a sample transcript; no microphone access |
 | AI pipeline | E1–E7 screens are timed local state transitions |
 | Backend | Local migrations 0001–0007, deterministic seed data, full RLS, locked-passage trigger, transactional RPCs, atomic job claiming, and zombie reaping cron are present; pipeline workers are not connected |
@@ -40,7 +40,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 ## Verified baseline
 
 - `dart analyze lib test`: no issues
-- `flutter test`: 46 tests passing (repository contract/provider, domain rules and serialization, and existing UI/core tests)
+- `flutter test`: 51 tests passing (repository contract/provider, domain rules and serialization, four repository-backed screen tests, and existing UI/core tests)
 - `flutter build web --release`: passing
 - `flutter build ios --simulator --no-codesign`: passing
 - `supabase db reset`: migrations 0001–0007 and seed passing
@@ -50,13 +50,13 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 
 ## Recommended next milestone
 
-Replace the simulated capture boundary with real, privacy-safe persistence:
+Replace the memory implementation with real, privacy-safe persistence:
 
-1. Replace hard-coded screen literals with repository-backed state
-2. Drift local schema and durable repository
-3. Apple authentication and session lifecycle
-4. Offline retry queue and synchronization
-5. Real recording/STT evaluation
-6. E1–E7 API contracts and mock/real provider boundary
+1. Drift local schema and durable repository
+2. Apple authentication and session lifecycle
+3. Mock engine boundary and capture-to-reveal integration coverage
+4. Draft autosave, offline retry queue, and synchronization
+5. E1–E7 pipeline and background worker
+6. Real recording/STT evaluation
 
 The first milestone is complete only when a dream survives an app restart, belongs to the authenticated user, cannot be read by another user, and can enter a retryable processing job without its text appearing in logs.

@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design_system.dart';
-import '../../domain/model/enums.dart';
+import '../../di/providers.dart';
+import '../../domain/model/models.dart';
+import '../../domain/repository/mumumong_repository.dart';
 
-class ReaderScreen extends StatefulWidget {
+class ReaderScreen extends ConsumerStatefulWidget {
   const ReaderScreen({super.key, this.initialNight = false});
 
   final bool initialNight;
 
   @override
-  State<ReaderScreen> createState() => _ReaderScreenState();
+  ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   late bool _night = widget.initialNight;
   bool _showOrigins = true;
 
@@ -54,10 +57,23 @@ class _ReaderScreenState extends State<ReaderScreen> {
     super.dispose();
   }
 
-  void _showSource(PassageOrigin origin) {
-    final isDream = origin == PassageOrigin.dream;
-    final isUser = origin == PassageOrigin.user;
-    showModalBottomSheet<void>(
+  Future<void> _showSource(Passage passage) async {
+    final repository = ref.read(repositoryProvider);
+    final dreams = await repository.watchDreams(DreamStatusFilter.all).first;
+    Dream? sourceDream;
+    for (final dream in dreams) {
+      if (dream.id == passage.sourceDreamId) {
+        sourceDream = dream;
+        break;
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+
+    final isDream = passage.origin == PassageOrigin.dream;
+    final isUser = passage.origin == PassageOrigin.user;
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _night ? MongColor.nightShade : MongColor.paperPure,
@@ -86,46 +102,26 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  isDream
-                      ? '9월 13일 기록한 꿈'
-                      : (isUser
-                            ? '직접 쓴 문장은 원고에서 잠겨져요.'
-                            : '2장의 붉은 문과 오늘의 문을 잇는 문장'),
+                  _sourceDescription(passage, sourceDream),
                   style: Theme.of(
                     context,
                   ).textTheme.labelSmall?.copyWith(color: _meta),
                 ),
-                const SizedBox(height: 24),
-                if (isDream) ...[
+                if (isDream && sourceDream != null) ...[
+                  const SizedBox(height: 24),
                   Text(
-                    '원문 발췌',
+                    '원문',
                     style: Theme.of(
                       context,
                     ).textTheme.labelSmall?.copyWith(color: _meta),
                   ),
                   const SizedBox(height: 10),
-                  Text.rich(
-                    TextSpan(
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontSize: 16,
-                        height: 1.75,
-                        color: _ink,
-                      ),
-                      children: [
-                        const TextSpan(text: '복도 바닥에 물이 차 있었고, '),
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: ColoredBox(
-                            color: _night
-                                ? MongColor.sky700.withValues(alpha: .32)
-                                : MongColor.sky100,
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 2),
-                              child: Text('끝에 붉은 문이 있었다.'),
-                            ),
-                          ),
-                        ),
-                      ],
+                  Text(
+                    sourceDream.rawText,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      fontSize: 16,
+                      height: 1.75,
+                      color: _ink,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -141,6 +137,46 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final volumeAsync = ref.watch(activeVolumeProvider);
+    return volumeAsync.when(
+      loading: () => _readerMessage('원고를 불러오는 중'),
+      error: (_, _) => _readerMessage('원고를 불러오지 못했어요.'),
+      data: (volume) {
+        if (volume == null) {
+          return _readerMessage('아직 읽을 원고가 없어요.');
+        }
+        final scenesAsync = ref.watch(scenesProvider(volume.id));
+        return scenesAsync.when(
+          loading: () => _readerMessage('원고를 불러오는 중'),
+          error: (_, _) => _readerMessage('원고를 불러오지 못했어요.'),
+          data: (scenes) {
+            if (scenes.isEmpty) {
+              return _readerMessage('아직 읽을 장면이 없어요.');
+            }
+            final scene = scenes.last;
+            final passagesAsync = ref.watch(passagesProvider(scene.id));
+            return passagesAsync.when(
+              loading: () => _readerMessage('문장을 불러오는 중'),
+              error: (_, _) => _readerMessage('문장을 불러오지 못했어요.'),
+              data: (passages) => _readerContent(
+                volume: volume,
+                scene: scene,
+                sceneNumber: scenes.length,
+                passages: passages,
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _readerContent({
+    required Volume volume,
+    required Scene scene,
+    required int sceneNumber,
+    required List<Passage> passages,
+  }) {
     return Scaffold(
       backgroundColor: _paper,
       body: SafeArea(
@@ -159,18 +195,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   Expanded(
                     child: Row(
                       children: [
-                        MetaText('VOL.01', color: _meta),
+                        MetaText(
+                          'VOL.${volume.volNo.toString().padLeft(2, '0')}',
+                          color: _meta,
+                        ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Text(
-                            '이름 없는 원고',
+                            volume.title ?? '이름 없는 원고',
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(
                               context,
                             ).textTheme.labelSmall?.copyWith(color: _meta),
                           ),
                         ),
-                        MetaText('p.23', color: _meta),
+                        MetaText(
+                          'p.${(volume.progressMu * .7).round()}',
+                          color: _meta,
+                        ),
                       ],
                     ),
                   ),
@@ -209,74 +251,63 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '3',
+                      '${scene.chapterNo ?? sceneNumber}',
                       style: Theme.of(
                         context,
                       ).textTheme.labelSmall?.copyWith(color: _meta),
                     ),
                     const SizedBox(height: 7),
                     Text(
-                      '붉은 문',
+                      scene.title ?? '제목 없는 장면',
                       style: Theme.of(
                         context,
                       ).textTheme.headlineSmall?.copyWith(color: _ink),
                     ),
                     const SizedBox(height: 28),
-                    ReaderPassage(
-                      origin: PassageOrigin.dream,
-                      showOrigin: _showOrigins,
-                      ink: _ink,
-                      meta: _meta,
-                      text:
-                          '복도는 생각보다 길었다. 발밑의 물은 발목까지 차 있었고, 걸음을 옮길 때마다 어딜가서 작은 종소리가 났다.',
-                      onTap: () => _showSource(PassageOrigin.dream),
-                    ),
-                    ReaderPassage(
-                      origin: PassageOrigin.connection,
-                      showOrigin: _showOrigins,
-                      ink: _ink,
-                      meta: _meta,
-                      text:
-                          '그 문은 2장에서 본 적 있는 색이었다. 가까이 갈수록 붉은 색은 물 위로 번져, 복도 전체가 느리게 밝아졌다.',
-                      onTap: () => _showSource(PassageOrigin.connection),
-                    ),
-                    ReaderPassage(
-                      origin: PassageOrigin.dream,
-                      showOrigin: _showOrigins,
-                      ink: _ink,
-                      meta: _meta,
-                      text:
-                          '우산을 든 여자가 문 옆에 서 있었다. 여자는 고개를 들지 않은 채 손잡이를 세 번 두드렸다.',
-                      onTap: () => _showSource(PassageOrigin.dream),
-                    ),
-                    ReaderPassage(
-                      origin: PassageOrigin.user,
-                      showOrigin: _showOrigins,
-                      ink: _ink,
-                      meta: _meta,
-                      text: '나는 그 소리가 안에서 나는 것이 아니라는 걸 알고 있었다.',
-                      onTap: () => _showSource(PassageOrigin.user),
-                    ),
-                    const SizedBox(height: 28),
-                    Center(
-                      child: Text(
-                        '·',
-                        style: TextStyle(fontSize: 22, color: _meta),
+                    for (var index = 0; index < passages.length; index++) ...[
+                      if (index == passages.length - 1 &&
+                          passages.length > 1) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            '·',
+                            style: TextStyle(fontSize: 22, color: _meta),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                      ],
+                      ReaderPassage(
+                        origin: passages[index].origin,
+                        showOrigin: _showOrigins,
+                        ink: _ink,
+                        meta: _meta,
+                        text: passages[index].text,
+                        onTap: () => _showSource(passages[index]),
                       ),
-                    ),
-                    const SizedBox(height: 28),
-                    ReaderPassage(
-                      origin: PassageOrigin.dream,
-                      showOrigin: _showOrigins,
-                      ink: _ink,
-                      meta: _meta,
-                      text: '문틈으로 물소리가 새어 나오고 있었다.',
-                      onTap: () => _showSource(PassageOrigin.dream),
-                    ),
+                    ],
+                    if (passages.isEmpty) MetaText('아직 문장이 없어요.', color: _meta),
                   ],
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _readerMessage(String message) {
+    return Scaffold(
+      backgroundColor: _paper,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.maybePop(context),
+              icon: Icon(Icons.arrow_back, size: 20, color: _ink),
+              tooltip: '닫기',
+            ),
+            Center(child: MetaText(message, color: _meta)),
           ],
         ),
       ),
@@ -351,4 +382,15 @@ class ReaderPassage extends StatelessWidget {
       ),
     );
   }
+}
+
+String _sourceDescription(Passage passage, Dream? sourceDream) {
+  return switch (passage.origin) {
+    PassageOrigin.dream =>
+      sourceDream == null
+          ? '출처 꿈을 찾지 못했어요.'
+          : '${sourceDream.dreamDate.month}월 ${sourceDream.dreamDate.day}일 기록한 꿈',
+    PassageOrigin.connection => passage.cReason ?? '원고의 장면을 잇는 문장',
+    PassageOrigin.user => '직접 쓴 문장은 원고에서 잠겨져요.',
+  };
 }
