@@ -7,6 +7,7 @@ void main() {
     expect(AppEnv.environment, AppEnvironment.dev);
     expect(AppEnv.engine, EngineMode.mock);
     expect(AppEnv.authentication, AppAuthenticationMode.local);
+    expect(AppEnv.mockCase, 'success');
     expect(AppEnv.supabaseUrl, 'http://127.0.0.1:54321');
   });
 

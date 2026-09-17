@@ -14,6 +14,10 @@ abstract final class AppEnv {
     defaultValue: 'mock',
   );
   static const _authenticationName = String.fromEnvironment('AUTH');
+  static const _mockCaseName = String.fromEnvironment(
+    'MOCK_CASE',
+    defaultValue: 'success',
+  );
   static const _configuredSupabaseUrl = String.fromEnvironment('SUPABASE_URL');
   static const _configuredSupabasePublishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',
@@ -34,6 +38,11 @@ abstract final class AppEnv {
     'mock' => EngineMode.mock,
     'remote' => EngineMode.remote,
     _ => throw StateError('Unsupported ENGINE: $_engineName'),
+  };
+
+  static String get mockCase => switch (_mockCaseName) {
+    'success' || 'retry' || 'fallback' || 'fail' => _mockCaseName,
+    _ => throw StateError('Unsupported MOCK_CASE: $_mockCaseName'),
   };
 
   static AppAuthenticationMode get authentication {

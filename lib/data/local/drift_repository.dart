@@ -7,10 +7,12 @@ import 'package:uuid/uuid.dart';
 import '../../domain/model/models.dart';
 import '../../domain/progress.dart';
 import '../../domain/repository/mumumong_repository.dart';
+import '../engine/engine_client.dart';
+import '../engine/mock_engine_fixture.dart';
 import '../memory/memory_repository.dart';
 import 'database.dart';
 
-class DriftRepository implements MumumongRepository {
+class DriftRepository implements MumumongRepository, MockEngineStore {
   DriftRepository(this._database, {DateTime Function()? now, Uuid? uuid})
     : _now = now ?? DateTime.now,
       _uuid = uuid ?? const Uuid() {
@@ -270,6 +272,203 @@ class DriftRepository implements MumumongRepository {
         );
       }
     });
+  }
+
+  @override
+  Future<void> writeEngineProgress(JobProgress progress) async {
+    await _ready;
+    final timestamp = _now().toUtc();
+    final dream = await _dreamRow(progress.dreamId);
+    final existingJob =
+        await (_database.select(_database.jobs)
+              ..where((row) => row.dreamId.equals(progress.dreamId))
+              ..orderBy([(row) => OrderingTerm.desc(row.updatedAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (existingJob == null) {
+      if (dream.volumeId == null) {
+        throw StateError('An active volume is required to track a job');
+      }
+      await _database
+          .into(_database.jobs)
+          .insert(
+            LocalJobRow(
+              id: _uuid.v4(),
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              userId: localUserId,
+              dreamId: progress.dreamId,
+              volumeId: dream.volumeId!,
+              type: progress.type.databaseValue,
+              status: progress.status.databaseValue,
+              attempt: progress.attempt,
+              idempotencyKey: 'extract:${progress.dreamId}',
+              payload: '{}',
+              stageLabel: progress.stageLabel,
+            ),
+          );
+      return;
+    }
+    await (_database.update(
+      _database.jobs,
+    )..where((row) => row.id.equals(existingJob.id))).write(
+      JobsCompanion(
+        type: Value(progress.type.databaseValue),
+        status: Value(progress.status.databaseValue),
+        attempt: Value(progress.attempt),
+        error: const Value(null),
+        stageLabel: Value(progress.stageLabel),
+        updatedAt: Value(timestamp),
+      ),
+    );
+  }
+
+  @override
+  Future<void> commitMockResult(
+    String dreamId, {
+    required MockEngineResult result,
+  }) async {
+    await _ready;
+    final dream = await _dreamRow(dreamId);
+    if (dream.volumeId == null) {
+      throw StateError('An active volume is required to commit a scene');
+    }
+    final existingScenes = await (_database.select(
+      _database.scenes,
+    )..where((row) => row.volumeId.equals(dream.volumeId!))).get();
+    if (existingScenes.any(
+      (scene) => _decodeStringList(scene.sourceDreamIds).contains(dreamId),
+    )) {
+      return;
+    }
+    final volume = await (_database.select(
+      _database.volumes,
+    )..where((row) => row.id.equals(dream.volumeId!))).getSingle();
+    final template = mockSceneTemplate(isFallback: result.isFallback);
+    final timestamp = _now().toUtc();
+    final sceneId = _uuid.v4();
+    final sceneNumber = existingScenes.length + 1;
+    final elementIds = <String>[];
+    final answers = _decodeStringMap(dream.recallAnswers);
+    final validRecallAnswers = answers.values
+        .where((answer) => answer.trim().isNotEmpty && answer != '모름')
+        .length;
+    final delta = materialUnits(
+      clarity: DreamClarity.vivid,
+      recallAnswers: validRecallAnswers,
+      userPassages: 0,
+    );
+
+    await _database.transaction(() async {
+      await (_database.update(
+        _database.dreams,
+      )..where((row) => row.id.equals(dreamId))).write(
+        DreamsCompanion(
+          clarity: Value(DreamClarity.vivid.databaseValue),
+          status: Value(DreamStatus.inManuscript.databaseValue),
+          updatedAt: Value(timestamp),
+        ),
+      );
+      await _database
+          .into(_database.scenes)
+          .insert(
+            LocalSceneRow(
+              id: sceneId,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              volumeId: volume.id,
+              orderKey: 'a${sceneNumber.toString().padLeft(2, '0')}',
+              chapterNo: 3,
+              kind: SceneKind.dream.databaseValue,
+              placement: PlacementKind.continuation.databaseValue,
+              title: template.title,
+              sourceDreamIds: jsonEncode([dreamId]),
+              version: 1,
+              openImage: template.openImage,
+            ),
+          );
+      for (final label in template.elementLabels) {
+        final id = _uuid.v4();
+        elementIds.add(id);
+        await _database
+            .into(_database.dreamElements)
+            .insert(
+              LocalDreamElementRow(
+                id: id,
+                dreamId: dreamId,
+                type: DreamElementType.object.databaseValue,
+                label: label,
+                salience: DreamElementSalience.high.databaseValue,
+                source: DreamElementSource.raw.databaseValue,
+                createdAt: timestamp,
+              ),
+            );
+      }
+      for (var index = 0; index < template.passages.length; index++) {
+        final passage = template.passages[index];
+        await _database
+            .into(_database.passages)
+            .insert(
+              LocalPassageRow(
+                id: _uuid.v4(),
+                createdAt: timestamp,
+                updatedAt: timestamp,
+                userId: localUserId,
+                sceneId: sceneId,
+                orderKey: 'a${(index + 1).toString().padLeft(2, '0')}',
+                content: passage.text,
+                origin: passage.origin.databaseValue,
+                sourceDreamId: dreamId,
+                sourceElementIds: passage.elementIndex == null
+                    ? '[]'
+                    : jsonEncode([elementIds[passage.elementIndex!]]),
+                cReason: passage.cReason,
+                locked: false,
+                createdBy: 'engine',
+              ),
+            );
+      }
+      await (_database.update(
+        _database.volumes,
+      )..where((row) => row.id.equals(volume.id))).write(
+        VolumesCompanion(
+          progressMu: Value(math.max(0, volume.progressMu + delta)),
+          updatedAt: Value(timestamp),
+        ),
+      );
+      await _database
+          .into(_database.progressEvents)
+          .insert(
+            LocalProgressEventRow(
+              id: _uuid.v4(),
+              userId: localUserId,
+              volumeId: volume.id,
+              dreamId: dreamId,
+              deltaMu: delta,
+              reasons: jsonEncode([
+                const {'type': 'new_scene', 'n': 1},
+                if (validRecallAnswers > 0)
+                  {'type': 'recall', 'n': validRecallAnswers},
+              ]),
+              createdAt: timestamp,
+            ),
+          );
+    });
+  }
+
+  @override
+  Future<void> failMockDream(String dreamId) async {
+    await _ready;
+    final changed =
+        await (_database.update(
+          _database.dreams,
+        )..where((row) => row.id.equals(dreamId))).write(
+          DreamsCompanion(
+            status: Value(DreamStatus.failed.databaseValue),
+            updatedAt: Value(_now().toUtc()),
+          ),
+        );
+    if (changed == 0) throw StateError('Dream not found: $dreamId');
   }
 
   @override

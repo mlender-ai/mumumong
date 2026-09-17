@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/env/env.dart';
 import '../data/auth/apple_authentication.dart';
 import '../data/auth/auth_controller.dart';
+import '../data/engine/engine_client.dart';
+import '../data/engine/mock_engine_client.dart';
 import '../data/local/database.dart';
 import '../data/local/drift_repository.dart';
 import '../domain/model/models.dart';
@@ -30,6 +33,23 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 
 final repositoryProvider = Provider<MumumongRepository>((ref) {
   return DriftRepository(ref.watch(databaseProvider));
+});
+
+final engineClientProvider = Provider<EngineClient>((ref) {
+  if (AppEnv.engine == EngineMode.remote) {
+    return const PendingRemoteEngineClient();
+  }
+  final repository = ref.watch(repositoryProvider);
+  if (repository is! MockEngineStore) {
+    throw StateError('The mock engine requires a MockEngineStore');
+  }
+  final store = repository as MockEngineStore;
+  final client = MockEngineClient(
+    store: store,
+    scenario: MockEngineCaseParsing.fromName(AppEnv.mockCase),
+  );
+  ref.onDispose(client.dispose);
+  return client;
 });
 
 final activeVolumeProvider = StreamProvider<Volume?>((ref) {
@@ -72,5 +92,5 @@ final jobProgressProvider = StreamProvider.family<JobProgress?, String>((
   ref,
   dreamId,
 ) {
-  return ref.watch(repositoryProvider).watchJob(dreamId);
+  return ref.watch(engineClientProvider).watch(dreamId);
 });

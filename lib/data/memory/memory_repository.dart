@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../../domain/model/models.dart';
 import '../../domain/progress.dart';
 import '../../domain/repository/mumumong_repository.dart';
+import '../engine/engine_client.dart';
+import '../engine/mock_engine_fixture.dart';
 
 abstract final class MemorySeedIds {
   static const volume = '00000000-0000-4000-8000-000000000001';
@@ -15,29 +17,24 @@ abstract final class MemorySeedIds {
   static const linkDecision = '00000000-0000-4000-8000-000000000501';
 }
 
-class MemoryRepository implements MumumongRepository {
-  MemoryRepository({
-    DateTime Function()? now,
-    Uuid? uuid,
-    this.processingDelay = const Duration(seconds: 3),
-  }) : _now = now ?? DateTime.now,
-       _uuid = uuid ?? const Uuid(),
-       _volume = _seedVolume(),
-       _dreams = _seedDreams(),
-       _scenes = _seedScenes(),
-       _passages = _seedPassages(),
-       _progressEvents = _seedProgressEvents(),
-       _linkDecisions = _seedLinkDecisions();
+class MemoryRepository implements MumumongRepository, MockEngineStore {
+  MemoryRepository({DateTime Function()? now, Uuid? uuid})
+    : _now = now ?? DateTime.now,
+      _uuid = uuid ?? const Uuid(),
+      _volume = _seedVolume(),
+      _dreams = _seedDreams(),
+      _scenes = _seedScenes(),
+      _passages = _seedPassages(),
+      _progressEvents = _seedProgressEvents(),
+      _linkDecisions = _seedLinkDecisions();
 
   final DateTime Function() _now;
   final Uuid _uuid;
-  final Duration processingDelay;
   final StreamController<void> _changes = StreamController.broadcast(
     sync: true,
   );
   final Map<String, JobProgress> _jobs = {};
   final Map<String, PassageOrigin> _originBeforeEdit = {};
-  final Map<String, Timer> _processingTimers = {};
 
   Volume? _volume;
   DreamDraft? _draft;
@@ -212,11 +209,6 @@ class MemoryRepository implements MumumongRepository {
       stageLabel: '꿈을 읽는 중',
     );
     _notify();
-    _processingTimers[dreamId]?.cancel();
-    _processingTimers[dreamId] = Timer(
-      processingDelay,
-      () => _completeMockDream(dreamId),
-    );
   }
 
   @override
@@ -356,10 +348,6 @@ class MemoryRepository implements MumumongRepository {
       return;
     }
     _disposed = true;
-    for (final timer in _processingTimers.values) {
-      timer.cancel();
-    }
-    _processingTimers.clear();
     _changes.close();
   }
 
@@ -479,21 +467,26 @@ class MemoryRepository implements MumumongRepository {
     );
   }
 
-  void _completeMockDream(String dreamId) {
-    _processingTimers.remove(dreamId);
-    if (_disposed) {
-      return;
-    }
-    final dreamIndex = _dreams.indexWhere((dream) => dream.id == dreamId);
-    if (dreamIndex < 0) {
-      return;
-    }
+  @override
+  Future<void> writeEngineProgress(JobProgress progress) async {
+    _ensureOpen();
+    _jobs[progress.dreamId] = progress;
+    _notify();
+  }
+
+  @override
+  Future<void> commitMockResult(
+    String dreamId, {
+    required MockEngineResult result,
+  }) async {
+    _ensureOpen();
+    final dreamIndex = _dreamIndex(dreamId);
     final dream = _dreams[dreamIndex];
-    if (dream.status != DreamStatus.processing) {
-      return;
-    }
     final volume = _volume;
     if (volume == null || dream.volumeId != volume.id) {
+      throw StateError('An active volume is required to commit a scene');
+    }
+    if (_scenes.any((scene) => scene.sourceDreamIds.contains(dreamId))) {
       return;
     }
 
@@ -503,6 +496,7 @@ class MemoryRepository implements MumumongRepository {
     );
     _dreams[dreamIndex] = completedDream;
 
+    final template = mockSceneTemplate(isFallback: result.isFallback);
     final sceneId = _uuid.v4();
     final sceneNumber = _scenes.length + 1;
     _scenes.add(
@@ -513,15 +507,13 @@ class MemoryRepository implements MumumongRepository {
         chapterNo: 3,
         kind: SceneKind.dream,
         placement: PlacementKind.continuation,
-        title: '문 밖의 여자',
+        title: template.title,
         sourceDreamIds: [dreamId],
-        openImage: '문틈으로 물소리가 새어 나오고 있었다.',
+        openImage: template.openImage,
       ),
     );
-    // E1 will replace these fixed elements. Until then, each generated D
-    // passage references a real element owned by the source dream.
     final elementIds = <String>[];
-    for (final label in const ['물이 찬 복도', '붉은 문', '우산을 든 여자']) {
+    for (final label in template.elementLabels) {
       final id = _uuid.v4();
       _elements.add(
         DreamElement(
@@ -538,22 +530,20 @@ class MemoryRepository implements MumumongRepository {
       elementIds.add(id);
     }
 
-    final passageTexts = [
-      '복도 바닥에 물이 차 있었다. 끝에 닫힌 붉은 문 하나가 보였다.',
-      '문 옆에는 우산을 든 여자가 서 있었다. 여자는 고개를 들지 않은 채 손잡이를 세 번 두드렸다.',
-      '그때 문틈으로 물소리가 새어 나오기 시작했다.',
-    ];
-    for (var index = 0; index < passageTexts.length; index++) {
+    for (var index = 0; index < template.passages.length; index++) {
+      final passage = template.passages[index];
       _passages.add(
         Passage(
           id: _uuid.v4(),
           sceneId: sceneId,
           orderKey: 'a${(index + 1).toString().padLeft(2, '0')}',
-          text: passageTexts[index],
-          origin: PassageOrigin.dream,
+          text: passage.text,
+          origin: passage.origin,
           sourceDreamId: dreamId,
-          sourceElementIds: [elementIds[index]],
-          cReason: null,
+          sourceElementIds: passage.elementIndex == null
+              ? const []
+              : [elementIds[passage.elementIndex!]],
+          cReason: passage.cReason,
           originalText: null,
           locked: false,
           firstReadAt: null,
@@ -586,14 +576,14 @@ class MemoryRepository implements MumumongRepository {
         createdAt: _now().toUtc(),
       ),
     );
-    final previousJob = _jobs[dreamId];
-    _jobs[dreamId] = JobProgress(
-      dreamId: dreamId,
-      type: JobType.commit,
-      status: JobStatus.done,
-      attempt: previousJob?.attempt ?? 1,
-      stageLabel: '장면이 원고에 들어갔어요',
-    );
+    _notify();
+  }
+
+  @override
+  Future<void> failMockDream(String dreamId) async {
+    _ensureOpen();
+    final index = _dreamIndex(dreamId);
+    _dreams[index] = _dreams[index].copyWith(status: DreamStatus.failed);
     _notify();
   }
 

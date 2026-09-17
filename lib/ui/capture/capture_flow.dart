@@ -49,6 +49,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   bool _jobDone = false;
   bool _usedVoice = false;
   bool _revealScheduled = false;
+  String? _engineIdempotencyKey;
 
   @override
   void initState() {
@@ -121,6 +122,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       );
       return;
     }
+    FocusManager.instance.primaryFocus?.unfocus();
     _stopRecording();
     HapticFeedback.lightImpact();
     final now = DateTime.now();
@@ -166,12 +168,12 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       _jobDone = false;
     });
     await _jobSubscription?.cancel();
-    _jobSubscription = ref
-        .read(repositoryProvider)
-        .watchJob(dreamId)
-        .listen(_onJobProgress);
+    final engine = ref.read(engineClientProvider);
+    _jobSubscription = engine.watch(dreamId).listen(_onJobProgress);
     try {
       await ref.read(repositoryProvider).answerRecall(dreamId, _answers);
+      _engineIdempotencyKey ??= const Uuid().v4();
+      await engine.enqueue(dreamId, _engineIdempotencyKey!);
     } on Object {
       if (!mounted) {
         return;
@@ -188,7 +190,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       return;
     }
 
-    if (!mounted) {
+    if (!mounted || _step != CaptureStep.processing) {
       return;
     }
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
@@ -303,6 +305,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   Widget build(BuildContext context) {
     _prepareRevealData();
     return Scaffold(
+      resizeToAvoidBottomInset: _step == CaptureStep.capture,
       body: SafeArea(
         child: Column(
           children: [

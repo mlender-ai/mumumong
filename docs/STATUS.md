@@ -1,10 +1,10 @@
 # MUMUMONG Implementation Status
 
-Last updated: 2026-09-17
+Last updated: 2026-09-18
 
 ## Summary
 
-The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, and the Apple-to-Supabase authentication flow now has secure session persistence and volume-aware routing. Cloud synchronization and production AI services are not yet connected.
+The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and a deterministic mock engine now drives capture through reveal. Cloud synchronization and production AI services are not yet connected.
 
 ## Implemented locally
 
@@ -13,9 +13,9 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | S01 Apple Sign In | Implemented, provisioning pending | Native Apple credential exchange through Supabase, cancellation/error/retry states, automatic refresh, and Keychain-backed session storage; live account verification still depends on Apple and Supabase provider configuration |
 | S02 Volume Setup | Route boundary only | An authenticated account without a remote volume reaches the editorial setup boundary; volume creation remains a later work order |
 | S03 Manuscript Home | Repository-backed prototype | Dot cover, MU percentage, event-derived delta reason, open scene |
-| S04 Capture | Repository-backed prototype | Dream submission, recall answers, mock job completion, and simulated voice transcription |
+| S04 Capture | Repository-backed prototype | Dream submission, recall answers, EngineClient enqueue/watch flow, and simulated voice transcription |
 | S05 Recall | Prototype | Three fixed-bank questions and skip action |
-| S06 Processing | Prototype | Four stage-driven dot states |
+| S06 Processing | Mock-engine backed prototype | Success, retry, fallback, and final-failure job paths; the four visual dot stages remain locally timed until WO-15 |
 | S07 Reveal | Repository-backed prototype | Generated passage marks and repository placement mutations |
 | S08 Reader | Repository-backed prototype | Repository scene/passages, vertical reading, running header, Night Paper |
 | S09 Source Sheet | Prototype | D/C/U source display and highlighted excerpt |
@@ -26,6 +26,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | Repository boundary | Implemented | Reusable repository contract runs against both memory and Drift implementations; DreamElement reference integrity and raw progress-event cache semantics are preserved |
 | Local persistence | Implemented | Drift schema v1 mirrors manuscript data and adds drafts, outbox, reader positions, and sync state; Riverpod defaults to the durable repository and seeds the prototype only for an empty database |
 | Drift prerequisites | Implemented | `drift_flutter` native bootstrap plus lock-matched `sqlite3.wasm` and `drift_worker.js` |
+| Mock engine boundary | Implemented | `ENGINE=mock` and `MOCK_CASE` select deterministic success, retry, fallback, or failure; commits are idempotent and persist through both memory and Drift stores without network or LLM calls |
 
 ## Simulated or not connected
 
@@ -33,17 +34,18 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 |---|---|
 | Persistence | Local Drift persistence is active; cloud ownership and cross-device sync are not connected |
 | Voice and STT | Button drives a sample transcript; no microphone access |
-| AI pipeline | E1–E7 screens are timed local state transitions |
+| AI pipeline | A deterministic MockEngineClient exercises the full job/result contract; E1–E7 extraction, linking, planning, generation, validation, and remote workers are not connected |
 | Backend | Local migrations 0001–0007, deterministic seed data, full RLS, locked-passage trigger, transactional RPCs, atomic job claiming, and zombie reaping cron are present; pipeline workers are not connected |
-| Offline | Draft persistence and retry queue are not present |
+| Offline | Draft storage exists, but capture autosave and the retry queue are not connected |
 | Notifications | Morning/night and completion notifications are not present |
 | Completion | S14 and PDF export are not present |
 | Privacy controls | App lock, export, deletion, and provider notice are not present |
 
 ## Verified baseline
 
-- `dart analyze lib test`: no issues
-- `flutter test`: 79 tests passing (including Apple authentication lifecycle, Keychain storage contract, authentication routing/error UI, the complete repository contract against memory and Drift, schema v1 creation, file-database restart persistence, DreamElement reference integrity, raw progress/event-sum consistency, and UI/domain/core tests)
+- `dart analyze lib test integration_test`: no issues
+- `flutter test`: 84 tests passing (including Apple authentication lifecycle, Keychain storage contract, authentication routing/error UI, the complete repository contract against memory and Drift, schema v1 creation, file-database restart persistence, DreamElement reference integrity, raw progress/event-sum consistency, mock-engine scenario/idempotency checks, and UI/domain/core tests)
+- `flutter test integration_test/capture_to_reveal_test.dart`: 4 iOS integration scenarios passing against Drift (success, retry, fallback, fail)
 - `flutter build web --release`: passing
 - `flutter build ios --simulator --no-codesign`: passing
 - Apple authentication screen runtime smoke: passing on iPhone 17 Pro Simulator
@@ -57,8 +59,8 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 
 Connect the durable local implementation to identity, sync, and processing:
 
-1. Mock engine boundary and capture-to-reveal integration coverage
-2. Draft autosave, offline retry queue, and synchronization
+1. Draft autosave and restore/discard UX (WO-12)
+2. Offline retry queue and synchronization (WO-13)
 3. E1–E7 pipeline and background worker
 4. Real recording/STT evaluation
 

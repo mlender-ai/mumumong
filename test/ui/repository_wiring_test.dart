@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mumumong/core/design/design_system.dart';
+import 'package:mumumong/data/engine/engine_client.dart';
+import 'package:mumumong/data/engine/mock_engine_client.dart';
 import 'package:mumumong/data/memory/memory_repository.dart';
 import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/main.dart';
@@ -17,9 +19,16 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  Widget scopedApp(MemoryRepository repository, Widget child) {
+  Widget scopedApp(
+    MemoryRepository repository,
+    Widget child, {
+    EngineClient? engine,
+  }) {
     return ProviderScope(
-      overrides: [repositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        repositoryProvider.overrideWithValue(repository),
+        if (engine != null) engineClientProvider.overrideWithValue(engine),
+      ],
       child: child,
     );
   }
@@ -92,8 +101,13 @@ void main() {
     tester,
   ) async {
     usePhoneViewport(tester);
-    final repository = MemoryRepository(processingDelay: Duration.zero);
+    final repository = MemoryRepository();
+    final engine = MockEngineClient(
+      store: repository,
+      stageDelay: Duration.zero,
+    );
     addTearDown(repository.dispose);
+    addTearDown(engine.dispose);
 
     await tester.pumpWidget(
       scopedApp(
@@ -102,6 +116,7 @@ void main() {
           theme: mumumongTheme(),
           home: const CaptureFlow(dreamNumber: 8, sceneNumber: 12),
         ),
+        engine: engine,
       ),
     );
     await tester.pump();
