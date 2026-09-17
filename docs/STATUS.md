@@ -1,6 +1,6 @@
 # MUMUMONG Implementation Status
 
-Last updated: 2026-09-15
+Last updated: 2026-09-17
 
 ## Summary
 
@@ -45,7 +45,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 - `flutter test`: 67 tests passing (including the complete repository contract against memory and Drift, schema v1 creation, file-database restart persistence, DreamElement reference integrity, raw progress/event-sum consistency, and UI/domain/core tests)
 - `flutter build web --release`: passing
 - `flutter build ios --simulator --no-codesign`: passing
-- Drift iOS runtime open/close smoke: deferred until Simulator's required Xcode components are user-authorized
+- Drift iOS runtime open/query/close smoke: passing on iPhone 17 Pro Simulator (SQLite 3.53.4)
 - `supabase db reset`: migrations 0001–0007 and seed passing
 - `supabase test db`: 108 database tests passing (4 constraints + 49 RLS + 55 trigger/RPC checks)
 - `supabase db lint --local --schema public --level warning`: no schema errors
