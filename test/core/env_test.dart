@@ -6,6 +6,7 @@ void main() {
   test('기본 실행 환경은 로컬 dev와 mock 엔진이다', () {
     expect(AppEnv.environment, AppEnvironment.dev);
     expect(AppEnv.engine, EngineMode.mock);
+    expect(AppEnv.authentication, AppAuthenticationMode.local);
     expect(AppEnv.supabaseUrl, 'http://127.0.0.1:54321');
   });
 

@@ -1,9 +1,26 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../data/auth/apple_authentication.dart';
+import '../data/auth/auth_controller.dart';
 import '../data/local/database.dart';
 import '../data/local/drift_repository.dart';
 import '../domain/model/models.dart';
 import '../domain/repository/mumumong_repository.dart';
+
+final authControllerProvider = ChangeNotifierProvider<AuthenticationController>(
+  (ref) {
+    final controller = AuthenticationController(
+      const NativeAppleIdentityProvider(),
+      SupabaseAuthenticationBackend(Supabase.instance.client),
+    );
+    unawaited(controller.restore());
+    return controller;
+  },
+);
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final database = AppDatabase();

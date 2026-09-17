@@ -43,6 +43,8 @@ dependencies:
   flutter_secure_storage: ^11.1.1
   connectivity_plus: ^7.3.1
   uuid: ^4.6.0
+  sign_in_with_apple: ^8.2.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,8 @@ enum AppEnvironment { dev, staging, prod }
 
 enum EngineMode { mock, remote }
 
+enum AppAuthenticationMode { local, apple }
+
 abstract final class AppEnv {
   static const _environmentName = String.fromEnvironment(
     'ENV',
@@ -11,6 +13,7 @@ abstract final class AppEnv {
     'ENGINE',
     defaultValue: 'mock',
   );
+  static const _authenticationName = String.fromEnvironment('AUTH');
   static const _configuredSupabaseUrl = String.fromEnvironment('SUPABASE_URL');
   static const _configuredSupabasePublishableKey = String.fromEnvironment(
     'SUPABASE_PUBLISHABLE_KEY',
@@ -32,6 +35,19 @@ abstract final class AppEnv {
     'remote' => EngineMode.remote,
     _ => throw StateError('Unsupported ENGINE: $_engineName'),
   };
+
+  static AppAuthenticationMode get authentication {
+    if (_authenticationName.isEmpty) {
+      return environment == AppEnvironment.dev
+          ? AppAuthenticationMode.local
+          : AppAuthenticationMode.apple;
+    }
+    return switch (_authenticationName) {
+      'local' => AppAuthenticationMode.local,
+      'apple' => AppAuthenticationMode.apple,
+      _ => throw StateError('Unsupported AUTH: $_authenticationName'),
+    };
+  }
 
   static String get supabaseUrl {
     if (_configuredSupabaseUrl.isNotEmpty) return _configuredSupabaseUrl;

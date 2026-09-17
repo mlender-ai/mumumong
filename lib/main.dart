@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,9 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/design/design_system.dart';
 import 'core/env/env.dart';
+import 'data/auth/secure_session_storage.dart';
 import 'di/providers.dart';
 import 'domain/repository/mumumong_repository.dart';
 import 'ui/archive/archive_screen.dart';
+import 'ui/auth/auth_gate.dart';
 import 'ui/capture/capture_flow.dart';
 import 'ui/home/home_screen.dart';
 
@@ -16,6 +19,9 @@ Future<void> main() async {
   await Supabase.initialize(
     url: AppEnv.supabaseUrl,
     publishableKey: AppEnv.supabasePublishableKey,
+    authOptions: FlutterAuthClientOptions(
+      localStorage: kIsWeb ? const EmptyLocalStorage() : SecureSessionStorage(),
+    ),
   );
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -25,11 +31,20 @@ Future<void> main() async {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-  runApp(const ProviderScope(child: MumumongApp()));
+  runApp(
+    ProviderScope(
+      child: MumumongApp(
+        requireAuthentication:
+            AppEnv.authentication == AppAuthenticationMode.apple,
+      ),
+    ),
+  );
 }
 
 class MumumongApp extends StatelessWidget {
-  const MumumongApp({super.key});
+  const MumumongApp({super.key, this.requireAuthentication = false});
+
+  final bool requireAuthentication;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +52,9 @@ class MumumongApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: '무무몽',
       theme: mumumongTheme(),
-      home: const MumumongShell(),
+      home: requireAuthentication
+          ? const AuthGate(manuscript: MumumongShell())
+          : const MumumongShell(),
     );
   }
 }

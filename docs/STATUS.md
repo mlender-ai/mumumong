@@ -4,12 +4,14 @@ Last updated: 2026-09-17
 
 ## Summary
 
-The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. Its four primary screens are wired to a Drift-backed local repository with restart-safe storage, but it is not yet connected to authentication, synchronization, or production AI services.
+The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, and the Apple-to-Supabase authentication flow now has secure session persistence and volume-aware routing. Cloud synchronization and production AI services are not yet connected.
 
 ## Implemented locally
 
 | Area | Status | Notes |
 |---|---|---|
+| S01 Apple Sign In | Implemented, provisioning pending | Native Apple credential exchange through Supabase, cancellation/error/retry states, automatic refresh, and Keychain-backed session storage; live account verification still depends on Apple and Supabase provider configuration |
+| S02 Volume Setup | Route boundary only | An authenticated account without a remote volume reaches the editorial setup boundary; volume creation remains a later work order |
 | S03 Manuscript Home | Repository-backed prototype | Dot cover, MU percentage, event-derived delta reason, open scene |
 | S04 Capture | Repository-backed prototype | Dream submission, recall answers, mock job completion, and simulated voice transcription |
 | S05 Recall | Prototype | Three fixed-bank questions and skip action |
@@ -29,7 +31,6 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 
 | Area | Current boundary |
 |---|---|
-| Authentication | Apple Sign In not connected |
 | Persistence | Local Drift persistence is active; cloud ownership and cross-device sync are not connected |
 | Voice and STT | Button drives a sample transcript; no microphone access |
 | AI pipeline | E1–E7 screens are timed local state transitions |
@@ -42,9 +43,10 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 ## Verified baseline
 
 - `dart analyze lib test`: no issues
-- `flutter test`: 67 tests passing (including the complete repository contract against memory and Drift, schema v1 creation, file-database restart persistence, DreamElement reference integrity, raw progress/event-sum consistency, and UI/domain/core tests)
+- `flutter test`: 79 tests passing (including Apple authentication lifecycle, Keychain storage contract, authentication routing/error UI, the complete repository contract against memory and Drift, schema v1 creation, file-database restart persistence, DreamElement reference integrity, raw progress/event-sum consistency, and UI/domain/core tests)
 - `flutter build web --release`: passing
 - `flutter build ios --simulator --no-codesign`: passing
+- Apple authentication screen runtime smoke: passing on iPhone 17 Pro Simulator
 - Drift iOS runtime open/query/close smoke: passing on iPhone 17 Pro Simulator (SQLite 3.53.4)
 - `supabase db reset`: migrations 0001–0007 and seed passing
 - `supabase test db`: 108 database tests passing (4 constraints + 49 RLS + 55 trigger/RPC checks)
@@ -55,10 +57,9 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 
 Connect the durable local implementation to identity, sync, and processing:
 
-1. Apple authentication and session lifecycle
-2. Mock engine boundary and capture-to-reveal integration coverage
-3. Draft autosave, offline retry queue, and synchronization
-4. E1–E7 pipeline and background worker
-5. Real recording/STT evaluation
+1. Mock engine boundary and capture-to-reveal integration coverage
+2. Draft autosave, offline retry queue, and synchronization
+3. E1–E7 pipeline and background worker
+4. Real recording/STT evaluation
 
 The first milestone is complete only when a dream survives an app restart, belongs to the authenticated user, cannot be read by another user, and can enter a retryable processing job without its text appearing in logs.
