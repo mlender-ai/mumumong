@@ -1,5 +1,7 @@
 # MUMUMONG Agent Guide
 
+> Claude Code로 작업할 때는 `CLAUDE.md`를 함께 읽어라 (원격 환경 제약이 다르다).
+
 ## Canonical documents
 
 Read these before changing product behavior or visual language:
