@@ -13,7 +13,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | S01 Apple Sign In | Implemented, provisioning pending | Native Apple credential exchange through Supabase, cancellation/error/retry states, automatic refresh, and Keychain-backed session storage; live account verification still depends on Apple and Supabase provider configuration |
 | S02 Volume Setup | Route boundary only | An authenticated account without a remote volume reaches the editorial setup boundary; volume creation remains a later work order |
 | S03 Manuscript Home | Repository-backed prototype | Dot cover, MU percentage, event-derived delta reason, open scene |
-| S04 Capture | Repository-backed prototype | Dream submission, recall answers, EngineClient enqueue/watch flow, and simulated voice transcription |
+| S04 Capture | Repository-backed prototype with autosave | Text autosaves after 500ms; voice partial callbacks save immediately (voice remains simulated); background/exit flush, one-time restore/discard prompt, silent save retry, and serialized submit/discard prevent late writes from resurrecting drafts |
 | S05 Recall | Prototype | Three fixed-bank questions and skip action |
 | S06 Processing | Mock-engine backed prototype | Success, retry, fallback, and final-failure job paths; the four visual dot stages remain locally timed until WO-15 |
 | S07 Reveal | Repository-backed prototype | Generated passage marks and repository placement mutations |
@@ -27,8 +27,8 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | Local persistence | Implemented | Drift schema v1 mirrors manuscript data and adds drafts, outbox, reader positions, and sync state; Riverpod defaults to the durable repository and seeds the prototype only for an empty database |
 | Drift prerequisites | Implemented | `drift_flutter` native bootstrap plus lock-matched `sqlite3.wasm` and `drift_worker.js` |
 | Mock engine boundary | Implemented | `ENGINE=mock` and `MOCK_CASE` select deterministic success, retry, fallback, or failure; commits are idempotent and persist through both memory and Drift stores without network or LLM calls |
-| E5 Validate rules | Implemented, not deployed | V1–V7 run as deterministic checks over an E4 draft: schema, C-ratio budget, entity resolution, length cap, high-salience provenance, locked-passage hash, and banned expressions. `E5-relaxed` restricts the fallback profile to V1/V3/V6. The audit record persisted to `generation_runs` carries codes and counts only, never a violation message |
-| E6 Commit assembly | Implemented, not deployed | Assembles the `commit_scene` payload from E1 elements, E2 auto links and the E4 draft, refuses `U` passages and unprovenanced `D` passages before the RPC, records `scene_id` on the job, queues `remember`, and routes `standalone` to `archived_only` without a scene |
+| E5 Validate rules | Local HTTP runtime verified; cloud deployment pending | Deterministic V1–V7 checks, including required and existing source elements in both strict and fallback profiles. V5 provenance coverage and V7 banned expressions are structural checks; model-based meaning and safety checks remain open. Audit rows contain codes/counts only. Worker credentials and matching job stage are required |
+| E6 Commit assembly | Local HTTP runtime verified; cloud deployment pending | Real `commit_scene` RPC, retry deduplication, remember enqueue, transaction rollback on invalid provenance, and worker-only access verified against local Supabase. Standalone archiving is also covered by unit tests |
 
 ## Simulated or not connected
 
@@ -36,9 +36,9 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 |---|---|
 | Persistence | Local Drift persistence is active; cloud ownership and cross-device sync are not connected |
 | Voice and STT | Button drives a sample transcript; no microphone access |
-| AI pipeline | A deterministic MockEngineClient exercises the full job/result contract. E5 validation and E6 commit exist as unit-tested rule code but are not deployed or invoked. E1 extraction, E2 linking, E3 planning, E4 generation, E7 memory, and the worker are not implemented: no model provider or model ID has been chosen, so every stage whose work is the model call is still open. The lightweight-model refinements inside V5 and V7 are likewise unimplemented |
+| AI pipeline | E5/E6 have been invoked through the local Edge runtime and real database. Cloud deployment is pending: this checkout has no linked project and the CLI has no access token. E1–E4, E7, WO-14, and the model-based parts of V5/V7 remain open; provider/model selection is still required for model calls |
 | Backend | Local migrations 0001–0007, deterministic seed data, full RLS, locked-passage trigger, transactional RPCs, atomic job claiming, and zombie reaping cron are present; pipeline workers are not connected |
-| Offline | Draft storage exists, but capture autosave and the retry queue are not connected |
+| Offline | Capture autosave and restore are connected to Drift; the server outbox/retry queue and synchronization remain WO-13 |
 | Notifications | Morning/night and completion notifications are not present |
 | Completion | S14 and PDF export are not present |
 | Privacy controls | App lock, export, deletion, and provider notice are not present |
@@ -46,8 +46,8 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 ## Verified baseline
 
 - `dart analyze lib test integration_test`: no issues
-- `flutter test`: 84 tests passing (including Apple authentication lifecycle, Keychain storage contract, authentication routing/error UI, the complete repository contract against memory and Drift, schema v1 creation, file-database restart persistence, DreamElement reference integrity, raw progress/event-sum consistency, mock-engine scenario/idempotency checks, and UI/domain/core tests)
-- `flutter test integration_test/capture_to_reveal_test.dart`: 4 iOS integration scenarios passing against Drift (success, retry, fallback, fail)
+- `flutter test`: 92 tests passing, including 8 WO-12 checks for debounce, background flush, one-time restore, discard, voice partial saving, silent retries, in-flight save versus submit/discard, and file-database reopen without a dispose-time save
+- `flutter test integration_test`: 5 iOS integration scenarios passing: four capture-to-reveal engine cases plus native SQLite autosave/reopen/restore/discard. The restart check reopens storage and recreates the screen; it does not simulate an OS kill inside the 500ms debounce window
 - `flutter build web --release`: passing
 - `flutter build ios --simulator --no-codesign`: passing
 - Apple authentication screen runtime smoke: passing on iPhone 17 Pro Simulator
@@ -55,15 +55,16 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 - `supabase db reset`: migrations 0001–0007 and seed passing
 - `supabase test db`: 108 database tests passing (4 constraints + 49 RLS + 55 trigger/RPC checks)
 - `supabase db lint --local --schema public --level warning`: no schema errors
-- `deno task verify` in `supabase/functions` (fmt, lint, check, test): 36 engine tests passing — 20 validate (the seven V-code injections, the E5-relaxed profile, budget boundaries, and the audit-record text-safety assertion) and 16 commit (retry idempotency, convergence when a retry follows a crash before enqueue, the deterministic `remember` idempotency key, standalone archiving, payload assembly, input guards)
+- `npx deno task verify` in `supabase/functions`: 38 tests passing (21 validation, 16 commit, 1 worker authorization)
+- `node tool/engine_smoke.mjs` with `supabase functions serve`: real HTTP validation/audit, worker authorization, repeated commit, remember deduplication, and transaction rollback passing; disposable smoke account removed after verification
 - Mobile visual QA at 390×844: capture through reveal, manuscript growth, Reader, source sheet, and Night Paper
 
 ## Recommended next milestone
 
 Connect the durable local implementation to identity, sync, and processing:
 
-1. Draft autosave and restore/discard UX (WO-12)
-2. Offline retry queue and synchronization (WO-13)
+1. Offline retry queue and synchronization (WO-13)
+2. Connect a confirmed MUMUMONG cloud project and deploy the tested E5/E6 functions
 3. E1–E4 and E7 stages, which need a model provider decision, and the background worker (E5 and E6 are implemented)
 4. Real recording/STT evaluation
 

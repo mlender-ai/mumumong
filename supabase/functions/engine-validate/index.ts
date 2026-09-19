@@ -15,6 +15,7 @@ import {
 import { loadJob } from "../_shared/jobs.ts";
 import { lockedPassageHash } from "../_shared/text.ts";
 import { auditRecord, validateSceneDraft } from "./validate.ts";
+import { authorizedWorker } from "../_shared/worker_auth.ts";
 
 const PROMPT_VERSION = "e5.rules.v1";
 
@@ -26,11 +27,17 @@ function json(body: unknown, status = 200): Response {
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
+  if (!authorizedWorker(request, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))) {
+    return json({ error: "forbidden" }, 403);
+  }
   if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
 
   let body: Record<string, unknown>;
   try {
     body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return json({ error: "body must be an object" }, 400);
+    }
   } catch {
     return json({ error: "body must be JSON" }, 400);
   }
@@ -41,6 +48,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const client = serviceRoleClient();
   const job = await loadJob(client, jobId);
   if (!job) return json({ error: "job not found" }, 404);
+  if (job.type !== "validate") return json({ error: "wrong job stage" }, 400);
   if (!job.dream_id) return json({ error: "validate requires a dream" }, 400);
 
   // Section C: a stage reads its input from jobs.payload.

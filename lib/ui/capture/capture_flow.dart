@@ -11,6 +11,7 @@ import '../../data/memory/mock_voice_transcript.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../domain/repository/mumumong_repository.dart';
+import 'draft_autosave.dart';
 
 enum CaptureStep { capture, recall, processing, reveal }
 
@@ -29,7 +30,7 @@ class CaptureFlow extends ConsumerStatefulWidget {
 }
 
 class _CaptureFlowState extends ConsumerState<CaptureFlow>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final _controller = TextEditingController();
   late final AnimationController _motion;
   CaptureStep _step = CaptureStep.capture;
@@ -50,10 +51,18 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   bool _usedVoice = false;
   bool _revealScheduled = false;
   String? _engineIdempotencyKey;
+  late final DraftAutosave _autosave;
+  DreamDraft? _draft;
+  bool _draftReady = false;
+  bool _submitting = false;
+  Timer? _restoreRetry;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _autosave = DraftAutosave(ref.read(repositoryProvider));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
     _motion = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 8),
@@ -62,12 +71,95 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _restoreRetry?.cancel();
+    _autosave.dispose();
     _recordingTimer?.cancel();
     _processingTimer?.cancel();
     _jobSubscription?.cancel();
     _motion.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(_autosave.flush());
+  }
+
+  Future<void> _restoreDraft() async {
+    if (!mounted) return;
+    try {
+      final draft = await _autosave.repository.loadDraft();
+      if (!mounted) return;
+      if (draft != null && draft.rawText.isNotEmpty) {
+        _draft = draft;
+        _controller.text = draft.rawText;
+        _usedVoice = draft.inputMode == DreamInputMode.voice;
+        final resume = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => PopScope(
+            canPop: false,
+            child: AlertDialog(
+              backgroundColor: MongColor.paper,
+              title: const Text('쓰던 꿈이 남아 있어요'),
+              content: const Text('남겨 둔 기억을 이어서 적을까요?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('새로 쓰기'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('이어서 쓰기'),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (!mounted) return;
+        if (resume == false) {
+          await _discardDraft();
+          return;
+        }
+      }
+      if (mounted) setState(() => _draftReady = true);
+    } on Object {
+      if (mounted) {
+        _restoreRetry = Timer(const Duration(seconds: 1), _restoreDraft);
+      }
+    }
+  }
+
+  Future<void> _discardDraft() async {
+    try {
+      await _autosave.discard();
+      if (!mounted) return;
+      _controller.clear();
+      setState(() {
+        _draft = null;
+        _usedVoice = false;
+        _dotCount = 20;
+        _draftReady = true;
+      });
+    } on Object {
+      if (mounted) {
+        _restoreRetry = Timer(const Duration(seconds: 1), _discardDraft);
+      }
+    }
+  }
+
+  DreamDraft _snapshot() {
+    final now = DateTime.now();
+    return _draft = DreamDraft(
+      id: _draft?.id ?? const Uuid().v4(),
+      rawText: _controller.text,
+      inputMode: _usedVoice ? DreamInputMode.voice : DreamInputMode.text,
+      dreamDate: _draft?.dreamDate ?? _dreamDate(now),
+      isBackfill: _draft?.isBackfill ?? false,
+      updatedAt: now.toUtc(),
+    );
   }
 
   void _toggleRecording() {
@@ -93,6 +185,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
           _controller.selection = TextSelection.collapsed(
             offset: _controller.text.length,
           );
+          _autosave.changed(_snapshot(), immediate: true);
         }
       });
       if (_recordingTicks >= 8) _stopRecording();
@@ -105,6 +198,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   }
 
   void _onTextChanged(String value) {
+    _autosave.changed(_snapshot());
     final words = value.trim().isEmpty
         ? 0
         : value.trim().split(RegExp(r'\s+')).length;
@@ -112,6 +206,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   }
 
   Future<void> _saveDream() async {
+    if (!_draftReady || _submitting) return;
     if (_controller.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -125,17 +220,10 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     FocusManager.instance.primaryFocus?.unfocus();
     _stopRecording();
     HapticFeedback.lightImpact();
-    final now = DateTime.now();
-    final draft = DreamDraft(
-      id: const Uuid().v4(),
-      rawText: _controller.text,
-      inputMode: _usedVoice ? DreamInputMode.voice : DreamInputMode.text,
-      dreamDate: _dreamDate(now),
-      isBackfill: false,
-      updatedAt: now.toUtc(),
-    );
+    setState(() => _submitting = true);
+    final draft = _snapshot();
     try {
-      final dreamId = await ref.read(repositoryProvider).submitDream(draft);
+      final dreamId = await _autosave.submit(draft);
       if (!mounted) {
         return;
       }
@@ -154,6 +242,8 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
           behavior: SnackBarBehavior.floating,
         ),
       );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -345,110 +435,113 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   }
 
   Widget _buildCapture() {
-    return Padding(
-      key: const ValueKey('capture'),
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '장면 하나만 기억나도 괜찮아요.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            flex: 5,
-            child: TextField(
-              controller: _controller,
-              onChanged: _onTextChanged,
-              expands: true,
-              minLines: null,
-              maxLines: null,
-              textAlignVertical: TextAlignVertical.top,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontSize: 17),
-              decoration: const InputDecoration(
-                filled: true,
-                fillColor: MongColor.paperShade,
-                hintText: '기억나는 순서대로 말하거나 적어보세요…',
-                hintStyle: TextStyle(
-                  color: MongColor.ink3,
-                  fontFamily: 'Pretendard',
-                  fontSize: 15,
-                ),
-                contentPadding: EdgeInsets.all(18),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
-                  borderSide: BorderSide(color: MongColor.sky700),
+    return AbsorbPointer(
+      absorbing: !_draftReady || _submitting,
+      child: Padding(
+        key: const ValueKey('capture'),
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '장면 하나만 기억나도 괜찮아요.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              flex: 5,
+              child: TextField(
+                controller: _controller,
+                onChanged: _onTextChanged,
+                expands: true,
+                minLines: null,
+                maxLines: null,
+                textAlignVertical: TextAlignVertical.top,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontSize: 17),
+                decoration: const InputDecoration(
+                  filled: true,
+                  fillColor: MongColor.paperShade,
+                  hintText: '기억나는 순서대로 말하거나 적어보세요…',
+                  hintStyle: TextStyle(
+                    color: MongColor.ink3,
+                    fontFamily: 'Pretendard',
+                    fontSize: 15,
+                  ),
+                  contentPadding: EdgeInsets.all(18),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide(color: MongColor.sky700),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            flex: 3,
-            child: ClipRect(
-              child: AnimatedBuilder(
-                animation: _motion,
-                builder: (context, _) => MemoryParticles(
-                  count: _dotCount,
-                  progress: _motion.value,
-                  color: MongColor.ink.withValues(alpha: .74),
+            const SizedBox(height: 12),
+            Expanded(
+              flex: 3,
+              child: ClipRect(
+                child: AnimatedBuilder(
+                  animation: _motion,
+                  builder: (context, _) => MemoryParticles(
+                    count: _dotCount,
+                    progress: _motion.value,
+                    color: MongColor.ink.withValues(alpha: .74),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Semantics(
-                button: true,
-                label: _recording ? '녹음 멈추기' : '녹음 시작',
-                child: InkWell(
-                  onTap: _toggleRecording,
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _recording ? MongColor.ink : MongColor.paper,
-                      border: Border.all(color: MongColor.ink),
-                    ),
-                    alignment: Alignment.center,
-                    child: AnimatedContainer(
-                      duration: MongMotion.micro,
-                      width: _recording ? 10 : 12,
-                      height: _recording ? 10 : 12,
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Semantics(
+                  button: true,
+                  label: _recording ? '녹음 멈추기' : '녹음 시작',
+                  child: InkWell(
+                    onTap: _toggleRecording,
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        color: _recording ? MongColor.sky500 : MongColor.ink,
-                        borderRadius: BorderRadius.circular(
-                          _recording ? 1 : 99,
+                        shape: BoxShape.circle,
+                        color: _recording ? MongColor.ink : MongColor.paper,
+                        border: Border.all(color: MongColor.ink),
+                      ),
+                      alignment: Alignment.center,
+                      child: AnimatedContainer(
+                        duration: MongMotion.micro,
+                        width: _recording ? 10 : 12,
+                        height: _recording ? 10 : 12,
+                        decoration: BoxDecoration(
+                          color: _recording ? MongColor.sky500 : MongColor.ink,
+                          borderRadius: BorderRadius.circular(
+                            _recording ? 1 : 99,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: EditorialButton(label: '기록 저장', onPressed: _saveDream),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: EditorialButton(label: '기록 저장', onPressed: _saveDream),
+                ),
+              ],
+            ),
+            if (_recording) ...[
+              const SizedBox(height: 8),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: MetaText('녹음 중     한 번 더 누르면 멈춰요'),
               ),
             ],
-          ),
-          if (_recording) ...[
-            const SizedBox(height: 8),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: MetaText('녹음 중     한 번 더 누르면 멈춰요'),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }

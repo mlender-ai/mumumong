@@ -10,6 +10,7 @@ import { claritySchema } from "../_shared/contract.ts";
 import { loadJob } from "../_shared/jobs.ts";
 import { type CommitInput, CommitInputError, runCommit } from "./commit.ts";
 import { SupabaseCommitGateway } from "./gateway.ts";
+import { authorizedWorker } from "../_shared/worker_auth.ts";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -19,11 +20,17 @@ function json(body: unknown, status = 200): Response {
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
+  if (!authorizedWorker(request, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))) {
+    return json({ error: "forbidden" }, 403);
+  }
   if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
 
   let body: Record<string, unknown>;
   try {
     body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return json({ error: "body must be an object" }, 400);
+    }
   } catch {
     return json({ error: "body must be JSON" }, 400);
   }
@@ -34,6 +41,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const client = serviceRoleClient();
   const job = await loadJob(client, jobId);
   if (!job) return json({ error: "job not found" }, 404);
+  if (job.type !== "commit") return json({ error: "wrong job stage" }, 400);
   if (!job.dream_id) return json({ error: "commit requires a dream" }, 400);
 
   // Section C: a stage reads its input from jobs.payload.

@@ -268,15 +268,23 @@ Deno.test("measureCRatio counts code points, not UTF-16 units", () => {
   assertEquals(cRatio, 0.5);
 });
 
-Deno.test("a D passage with no provenance is a schema-valid but V5-visible gap", async () => {
+Deno.test("a D passage without provenance is rejected even without high salience", async () => {
   const draft = baseDraft();
   draft.passages = [
     { origin: "D", text: DREAM_TEXT },
     { origin: "C", text: ADAPTED_TEXT, c_reason: "전이" },
   ];
-  const result = await validateSceneDraft(input({ draft, elements: ELEMENTS }));
-  // The high-salience element cannot be cited, so V5 fires.
-  assert(result.violations.some((entry) => entry.code === "V5"));
+  for (const profile of ["strict", "relaxed"] as const) {
+    const result = await validateSceneDraft(input({ draft, elements: [], profile }));
+    assertEquals(codes(result.violations), ["V1"]);
+  }
+});
+
+Deno.test("unknown provenance is rejected in strict and fallback profiles", async () => {
+  for (const profile of ["strict", "relaxed"] as const) {
+    const result = await validateSceneDraft(input({ elements: [], profile }));
+    assert(result.violations.some((entry) => entry.code === "V1"));
+  }
 });
 
 Deno.test("an element list with no high salience never trips V5", async () => {

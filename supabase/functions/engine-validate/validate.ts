@@ -151,6 +151,14 @@ export async function validateSceneDraft(input: ValidateInput): Promise<Validati
   if (v6) return outcome([v6], cRatio, totalChars, profile);
 
   const violations: Violation[] = [];
+  const knownElements = new Set(input.elements.map((element) => element.id));
+  if (
+    draft.passages.some((passage) =>
+      (passage.source_element_ids ?? []).some((id) => !knownElements.has(id))
+    )
+  ) {
+    violations.push({ code: "V1", message: "출처 요소가 현재 꿈에 존재하지 않는다." });
+  }
 
   // V3 runs in both profiles: an invented entity is never acceptable output.
   violations.push(...checkNewEntities(draft, input));

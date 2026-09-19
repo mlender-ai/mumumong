@@ -37,6 +37,9 @@ const passageSchema = z.object({
   text: z.string().min(1),
   source_element_ids: z.array(z.string().uuid()).optional(),
   c_reason: z.string().min(1).optional(),
+}).refine((passage) => passage.origin !== "D" || (passage.source_element_ids?.length ?? 0) > 0, {
+  message: "D passage requires a source element",
+  path: ["source_element_ids"],
 });
 
 const newEntitySchema = z.object({
