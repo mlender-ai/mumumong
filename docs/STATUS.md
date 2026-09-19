@@ -1,10 +1,10 @@
 # MUMUMONG Implementation Status
 
-Last updated: 2026-09-18
+Last updated: 2026-09-19
 
 ## Summary
 
-The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and a deterministic mock engine now drives capture through reveal. Cloud synchronization and production AI services are not yet connected.
+The repository contains a runnable Flutter interaction prototype for the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and a deterministic mock engine now drives capture through reveal. The validate and commit engine stages exist as deterministic, unit-tested Edge Function code. Cloud synchronization and production AI services are not yet connected.
 
 ## Implemented locally
 
@@ -27,6 +27,8 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 | Local persistence | Implemented | Drift schema v1 mirrors manuscript data and adds drafts, outbox, reader positions, and sync state; Riverpod defaults to the durable repository and seeds the prototype only for an empty database |
 | Drift prerequisites | Implemented | `drift_flutter` native bootstrap plus lock-matched `sqlite3.wasm` and `drift_worker.js` |
 | Mock engine boundary | Implemented | `ENGINE=mock` and `MOCK_CASE` select deterministic success, retry, fallback, or failure; commits are idempotent and persist through both memory and Drift stores without network or LLM calls |
+| E5 Validate rules | Implemented, not deployed | V1–V7 run as deterministic checks over an E4 draft: schema, C-ratio budget, entity resolution, length cap, high-salience provenance, locked-passage hash, and banned expressions. `E5-relaxed` restricts the fallback profile to V1/V3/V6. The audit record persisted to `generation_runs` carries codes and counts only, never a violation message |
+| E6 Commit assembly | Implemented, not deployed | Assembles the `commit_scene` payload from E1 elements, E2 auto links and the E4 draft, refuses `U` passages and unprovenanced `D` passages before the RPC, records `scene_id` on the job, queues `remember`, and routes `standalone` to `archived_only` without a scene |
 
 ## Simulated or not connected
 
@@ -34,7 +36,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 |---|---|
 | Persistence | Local Drift persistence is active; cloud ownership and cross-device sync are not connected |
 | Voice and STT | Button drives a sample transcript; no microphone access |
-| AI pipeline | A deterministic MockEngineClient exercises the full job/result contract; E1–E7 extraction, linking, planning, generation, validation, and remote workers are not connected |
+| AI pipeline | A deterministic MockEngineClient exercises the full job/result contract. E5 validation and E6 commit exist as unit-tested rule code but are not deployed or invoked. E1 extraction, E2 linking, E3 planning, E4 generation, E7 memory, and the worker are not implemented: no model provider or model ID has been chosen, so every stage whose work is the model call is still open. The lightweight-model refinements inside V5 and V7 are likewise unimplemented |
 | Backend | Local migrations 0001–0007, deterministic seed data, full RLS, locked-passage trigger, transactional RPCs, atomic job claiming, and zombie reaping cron are present; pipeline workers are not connected |
 | Offline | Draft storage exists, but capture autosave and the retry queue are not connected |
 | Notifications | Morning/night and completion notifications are not present |
@@ -53,6 +55,7 @@ The repository contains a runnable Flutter interaction prototype for the core MU
 - `supabase db reset`: migrations 0001–0007 and seed passing
 - `supabase test db`: 108 database tests passing (4 constraints + 49 RLS + 55 trigger/RPC checks)
 - `supabase db lint --local --schema public --level warning`: no schema errors
+- `deno task verify` in `supabase/functions` (fmt, lint, check, test): 36 engine tests passing — 20 validate (the seven V-code injections, the E5-relaxed profile, budget boundaries, and the audit-record text-safety assertion) and 16 commit (retry idempotency, convergence when a retry follows a crash before enqueue, the deterministic `remember` idempotency key, standalone archiving, payload assembly, input guards)
 - Mobile visual QA at 390×844: capture through reveal, manuscript growth, Reader, source sheet, and Night Paper
 
 ## Recommended next milestone
@@ -61,7 +64,7 @@ Connect the durable local implementation to identity, sync, and processing:
 
 1. Draft autosave and restore/discard UX (WO-12)
 2. Offline retry queue and synchronization (WO-13)
-3. E1–E7 pipeline and background worker
+3. E1–E4 and E7 stages, which need a model provider decision, and the background worker (E5 and E6 are implemented)
 4. Real recording/STT evaluation
 
 The first milestone is complete only when a dream survives an app restart, belongs to the authenticated user, cannot be read by another user, and can enter a retryable processing job without its text appearing in logs.

@@ -31,6 +31,24 @@ jobs:
       - name: Test database
         run: supabase test db
 
+  engine:
+    name: Engine function checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify engine functions
+        run: deno task verify
+        working-directory: supabase/functions
+
   flutter:
     name: Flutter checks
     runs-on: ubuntu-latest
