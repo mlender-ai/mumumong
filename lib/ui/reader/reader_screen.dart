@@ -6,6 +6,8 @@ import '../../core/design/design_system.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../domain/repository/mumumong_repository.dart';
+import '../../domain/source_highlight.dart';
+import '../../core/log/app_log.dart';
 
 class ReaderScreen extends ConsumerStatefulWidget {
   const ReaderScreen({super.key, this.initialNight = false});
@@ -19,6 +21,117 @@ class ReaderScreen extends ConsumerStatefulWidget {
 class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   late bool _night = widget.initialNight;
   bool _showOrigins = true;
+  String? _selectedSceneId;
+
+  Future<void> _edit(Passage passage) async {
+    final controller = TextEditingController(text: passage.text);
+    var saving = false;
+    String? error;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _paper,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, update) {
+          Future<void> save({bool revert = false}) async {
+            if (saving || (!revert && controller.text.trim().isEmpty)) return;
+            update(() {
+              saving = true;
+              error = null;
+            });
+            try {
+              final repository = ref.read(repositoryProvider);
+              if (revert) {
+                await repository.revertPassage(passage.id);
+              } else {
+                await repository.editPassage(
+                  passage.id,
+                  controller.text.trim(),
+                );
+              }
+              AppLog.event('passage_edited', {
+                'passage_id': passage.id,
+                'mode': revert ? 'revert' : 'edit',
+              });
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
+            } on Object {
+              if (context.mounted) {
+                update(() {
+                  saving = false;
+                  error = '저장하지 못했어요. 입력한 문장은 그대로 남아 있어요.';
+                });
+              }
+            }
+          }
+
+          return PopScope(
+            canPop: !saving,
+            child: SafeArea(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  24,
+                  24,
+                  MediaQuery.viewInsetsOf(context).bottom + 24,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '내 문장으로 고치기',
+                      style: TextStyle(color: _ink, fontSize: 22),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '저장한 문장은 AI가 바꾸지 않아요.',
+                      style: TextStyle(color: _meta),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      minLines: 4,
+                      maxLines: 12,
+                      enabled: !saving,
+                      style: TextStyle(color: _ink),
+                      decoration: const InputDecoration(labelText: '문장'),
+                    ),
+                    if (error != null)
+                      Text(error!, style: TextStyle(color: _ink)),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: saving
+                              ? null
+                              : () => Navigator.pop(context),
+                          child: const Text('취소'),
+                        ),
+                        if (passage.originalText != null)
+                          TextButton(
+                            onPressed: saving ? null : () => save(revert: true),
+                            child: const Text('원래 문장으로'),
+                          ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: saving ? null : save,
+                          child: Text(saving ? '저장 중' : '저장'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    // The closing route still owns the field during its exit animation.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    controller.dispose();
+  }
 
   Color get _paper => _night ? MongColor.nightPaper : MongColor.paper;
   Color get _ink => _night ? MongColor.nightInk : MongColor.ink;
@@ -58,8 +171,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   Future<void> _showSource(Passage passage) async {
+    try {
+      await _loadSource(passage);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('출처를 불러오지 못했어요. 다시 시도해 주세요.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadSource(Passage passage) async {
     final repository = ref.read(repositoryProvider);
     final dreams = await repository.watchDreams(DreamStatusFilter.all).first;
+    final elements = passage.sourceDreamId == null
+        ? <DreamElement>[]
+        : await repository.watchDreamElements(passage.sourceDreamId!).first;
     Dream? sourceDream;
     for (final dream in dreams) {
       if (dream.id == passage.sourceDreamId) {
@@ -80,7 +208,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       builder: (context) {
         return SafeArea(
           top: false,
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -116,8 +244,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ).textTheme.labelSmall?.copyWith(color: _meta),
                   ),
                   const SizedBox(height: 10),
-                  Text(
-                    sourceDream.rawText,
+                  SelectableText.rich(
+                    _sourceSpan(
+                      sourceDream.rawText,
+                      elements.where(
+                        (element) =>
+                            passage.sourceElementIds.contains(element.id),
+                      ),
+                    ),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       fontSize: 16,
                       height: 1.75,
@@ -125,7 +259,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  QuietTextButton(label: '원문 전체 보기', onPressed: () {}),
+                  Text(
+                    '하늘색은 이 문장이 가져온 기억이에요.',
+                    style: TextStyle(color: _meta, fontSize: 12),
+                  ),
                 ],
               ],
             ),
@@ -153,7 +290,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             if (scenes.isEmpty) {
               return _readerMessage('아직 읽을 장면이 없어요.');
             }
-            final scene = scenes.last;
+            final scene =
+                scenes.where((s) => s.id == _selectedSceneId).firstOrNull ??
+                scenes.last;
             final passagesAsync = ref.watch(passagesProvider(scene.id));
             return passagesAsync.when(
               loading: () => _readerMessage('문장을 불러오는 중'),
@@ -163,6 +302,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 scene: scene,
                 sceneNumber: scenes.length,
                 passages: passages,
+                scenes: scenes,
               ),
             );
           },
@@ -176,6 +316,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     required Scene scene,
     required int sceneNumber,
     required List<Passage> passages,
+    required List<Scene> scenes,
   }) {
     return Scaffold(
       backgroundColor: _paper,
@@ -244,6 +385,27 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               ),
             ),
             Divider(color: _line),
+            if (scenes.length > 1)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: DropdownButton<String>(
+                  value: scene.id,
+                  isExpanded: true,
+                  dropdownColor: _paper,
+                  style: TextStyle(color: _meta),
+                  items: [
+                    for (var i = 0; i < scenes.length; i++)
+                      DropdownMenuItem(
+                        value: scenes[i].id,
+                        child: Text(
+                          '${i + 1}. ${scenes[i].title ?? '제목 없는 장면'}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (id) => setState(() => _selectedSceneId = id),
+                ),
+              ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 38, 24, 88),
@@ -283,6 +445,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                         meta: _meta,
                         text: passages[index].text,
                         onTap: () => _showSource(passages[index]),
+                        onLongPress: () => _edit(passages[index]),
                       ),
                     ],
                     if (passages.isEmpty) MetaText('아직 문장이 없어요.', color: _meta),
@@ -313,6 +476,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       ),
     );
   }
+
+  TextSpan _sourceSpan(String text, Iterable<DreamElement> elements) {
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (final range in sourceHighlights(text, elements)) {
+      spans.add(TextSpan(text: text.substring(cursor, range.$1)));
+      spans.add(
+        TextSpan(
+          text: text.substring(range.$1, range.$2),
+          style: const TextStyle(
+            backgroundColor: MongColor.sky100,
+            color: MongColor.ink,
+          ),
+        ),
+      );
+      cursor = range.$2;
+    }
+    spans.add(TextSpan(text: text.substring(cursor)));
+    return TextSpan(children: spans);
+  }
 }
 
 class ReaderPassage extends StatelessWidget {
@@ -324,6 +507,7 @@ class ReaderPassage extends StatelessWidget {
     required this.meta,
     required this.text,
     required this.onTap,
+    this.onLongPress,
   });
 
   final PassageOrigin origin;
@@ -332,6 +516,7 @@ class ReaderPassage extends StatelessWidget {
   final Color meta;
   final String text;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   String get _mark => switch (origin) {
     PassageOrigin.dream => '●',
@@ -343,19 +528,7 @@ class ReaderPassage extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      onLongPress: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              origin == PassageOrigin.user
-                  ? '내가 쓴 문장은 잠겨져 있어요.'
-                  : '편집 모드를 준비했어요.',
-            ),
-            backgroundColor: MongColor.ink,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      },
+      onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 20),
         child: Row(

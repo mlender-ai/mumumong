@@ -381,6 +381,18 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# These internal stages perform exact service-secret authentication themselves.
+# Gateway JWT parsing cannot validate opaque sb_secret_* credentials.
+[functions.engine-validate]
+verify_jwt = false
+
+[functions.engine-commit]
+verify_jwt = false
+
+# The handler verifies the caller with auth.getUser before any deletion.
+[functions.delete-account]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

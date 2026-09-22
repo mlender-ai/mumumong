@@ -49,6 +49,7 @@ abstract class MumumongRepository {
   Stream<List<Scene>> watchScenes(String volumeId);
   Stream<List<Passage>> watchPassages(String sceneId);
   Stream<List<ProgressEvent>> watchRecentProgress(String volumeId);
+  Stream<List<LinkDecision>> watchLinkDecisions(String dreamId);
   Stream<JobProgress?> watchJob(String dreamId);
 
   Future<void> saveDraft(DreamDraft draft);

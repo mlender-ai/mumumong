@@ -117,6 +117,13 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
   }
 
   @override
+  Stream<List<LinkDecision>> watchLinkDecisions(String dreamId) => _watch(
+    () => List.unmodifiable(
+      _linkDecisions.where((decision) => decision.dreamId == dreamId),
+    ),
+  );
+
+  @override
   Stream<JobProgress?> watchJob(String dreamId) {
     return _watch(() => _jobs[dreamId]);
   }
@@ -547,6 +554,17 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
           originalText: null,
           locked: false,
           firstReadAt: null,
+        ),
+      );
+    }
+    if (!result.isFallback) {
+      _linkDecisions.add(
+        LinkDecision(
+          id: _uuid.v4(),
+          dreamId: dreamId,
+          kind: LinkDecisionKind.entityMerge,
+          payload: const {'label': '우산을 든 여자', 'candidate_label': '앞 장면의 그 사람'},
+          status: LinkDecisionStatus.pending,
         ),
       );
     }

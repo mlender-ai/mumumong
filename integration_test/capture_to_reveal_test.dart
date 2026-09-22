@@ -54,9 +54,9 @@ void main() {
       await tester.pump();
 
       if (scenario == MockEngineCase.fail) {
-        await _pumpUntil(tester, find.text('장면을 만들지 못했어요. 꿈은 보관함에 저장되어 있어요.'));
+        await _pumpUntil(tester, find.text('장면을 만들지 못했어요.'));
         expect(find.byKey(const ValueKey('reveal')), findsNothing);
-        expect(find.text('기억의 빈자리만\n조금 더 확인할게요.'), findsOneWidget);
+        expect(find.text('다시 시도'), findsOneWidget);
         return;
       }
 

@@ -43,6 +43,7 @@ class MockEngineClient implements EngineClient {
     if (existing != null) return existing;
 
     final jobId = _uuid.v4();
+    _latestByDreamId.remove(dreamId);
     _jobIdsByIdempotencyKey[idempotencyKey] = jobId;
     unawaited(_run(dreamId));
     return jobId;

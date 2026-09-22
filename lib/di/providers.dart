@@ -7,10 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/env/env.dart';
 import '../data/auth/apple_authentication.dart';
 import '../data/auth/auth_controller.dart';
+import '../data/auth/secure_session_storage.dart';
 import '../data/engine/engine_client.dart';
 import '../data/engine/mock_engine_client.dart';
 import '../data/local/database.dart';
 import '../data/local/drift_repository.dart';
+import '../data/privacy/app_lock.dart';
+import '../data/speech/speech_input.dart';
 import '../domain/model/models.dart';
 import '../domain/repository/mumumong_repository.dart';
 
@@ -35,9 +38,19 @@ final repositoryProvider = Provider<MumumongRepository>((ref) {
   return DriftRepository(ref.watch(databaseProvider));
 });
 
+final speechInputProvider = Provider<SpeechInput>(
+  (ref) => OnDeviceSpeechInput(),
+);
+
+final appLockProvider = ChangeNotifierProvider<AppLockController>((ref) {
+  return AppLockController(KeychainValueStore(), LocalDeviceAuthenticator());
+});
+
 final engineClientProvider = Provider<EngineClient>((ref) {
   if (AppEnv.engine == EngineMode.remote) {
-    return const PendingRemoteEngineClient();
+    return RemoteEngineClient(
+      SupabaseRemoteEngineGateway(Supabase.instance.client),
+    );
   }
   final repository = ref.watch(repositoryProvider);
   if (repository is! MockEngineStore) {
@@ -87,6 +100,12 @@ final recentProgressProvider =
     StreamProvider.family<List<ProgressEvent>, String>((ref, volumeId) {
       return ref.watch(repositoryProvider).watchRecentProgress(volumeId);
     });
+
+final linkDecisionsProvider = StreamProvider.family<List<LinkDecision>, String>(
+  (ref, dreamId) {
+    return ref.watch(repositoryProvider).watchLinkDecisions(dreamId);
+  },
+);
 
 final jobProgressProvider = StreamProvider.family<JobProgress?, String>((
   ref,

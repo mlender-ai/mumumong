@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>말로 꿈을 기록하기 위해 마이크를 사용해요. 음성 파일은 저장하지 않아요.</string>
+  <key>NSFaceIDUsageDescription</key>
+  <string>꿈과 원고를 다른 사람이 열어보지 못하도록 보호해요.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>기기 안에서 꿈의 목소리를 글로 바꿔요. 음성을 서버로 보내지 않아요.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

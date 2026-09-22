@@ -7,7 +7,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/design/design_system.dart';
 import '../../core/design/dot_field.dart';
-import '../../data/memory/mock_voice_transcript.dart';
+import '../../core/log/app_log.dart';
+import '../../data/speech/speech_input.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../domain/repository/mumumong_repository.dart';
@@ -36,13 +37,20 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   CaptureStep _step = CaptureStep.capture;
   bool _recording = false;
   int _dotCount = 20;
-  Timer? _recordingTimer;
-  Timer? _processingTimer;
+  late final SpeechInput _speech;
+  StreamSubscription<SpeechUpdate>? _speechSubscription;
+  String _voicePrefix = '';
+  bool _voiceHasText = false;
+  bool _speechGuidanceShown = false;
+  Timer? _slowTimer;
+  bool _slowProcessing = false;
+  bool _processingFailed = false;
   StreamSubscription<JobProgress?>? _jobSubscription;
-  int _recordingTicks = 0;
   int _processingStage = 0;
   final Map<String, String> _answers = {};
   String? _linkChoice;
+  LinkDecision? _revealDecision;
+  bool _savingLink = false;
   String? _dreamId;
   Scene? _revealScene;
   List<Passage> _revealPassages = const [];
@@ -62,6 +70,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _autosave = DraftAutosave(ref.read(repositoryProvider));
+    _speech = ref.read(speechInputProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) => _restoreDraft());
     _motion = AnimationController(
       vsync: this,
@@ -74,8 +83,9 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     WidgetsBinding.instance.removeObserver(this);
     _restoreRetry?.cancel();
     _autosave.dispose();
-    _recordingTimer?.cancel();
-    _processingTimer?.cancel();
+    unawaited(_speechSubscription?.cancel());
+    unawaited(_speech.stop());
+    _slowTimer?.cancel();
     _jobSubscription?.cancel();
     _motion.dispose();
     _controller.dispose();
@@ -84,6 +94,10 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _stopRecording();
+    }
     if (state != AppLifecycleState.resumed) unawaited(_autosave.flush());
   }
 
@@ -162,7 +176,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     );
   }
 
-  void _toggleRecording() {
+  Future<void> _toggleRecording() async {
     if (_recording) {
       _stopRecording();
       return;
@@ -170,31 +184,59 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     HapticFeedback.selectionClick();
     setState(() {
       _recording = true;
-      _usedVoice = true;
-      _recordingTicks = 0;
+      _voiceHasText = false;
+      _voicePrefix = _controller.text.trimRight();
     });
-    _recordingTimer = Timer.periodic(const Duration(milliseconds: 500), (
-      timer,
-    ) {
-      if (!mounted) return;
-      setState(() {
-        _recordingTicks += 1;
-        _dotCount = (_dotCount + 6).clamp(20, 300);
-        if (_recordingTicks == 3 && _controller.text.isEmpty) {
-          _controller.text = mockVoiceTranscript;
+    await _speechSubscription?.cancel();
+    try {
+      _speechSubscription = _speech.updates.listen((update) {
+        if (!mounted || !_recording) return;
+        final text = update.text;
+        if (text != null && text.isNotEmpty) {
+          _usedVoice = true;
+          _voiceHasText = true;
+          _controller.text =
+              '${_voicePrefix.isEmpty ? '' : '$_voicePrefix\n'}$text';
           _controller.selection = TextSelection.collapsed(
             offset: _controller.text.length,
           );
           _autosave.changed(_snapshot(), immediate: true);
         }
-      });
-      if (_recordingTicks >= 8) _stopRecording();
-    });
+        setState(
+          () => _dotCount = (20 + update.rms * 500).round().clamp(20, 300),
+        );
+        if (update.code != null) _speechFailed();
+        if (update.stopped) {
+          _stopRecording();
+          if (!_voiceHasText) _speechMessage('들리지 않았어요. 직접 적어보시겠어요?');
+        }
+      }, onError: (Object _) => _speechFailed());
+      await _speech.start();
+    } on Object {
+      _speechFailed();
+    }
   }
 
   void _stopRecording() {
-    _recordingTimer?.cancel();
+    unawaited(_speech.stop());
     if (mounted) setState(() => _recording = false);
+  }
+
+  void _speechFailed() {
+    if (!mounted || !_recording) return;
+    _stopRecording();
+    if (_speechGuidanceShown) return;
+    _speechGuidanceShown = true;
+    _speechMessage(
+      '이 기기에서 음성 인식을 사용할 수 없어요. 직접 적어주세요. iPhone 설정에서 마이크와 음성 인식 권한을 확인할 수 있어요.',
+    );
+  }
+
+  void _speechMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _onTextChanged(String value) {
@@ -224,6 +266,10 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     final draft = _snapshot();
     try {
       final dreamId = await _autosave.submit(draft);
+      AppLog.event('dream_saved', {
+        'dream_id': dreamId,
+        'mode': draft.inputMode.databaseValue,
+      });
       if (!mounted) {
         return;
       }
@@ -247,7 +293,8 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     }
   }
 
-  Future<void> _startProcessing() async {
+  Future<void> _startProcessing({bool skip = false}) async {
+    if (_step == CaptureStep.processing && !_processingFailed) return;
     final dreamId = _dreamId;
     if (dreamId == null) {
       return;
@@ -256,44 +303,58 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       _step = CaptureStep.processing;
       _processingStage = 0;
       _jobDone = false;
+      _processingFailed = false;
+      _slowProcessing = false;
+    });
+    _slowTimer?.cancel();
+    _motion.duration = const Duration(seconds: 8);
+    _motion.repeat();
+    _slowTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted && _step == CaptureStep.processing) {
+        setState(() => _slowProcessing = true);
+        _motion.duration = const Duration(seconds: 16);
+        _motion.repeat();
+      }
     });
     await _jobSubscription?.cancel();
     final engine = ref.read(engineClientProvider);
-    _jobSubscription = engine.watch(dreamId).listen(_onJobProgress);
     try {
-      await ref.read(repositoryProvider).answerRecall(dreamId, _answers);
+      await ref
+          .read(repositoryProvider)
+          .answerRecall(dreamId, skip ? {} : _answers);
+      AppLog.event(skip ? 'recall_skipped' : 'recall_answered', {
+        'dream_id': dreamId,
+      });
       _engineIdempotencyKey ??= const Uuid().v4();
       await engine.enqueue(dreamId, _engineIdempotencyKey!);
+      if (!mounted) return;
+      _jobSubscription = engine
+          .watch(dreamId)
+          .listen(
+            _onJobProgress,
+            onError: (Object _) => _failProcessing('stream_unavailable'),
+          );
     } on Object {
       if (!mounted) {
         return;
       }
-      _processingTimer?.cancel();
-      setState(() => _step = CaptureStep.recall);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('기억 보강을 저장하지 못했어요.'),
-          backgroundColor: MongColor.ink,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _failProcessing('enqueue_unavailable');
       return;
     }
 
     if (!mounted || _step != CaptureStep.processing) {
       return;
     }
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    _processingTimer = Timer.periodic(
-      Duration(milliseconds: reduceMotion ? 300 : 950),
-      (timer) {
-        if (!mounted) return;
-        if (_processingStage < 3) {
-          setState(() => _processingStage += 1);
-        }
-        _finishProcessingIfReady();
-      },
-    );
+  }
+
+  void _failProcessing(String code) {
+    if (!mounted || _processingFailed) return;
+    _slowTimer?.cancel();
+    AppLog.event('processing_failed', {
+      'stage': _processingStage,
+      'code': code,
+    });
+    setState(() => _processingFailed = true);
   }
 
   void _onJobProgress(JobProgress? progress) {
@@ -301,18 +362,20 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       return;
     }
     if (progress.status == JobStatus.failed) {
-      _processingTimer?.cancel();
-      setState(() => _step = CaptureStep.recall);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('장면을 만들지 못했어요. 꿈은 보관함에 저장되어 있어요.'),
-          backgroundColor: MongColor.ink,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _failProcessing('job_failed');
       return;
     }
-    if (progress.status == JobStatus.done) {
+    setState(
+      () => _processingStage = switch (progress.type) {
+        JobType.extract => 0,
+        JobType.link => 1,
+        JobType.plan || JobType.write || JobType.linkPatch => 2,
+        JobType.validate || JobType.commit || JobType.remember => 3,
+      },
+    );
+    if (progress.status == JobStatus.done &&
+        (progress.type == JobType.commit ||
+            progress.type == JobType.remember)) {
       _jobDone = true;
       if (mounted) {
         setState(() {});
@@ -349,7 +412,8 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     }
     final passages = ref.watch(passagesProvider(revealScene.id)).value;
     final progressEvents = ref.watch(recentProgressProvider(volume.id)).value;
-    if (passages == null || progressEvents == null) {
+    final decisions = ref.watch(linkDecisionsProvider(dreamId)).value;
+    if (passages == null || progressEvents == null || decisions == null) {
       return;
     }
     ProgressEvent? event;
@@ -368,6 +432,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       setState(() {
         _revealScene = revealScene;
         _revealPassages = passages;
+        _revealDecision = decisions.firstOrNull;
         _revealDeltaPercent = event == null
             ? 0
             : (event.deltaMu / volume.targetMu * 100).round();
@@ -377,10 +442,20 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   }
 
   void _finishProcessingIfReady() {
-    if (!mounted || !_jobDone || _processingStage < 3 || _revealScene == null) {
+    if (!mounted ||
+        _step == CaptureStep.reveal ||
+        _processingFailed ||
+        !_jobDone ||
+        _processingStage < 3 ||
+        _revealScene == null) {
       return;
     }
-    _processingTimer?.cancel();
+    _slowTimer?.cancel();
+    AppLog.event('processing_completed', {'dream_id': _dreamId});
+    AppLog.event('reveal_viewed', {
+      'dream_id': _dreamId,
+      'scene_id': _revealScene!.id,
+    });
     setState(() => _step = CaptureStep.reveal);
   }
 
@@ -595,7 +670,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
           Center(
             child: QuietTextButton(
               label: '전체 건너뛰기',
-              onPressed: _startProcessing,
+              onPressed: () => _startProcessing(skip: true),
             ),
           ),
         ],
@@ -604,6 +679,36 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   }
 
   Widget _buildProcessing() {
+    if (_processingFailed) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '장면을 만들지 못했어요.',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            const Text('꿈은 보관함에 저장되어 있어요.'),
+            const SizedBox(height: 28),
+            EditorialButton(
+              label: '다시 시도',
+              onPressed: () {
+                // Explicit user retry starts a new attempt; transport retries keep their key.
+                _engineIdempotencyKey = null;
+                _startProcessing();
+              },
+            ),
+            QuietTextButton(
+              label: '보관함에서 나중에 보기',
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    }
     const labels = ['꿈을 읽는 중', '이어질 곳을 찾는 중', '장면을 쓰는 중', '확인하는 중'];
     return AnimatedBuilder(
       key: const ValueKey('processing'),
@@ -631,7 +736,9 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
               ),
               const SizedBox(height: 18),
               Text(
-                '다른 일을 하셔도 돼요. 완성되면 알려드릴게요.',
+                _slowProcessing
+                    ? '조금 더 시간이 필요해요. 꿈은 안전하게 저장되어 있어요.'
+                    : '저장한 기억을 바탕으로 장면을 만들고 있어요.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: MongColor.ink2),
@@ -674,24 +781,27 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
           const SizedBox(height: 28),
           const Divider(),
           const SizedBox(height: 24),
-          Text(
-            '오늘의 ‘우산을 든 여자’,\n2장의 그 사람일까요?',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final choice in const ['같은 사람', '다른 사람', '모르겠음'])
-                ChoiceChipEditorial(
-                  label: choice,
-                  selected: _linkChoice == choice,
-                  onTap: () => setState(() => _linkChoice = choice),
-                ),
-            ],
-          ),
-          const SizedBox(height: 28),
+          if (_revealDecision != null) ...[
+            Text(
+              '오늘의 ‘${_revealDecision!.payload['label'] ?? '기억 속 존재'}’,\n'
+              '${_revealDecision!.payload['candidate_label'] ?? '앞 장면의 존재'}일까요?',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final choice in const ['같은 사람', '다른 사람', '모르겠음'])
+                  ChoiceChipEditorial(
+                    label: choice,
+                    selected: _linkChoice == choice,
+                    onTap: _savingLink ? () {} : () => _decideLink(choice),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 28),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -710,6 +820,33 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
         ],
       ),
     );
+  }
+
+  Future<void> _decideLink(String label) async {
+    final decision = _revealDecision;
+    if (decision == null || _savingLink) return;
+    final choice = switch (label) {
+      '같은 사람' => LinkChoice.same,
+      '다른 사람' => LinkChoice.different,
+      _ => LinkChoice.unsure,
+    };
+    setState(() => _savingLink = true);
+    try {
+      await ref.read(repositoryProvider).decideLink(decision.id, choice);
+      AppLog.event('link_decided', {
+        'dream_id': decision.dreamId,
+        'mode': choice.name,
+      });
+      if (mounted) setState(() => _linkChoice = label);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('연결 선택을 저장하지 못했어요.')));
+      }
+    } finally {
+      if (mounted) setState(() => _savingLink = false);
+    }
   }
 
   void _showPlacementSheet() {

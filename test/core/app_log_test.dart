@@ -16,6 +16,18 @@ void main() {
 
   tearDown(AppLog.resetSinkForTesting);
 
+  test(
+    'nested objects cannot smuggle manuscript text through allowed keys',
+    () {
+      AppLog.event('processing_failed', {
+        'code': {'text': 'private'},
+        'count': ['private'],
+        'stage': 'write',
+      });
+      expect(capturedFields, {'stage': 'write'});
+    },
+  );
+
   test('비허용 키를 제거한다', () {
     AppLog.event('processing_started', {
       'dream_id': 'dream-1',

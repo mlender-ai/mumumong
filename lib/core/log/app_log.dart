@@ -30,6 +30,12 @@ abstract final class AppLog {
     final safe = <String, Object?>{};
     fields.forEach((key, value) {
       if (!_allowedKeys.contains(key)) return;
+      if (value != null &&
+          value is! String &&
+          value is! num &&
+          value is! bool) {
+        return;
+      }
       if (value is String && value.length > 64) return;
       safe[key] = value;
     });

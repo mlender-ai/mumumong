@@ -10,3 +10,12 @@ Deno.test("engine stages accept only the configured worker credential", () => {
     assertEquals(authorizedWorker(request, undefined), false);
   }
 });
+
+Deno.test("opaque hosted service secrets authenticate via apikey, public keys never do", () => {
+  const secret = "sb_secret_test";
+  for (const key of ["sb_publishable_test", "user-jwt", secret, ""]) {
+    const request = new Request("http://localhost", { headers: { apikey: key } });
+    assertEquals(authorizedWorker(request, secret), key === secret);
+    assertEquals(authorizedWorker(request, undefined), false);
+  }
+});

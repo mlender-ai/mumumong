@@ -13,6 +13,8 @@ import 'ui/archive/archive_screen.dart';
 import 'ui/auth/auth_gate.dart';
 import 'ui/capture/capture_flow.dart';
 import 'ui/home/home_screen.dart';
+import 'ui/settings/settings_screen.dart';
+import 'ui/settings/app_lock_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,9 +54,11 @@ class MumumongApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: '무무몽',
       theme: mumumongTheme(),
-      home: requireAuthentication
-          ? const AuthGate(manuscript: MumumongShell())
-          : const MumumongShell(),
+      home: AppLockGate(
+        child: requireAuthentication
+            ? const AuthGate(manuscript: MumumongShell())
+            : const MumumongShell(),
+      ),
     );
   }
 }
@@ -96,6 +100,7 @@ class _MumumongShellState extends ConsumerState<MumumongShell> {
     final pages = <Widget>[
       HomeScreen(onCapture: _openCapture),
       ArchiveScreen(onCapture: _openCapture),
+      const SettingsScreen(),
     ];
 
     return Scaffold(
@@ -120,6 +125,11 @@ class _MumumongShellState extends ConsumerState<MumumongShell> {
                   label: '보관함',
                   selected: _tab == 1,
                   onTap: () => setState(() => _tab = 1),
+                ),
+                _BottomTab(
+                  label: '설정',
+                  selected: _tab == 2,
+                  onTap: () => setState(() => _tab = 2),
                 ),
               ],
             ),

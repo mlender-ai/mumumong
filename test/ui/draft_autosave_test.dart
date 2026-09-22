@@ -9,6 +9,7 @@ import 'package:mumumong/core/design/design_system.dart';
 import 'package:mumumong/data/local/database.dart';
 import 'package:mumumong/data/local/drift_repository.dart';
 import 'package:mumumong/data/memory/memory_repository.dart';
+import 'package:mumumong/data/speech/speech_input.dart';
 import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/domain/model/models.dart';
 import 'package:mumumong/domain/repository/mumumong_repository.dart';
@@ -24,13 +25,30 @@ DreamDraft draft(String text) => DreamDraft(
   updatedAt: DateTime.utc(2026, 9, 19),
 );
 
-Widget app(MumumongRepository repository) => ProviderScope(
-  overrides: [repositoryProvider.overrideWithValue(repository)],
-  child: MaterialApp(
-    theme: mumumongTheme(),
-    home: const CaptureFlow(dreamNumber: 8, sceneNumber: 12),
-  ),
-);
+Widget app(MumumongRepository repository, {SpeechInput? speech}) =>
+    ProviderScope(
+      overrides: [
+        repositoryProvider.overrideWithValue(repository),
+        if (speech != null) speechInputProvider.overrideWithValue(speech),
+      ],
+      child: MaterialApp(
+        theme: mumumongTheme(),
+        home: const CaptureFlow(dreamNumber: 8, sceneNumber: 12),
+      ),
+    );
+
+class TestSpeech implements SpeechInput {
+  final controller = StreamController<SpeechUpdate>.broadcast();
+  @override
+  Stream<SpeechUpdate> get updates => controller.stream;
+  @override
+  Future<void> start() async {
+    controller.add(const SpeechUpdate(text: '목소리로 남긴 기억'));
+  }
+
+  @override
+  Future<void> stop() async {}
+}
 
 class DelayedRepository extends MemoryRepository {
   final started = Completer<void>();
@@ -106,7 +124,9 @@ void main() {
     (tester) async {
       final repository = MemoryRepository();
       await repository.saveDraft(draft('폐기할 기억'));
-      await tester.pumpWidget(app(repository));
+      final speech = TestSpeech();
+      addTearDown(speech.controller.close);
+      await tester.pumpWidget(app(repository, speech: speech));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('새로 쓰기'));

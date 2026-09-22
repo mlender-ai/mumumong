@@ -104,6 +104,30 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
   }
 
   @override
+  Stream<List<LinkDecision>> watchLinkDecisions(String dreamId) {
+    final query = _database.select(_database.linkDecisions)
+      ..where((row) => row.dreamId.equals(dreamId))
+      ..orderBy([(row) => OrderingTerm.asc(row.createdAt)]);
+    return _afterReady(
+      query.watch().map(
+        (rows) => List.unmodifiable(
+          rows.map(
+            (row) => LinkDecision(
+              id: row.id,
+              dreamId: row.dreamId,
+              kind: enumFromDatabase(row.kind, LinkDecisionKind.values),
+              payload: Map<String, dynamic>.from(
+                jsonDecode(row.payload) as Map,
+              ),
+              status: enumFromDatabase(row.status, LinkDecisionStatus.values),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Stream<JobProgress?> watchJob(String dreamId) {
     final query = _database.select(_database.jobs)
       ..where((row) => row.dreamId.equals(dreamId))
@@ -425,6 +449,24 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
                 cReason: passage.cReason,
                 locked: false,
                 createdBy: 'engine',
+              ),
+            );
+      }
+      if (!result.isFallback) {
+        await _database
+            .into(_database.linkDecisions)
+            .insert(
+              LocalLinkDecisionRow(
+                id: _uuid.v4(),
+                volumeId: volume.id,
+                dreamId: dreamId,
+                kind: LinkDecisionKind.entityMerge.databaseValue,
+                payload: jsonEncode(const {
+                  'label': '우산을 든 여자',
+                  'candidate_label': '앞 장면의 그 사람',
+                }),
+                status: LinkDecisionStatus.pending.databaseValue,
+                createdAt: timestamp,
               ),
             );
       }
