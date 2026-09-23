@@ -13,6 +13,7 @@ import {
   type RegistryEntity,
 } from "../_shared/contract.ts";
 import { loadJob } from "../_shared/jobs.ts";
+import { enqueueStage, mergeJobPayload } from "../_shared/pipeline.ts";
 import { lockedPassageHash } from "../_shared/text.ts";
 import { auditRecord, validateSceneDraft } from "./validate.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
@@ -130,6 +131,46 @@ Deno.serve(async (request: Request): Promise<Response> => {
     logEvent("engine_validate_audit_failed", { job_id: jobId, stage: "validate" });
   }
 
+  const currentWriteAttempt = typeof payload.write_attempt === "number" ? payload.write_attempt : 0;
+  let next: string | null = null;
+  let terminal = false;
+  if (outcome.action === "accept") {
+    const nextPayload = await mergeJobPayload(client, jobId, payload, {
+      validation_complete: true,
+      validation_audit: audit,
+    });
+    next = await enqueueStage(client, {
+      userId: job.user_id,
+      dreamId: job.dream_id,
+      volumeId: job.volume_id,
+      type: "commit",
+      payload: nextPayload,
+    });
+  } else if (isFallback || outcome.action === "discard") {
+    terminal = true;
+    await client.from("dreams").update({ status: "failed" }).eq("id", job.dream_id);
+  } else {
+    const fallback = currentWriteAttempt >= 2;
+    const nextAttempt = fallback ? 3 : currentWriteAttempt + 1;
+    const nextPayload = {
+      ...payload,
+      write_attempt: nextAttempt,
+      is_fallback: fallback,
+      validation_feedback: outcome.violations.map((violation) => ({
+        code: violation.code,
+        message: violation.message,
+      })),
+    };
+    next = await enqueueStage(client, {
+      userId: job.user_id,
+      dreamId: job.dream_id,
+      volumeId: job.volume_id,
+      type: "write",
+      payload: nextPayload,
+      keySuffix: String(nextAttempt),
+    });
+  }
+
   logEvent("engine_validate_done", {
     job_id: jobId,
     dream_id: job.dream_id,
@@ -139,5 +180,5 @@ Deno.serve(async (request: Request): Promise<Response> => {
     ms: Date.now() - started,
   });
 
-  return json({ ...outcome, audit });
+  return json({ ...outcome, audit, next_job_id: next, terminal });
 });

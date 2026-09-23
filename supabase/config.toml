@@ -389,6 +389,24 @@ verify_jwt = false
 [functions.engine-commit]
 verify_jwt = false
 
+[functions.engine-extract]
+verify_jwt = false
+
+[functions.engine-link]
+verify_jwt = false
+
+[functions.engine-plan]
+verify_jwt = false
+
+[functions.engine-write]
+verify_jwt = false
+
+[functions.engine-remember]
+verify_jwt = false
+
+[functions.engine-worker]
+verify_jwt = false
+
 # The handler verifies the caller with auth.getUser before any deletion.
 [functions.delete-account]
 verify_jwt = false

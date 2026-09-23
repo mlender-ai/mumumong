@@ -90,6 +90,13 @@ Deno.test("V3 detects an entity in neither today's elements nor the registry", a
   assertEquals(codes(result.violations), ["V3"]);
 });
 
+Deno.test("V3 rejects used entity ids outside the volume registry", async () => {
+  const draft = baseDraft();
+  draft.used_entities = [STAIRS];
+  const result = await validateSceneDraft(input({ draft }));
+  assertEquals(codes(result.violations), ["V3"]);
+});
+
 Deno.test("V4 detects a draft over the clarity length cap", async () => {
   const cap = lengthCapFor("partial", "balanced");
   const draft = baseDraft();

@@ -9,6 +9,7 @@ class FakeGateway implements RemoteEngineGateway {
   String? existing;
   bool conflict = false;
   int inserts = 0;
+  int kicks = 0;
   final changes = StreamController<List<RemoteJobRecord>>.broadcast();
   @override
   Future<String> findDreamVolume(String dreamId) async => 'volume';
@@ -32,6 +33,11 @@ class FakeGateway implements RemoteEngineGateway {
   }
 
   @override
+  Future<void> kickWorker() async {
+    kicks++;
+  }
+
+  @override
   Stream<List<RemoteJobRecord>> watchJobs(String dreamId) => changes.stream;
 }
 
@@ -51,9 +57,11 @@ void main() {
       '00000000-0000-4000-8000-000000000999',
     );
     expect(gateway.inserts, 1);
+    expect(gateway.kicks, 2);
     gateway.existing = null;
     gateway.conflict = true;
     expect(await client.enqueue('dream', 'other'), 'concurrent');
+    expect(gateway.kicks, 3);
   });
 
   test(

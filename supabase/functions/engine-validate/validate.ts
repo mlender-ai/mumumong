@@ -162,6 +162,7 @@ export async function validateSceneDraft(input: ValidateInput): Promise<Validati
 
   // V3 runs in both profiles: an invented entity is never acceptable output.
   violations.push(...checkNewEntities(draft, input));
+  violations.push(...checkUsedEntities(draft, input.registry));
 
   if (profile === "strict") {
     const budget = ADAPTATION_BUDGETS[input.adaptation];
@@ -192,6 +193,20 @@ export async function validateSceneDraft(input: ValidateInput): Promise<Validati
   }
 
   return outcome(violations, cRatio, totalChars, profile);
+}
+
+function checkUsedEntities(
+  draft: SceneDraft,
+  registry: readonly RegistryEntity[],
+): Violation[] {
+  const known = new Set(registry.map((entity) => entity.id));
+  const unknown = (draft.used_entities ?? []).filter((id) => !known.has(id));
+  if (unknown.length === 0) return [];
+  return [{
+    code: "V3",
+    message: "used_entities에 현재 볼륨 레지스트리에 없는 id가 포함되었다.",
+    observed: unknown.length,
+  }];
 }
 
 async function checkLockedPassages(

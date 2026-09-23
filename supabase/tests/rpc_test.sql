@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(55);
+select plan(58);
 
 select ok(
   has_function_privilege('authenticated', 'public.user_edit_passage(uuid,text)', 'EXECUTE')
@@ -28,6 +28,12 @@ select ok(
   and not has_function_privilege('authenticated', 'public.claim_job()', 'EXECUTE')
   and not has_function_privilege('anon', 'public.claim_job()', 'EXECUTE'),
   'claim_job is service-role only'
+);
+select ok(
+  has_function_privilege('service_role', 'public.claim_job_for_user(uuid)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.claim_job_for_user(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.claim_job_for_user(uuid)', 'EXECUTE'),
+  'claim_job_for_user is service-role only'
 );
 select ok(
   has_function_privilege('service_role', 'public.reap_zombie_jobs()', 'EXECUTE')
@@ -339,6 +345,25 @@ select is((select count(distinct id)::integer from claimed_jobs), 2, 'two claims
 select is((select count(*)::integer from public.jobs where id in (select id from claimed_jobs) and status = 'running'), 2, 'claimed jobs move to running');
 select is((select sum(attempt)::integer from public.jobs where id in (select id from claimed_jobs)), 2, 'claim_job increments each attempt once');
 select is((public.claim_job()).id, null::uuid, 'claim_job returns null when the queue is empty');
+
+insert into public.jobs (
+  id, user_id, dream_id, volume_id, type, idempotency_key, available_at
+) values (
+  'dccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  '11111111-1111-4111-8111-111111111111',
+  'd2222222-2222-4222-8222-222222222222',
+  'd1111111-1111-4111-8111-111111111111',
+  'write',
+  'dcdddddd-dddd-4ddd-8ddd-dddddddddddd',
+  now() + interval '1 hour'
+);
+select is((public.claim_job()).id, null::uuid, 'claim_job skips work before available_at');
+update public.jobs set available_at = now() where id = 'dccccccc-cccc-4ccc-8ccc-cccccccccccc';
+select is(
+  (public.claim_job_for_user('11111111-1111-4111-8111-111111111111')).id,
+  'dccccccc-cccc-4ccc-8ccc-cccccccccccc'::uuid,
+  'claim_job_for_user claims only ready work for that owner'
+);
 
 update public.jobs
    set updated_at = now() - interval '6 minutes'

@@ -51,6 +51,7 @@ abstract interface class RemoteEngineGateway {
     required String idempotencyKey,
   });
   Future<String?> findJobByKey(String userId, String idempotencyKey);
+  Future<void> kickWorker();
   Stream<List<RemoteJobRecord>> watchJobs(String dreamId);
 }
 
@@ -108,6 +109,14 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
   }
 
   @override
+  Future<void> kickWorker() async {
+    final response = await client.functions.invoke('engine-worker');
+    if (response.status < 200 || response.status >= 300) {
+      throw StateError('engine_worker_unavailable');
+    }
+  }
+
+  @override
   Stream<List<RemoteJobRecord>> watchJobs(String dreamId) => client
       .from('jobs')
       .stream(primaryKey: ['id'])
@@ -139,7 +148,10 @@ class RemoteEngineClient implements EngineClient {
     final userId = gateway.currentUserId;
     if (userId == null) throw StateError('authentication_required');
     final existing = await gateway.findJobByKey(userId, idempotencyKey);
-    if (existing != null) return existing;
+    if (existing != null) {
+      await gateway.kickWorker();
+      return existing;
+    }
     final volumeId = await gateway.findDreamVolume(dreamId);
     final inserted = await gateway.insertExtractJob(
       id: _idGenerator(),
@@ -148,9 +160,13 @@ class RemoteEngineClient implements EngineClient {
       volumeId: volumeId,
       idempotencyKey: idempotencyKey,
     );
-    if (inserted != null) return inserted;
+    if (inserted != null) {
+      await gateway.kickWorker();
+      return inserted;
+    }
     final concurrent = await gateway.findJobByKey(userId, idempotencyKey);
     if (concurrent == null) throw StateError('idempotent_job_missing');
+    await gateway.kickWorker();
     return concurrent;
   }
 

@@ -93,11 +93,15 @@ Deno.serve(async (request: Request): Promise<Response> => {
     return json(result);
   } catch (error) {
     const invalid = error instanceof CommitInputError;
+    const databaseCode = error instanceof Error
+      ? error.message.match(/commit_scene failed: ([A-Z0-9]+)/u)?.[1]
+      : undefined;
+    const code = invalid ? "invalid_input" : databaseCode ?? "commit_failed";
     logEvent("engine_commit_failed", {
       job_id: jobId,
       stage: "commit",
-      code: invalid ? "invalid_input" : "commit_failed",
+      code,
     });
-    return json({ error: invalid ? "invalid_input" : "commit_failed" }, invalid ? 400 : 500);
+    return json({ error: invalid ? "invalid_input" : "commit_failed", code }, invalid ? 400 : 500);
   }
 });
