@@ -14,6 +14,8 @@ import '../data/local/database.dart';
 import '../data/local/drift_repository.dart';
 import '../data/privacy/app_lock.dart';
 import '../data/speech/speech_input.dart';
+import '../data/sync/cloud_sync_service.dart';
+import '../data/sync/outbox_worker.dart';
 import '../domain/model/models.dart';
 import '../domain/repository/mumumong_repository.dart';
 
@@ -35,7 +37,49 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 });
 
 final repositoryProvider = Provider<MumumongRepository>((ref) {
-  return DriftRepository(ref.watch(databaseProvider));
+  final remote = AppEnv.engine == EngineMode.remote;
+  return DriftRepository(
+    ref.watch(databaseProvider),
+    seedPrototype: !remote,
+    queueCloudMutations: remote,
+  );
+});
+
+final remoteEngineGatewayProvider = Provider<RemoteEngineGateway>((ref) {
+  return SupabaseRemoteEngineGateway(Supabase.instance.client);
+});
+
+final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
+  return CloudSyncService(
+    ref.watch(databaseProvider),
+    SupabaseCloudSyncGateway(Supabase.instance.client),
+  );
+});
+
+final outboxWorkerProvider = Provider<OutboxWorker?>((ref) {
+  if (AppEnv.engine != EngineMode.remote) return null;
+  final sync = ref.watch(cloudSyncServiceProvider);
+  final gateway = ref.watch(remoteEngineGatewayProvider);
+  final engine = RemoteEngineClient(gateway, sync: sync);
+  final worker = OutboxWorker(ref.watch(databaseProvider), (
+    operation,
+    payload,
+    idempotencyKey,
+  ) async {
+    final dreamId = payload['dream_id'] as String;
+    switch (operation) {
+      case 'create_dream':
+        await sync.pushDream(dreamId);
+      case 'process_dream':
+        await engine.enqueue(dreamId, idempotencyKey);
+      default:
+        throw StateError('unsupported_outbox_operation');
+    }
+    return DeliveryReceipt.applied;
+  });
+  unawaited(worker.start());
+  ref.onDispose(worker.dispose);
+  return worker;
 });
 
 final speechInputProvider = Provider<SpeechInput>(
@@ -49,7 +93,8 @@ final appLockProvider = ChangeNotifierProvider<AppLockController>((ref) {
 final engineClientProvider = Provider<EngineClient>((ref) {
   if (AppEnv.engine == EngineMode.remote) {
     return RemoteEngineClient(
-      SupabaseRemoteEngineGateway(Supabase.instance.client),
+      ref.watch(remoteEngineGatewayProvider),
+      sync: ref.watch(cloudSyncServiceProvider),
     );
   }
   final repository = ref.watch(repositoryProvider);

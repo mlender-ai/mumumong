@@ -33,7 +33,7 @@ void main() {
     expect(find.text('원고 화면'), findsOneWidget);
   });
 
-  testWidgets('신규 계정은 S02 볼륨 설정 경계로 보낸다', (tester) async {
+  testWidgets('신규 계정은 기본값이 선택된 S02 볼륨 설정으로 보낸다', (tester) async {
     final controller = AuthenticationController(
       const _FakeIdentity(),
       _FakeBackend(),
@@ -42,8 +42,10 @@ void main() {
 
     await tester.pumpWidget(_TestApp(controller: controller));
 
-    expect(find.text('VOL. 01'), findsOneWidget);
-    expect(find.text('VOLUME SETUP · S02'), findsOneWidget);
+    expect(find.text('VOL. 01 · SHORT'), findsOneWidget);
+    expect(find.text('균형 있게'), findsOneWidget);
+    expect(find.text('담백하게'), findsOneWidget);
+    expect(find.text('이 설정으로 시작'), findsOneWidget);
   });
 
   testWidgets('네트워크 실패는 재시도 화면을 보인다', (tester) async {

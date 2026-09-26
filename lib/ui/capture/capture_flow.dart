@@ -14,7 +14,7 @@ import '../../domain/model/models.dart';
 import '../../domain/repository/mumumong_repository.dart';
 import 'draft_autosave.dart';
 
-enum CaptureStep { capture, recall, processing, reveal }
+enum CaptureStep { capture, recall, processing, reveal, archived }
 
 class CaptureFlow extends ConsumerStatefulWidget {
   const CaptureFlow({
@@ -58,6 +58,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   bool _jobDone = false;
   bool _usedVoice = false;
   bool _revealScheduled = false;
+  bool _archiveScheduled = false;
   String? _engineIdempotencyKey;
   late final DraftAutosave _autosave;
   DreamDraft? _draft;
@@ -325,7 +326,9 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       AppLog.event(skip ? 'recall_skipped' : 'recall_answered', {
         'dream_id': dreamId,
       });
-      _engineIdempotencyKey ??= const Uuid().v4();
+      // A dream UUID is also a valid stable server idempotency key. Reusing it
+      // lets foreground submission and a later Outbox retry converge.
+      _engineIdempotencyKey ??= dreamId;
       await engine.enqueue(dreamId, _engineIdempotencyKey!);
       if (!mounted) return;
       _jobSubscription = engine
@@ -365,6 +368,13 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       _failProcessing('job_failed');
       return;
     }
+    if (progress.status == JobStatus.done && progress.archivedOnly) {
+      _slowTimer?.cancel();
+      _jobDone = true;
+      AppLog.event('dream_archived_only', {'dream_id': progress.dreamId});
+      setState(() => _step = CaptureStep.archived);
+      return;
+    }
     setState(
       () => _processingStage = switch (progress.type) {
         JobType.extract => 0,
@@ -388,12 +398,27 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     final dreamId = _dreamId;
     if (dreamId == null ||
         !_jobDone ||
+        _step == CaptureStep.archived ||
         _revealScene != null ||
         _revealScheduled) {
       return;
     }
     final volume = ref.watch(activeVolumeProvider).value;
     if (volume == null) {
+      return;
+    }
+    final dreams = ref.watch(dreamsProvider(DreamStatusFilter.all)).value;
+    final dream = dreams?.where((item) => item.id == dreamId).firstOrNull;
+    if (dream?.status == DreamStatus.archivedOnly) {
+      if (!_archiveScheduled) {
+        _archiveScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _archiveScheduled = false;
+          if (!mounted || !_jobDone) return;
+          AppLog.event('dream_archived_only', {'dream_id': dreamId});
+          setState(() => _step = CaptureStep.archived);
+        });
+      }
       return;
     }
     final scenes = ref.watch(scenesProvider(volume.id)).value;
@@ -464,6 +489,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     CaptureStep.recall => '기억 보강',
     CaptureStep.processing => '장면을 만드는 중',
     CaptureStep.reveal => '새 장면',
+    CaptureStep.archived => '보관함에 저장됨',
   };
 
   @override
@@ -500,6 +526,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
                   CaptureStep.recall => _buildRecall(),
                   CaptureStep.processing => _buildProcessing(),
                   CaptureStep.reveal => _buildReveal(),
+                  CaptureStep.archived => _buildArchived(),
                 },
               ),
             ),
@@ -696,7 +723,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
             EditorialButton(
               label: '다시 시도',
               onPressed: () {
-                // Explicit user retry starts a new attempt; transport retries keep their key.
+                // User and transport retries converge on the stable dream UUID.
                 _engineIdempotencyKey = null;
                 _startProcessing();
               },
@@ -815,6 +842,36 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
           const SizedBox(height: 18),
           EditorialButton(
             label: '원고에서 확인하기',
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildArchived() {
+    return Padding(
+      key: const ValueKey('archived'),
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const MetaText('DREAM ARCHIVE'),
+          const Spacer(),
+          Text(
+            '이번 꿈은 아직\n원고와 이어지지 않았어요.',
+            style: Theme.of(context).textTheme.displayMedium,
+          ),
+          const SizedBox(height: 18),
+          Text(
+            '원문은 보관함에 안전하게 남겨두었습니다.\n다음 꿈이 새로운 연결을 만들 수 있어요.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: MongColor.ink2),
+          ),
+          const Spacer(),
+          EditorialButton(
+            label: '원고로 돌아가기',
             onPressed: () => Navigator.pop(context, true),
           ),
         ],

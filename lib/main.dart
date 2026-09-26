@@ -43,13 +43,14 @@ Future<void> main() async {
   );
 }
 
-class MumumongApp extends StatelessWidget {
+class MumumongApp extends ConsumerWidget {
   const MumumongApp({super.key, this.requireAuthentication = false});
 
   final bool requireAuthentication;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(outboxWorkerProvider);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '무무몽',

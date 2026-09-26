@@ -103,6 +103,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       validEntityIds: new Set(
         (entitiesQuery.data ?? []).map((entity) => entity.id as string),
       ),
+      isFirstScene: job.payload.is_first_dream === true,
     });
     const payload = await mergeJobPayload(client, jobId, job.payload, {
       write_complete: true,

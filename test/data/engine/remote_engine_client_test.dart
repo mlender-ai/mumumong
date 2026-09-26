@@ -41,11 +41,24 @@ class FakeGateway implements RemoteEngineGateway {
   Stream<List<RemoteJobRecord>> watchJobs(String dreamId) => changes.stream;
 }
 
+class FakeSync implements RemoteEngineSync {
+  final pushed = <String>[];
+  final pulled = <String>[];
+
+  @override
+  Future<void> pullDreamResult(String dreamId) async => pulled.add(dreamId);
+
+  @override
+  Future<void> pushDream(String dreamId) async => pushed.add(dreamId);
+}
+
 void main() {
   test('enqueue is idempotent before and across a concurrent insert', () async {
     final gateway = FakeGateway();
+    final sync = FakeSync();
     final client = RemoteEngineClient(
       gateway,
+      sync: sync,
       idGenerator: () => '00000000-0000-4000-8000-000000000999',
     );
     expect(
@@ -58,6 +71,7 @@ void main() {
     );
     expect(gateway.inserts, 1);
     expect(gateway.kicks, 2);
+    expect(sync.pushed, ['dream', 'dream']);
     gateway.existing = null;
     gateway.conflict = true;
     expect(await client.enqueue('dream', 'other'), 'concurrent');
@@ -68,7 +82,8 @@ void main() {
     'watch emits actual database stage and suppresses exact duplicates',
     () async {
       final gateway = FakeGateway();
-      final client = RemoteEngineClient(gateway);
+      final sync = FakeSync();
+      final client = RemoteEngineClient(gateway, sync: sync);
       final values = <JobProgress>[];
       final subscription = client.watch('dream').listen(values.add);
       const running = RemoteJobRecord(
@@ -89,12 +104,25 @@ void main() {
           attempt: 1,
         ),
       ]);
+      gateway.changes.add(const [
+        RemoteJobRecord(
+          id: 'j',
+          dreamId: 'dream',
+          type: 'commit',
+          status: 'done',
+          attempt: 1,
+          archivedOnly: true,
+        ),
+      ]);
       await Future<void>.delayed(Duration.zero);
       expect(values.map((value) => value.type), [
         JobType.write,
         JobType.validate,
+        JobType.commit,
       ]);
       expect(values.first.stageLabel, '장면을 쓰는 중');
+      expect(values.last.archivedOnly, true);
+      expect(sync.pulled, ['dream']);
       await subscription.cancel();
       await gateway.changes.close();
     },

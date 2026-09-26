@@ -41,3 +41,19 @@ Deno.test("write normalization drops used entity ids the model was not given", (
   }, { validEntityIds: new Set([known]) });
   assertEquals(draft.used_entities, [known]);
 });
+
+Deno.test("the first manuscript scene is deterministically a prologue", () => {
+  const draft = toSceneDraft({
+    scene: { title: "문", kind: "dream", placement: "continuation", open_image: "문" },
+    passages: [{
+      origin: "D",
+      text: "문이 열렸다.",
+      source_element_ids: ["00000000-0000-4000-8000-000000000001"],
+      c_reason: null,
+    }],
+    new_entities: [],
+    used_entities: [],
+    open_image: "문",
+  }, { isFirstScene: true });
+  assertEquals((draft.scene as { kind: string }).kind, "prologue");
+});

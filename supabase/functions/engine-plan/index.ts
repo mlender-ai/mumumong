@@ -62,16 +62,28 @@ Deno.serve(async (request: Request): Promise<Response> => {
         existing_scenes: scenesQuery.data ?? [],
         genre_profile: volumeQuery.data.genre_profile,
         genre_directive: volumeQuery.data.genre_directive,
+        is_first_dream: (scenesQuery.data ?? []).length === 0,
       },
       temperature: 0.3,
       maxTokens: 1800,
     });
     const parsed = planOutputSchema.parse(result.value);
     const scenes = scenesQuery.data ?? [];
+    const elementIds = Array.isArray(job.payload.elements)
+      ? job.payload.elements
+        .map((element) =>
+          element && typeof element === "object" && "id" in element
+            ? (element as { id?: unknown }).id
+            : null
+        )
+        .filter((id): id is string => typeof id === "string")
+      : [];
     const plan = enforcePlan(parsed, {
       lengthCap,
       cRatioMax: ADAPTATION_BUDGETS[adaptation].cRatioMax,
       validSceneIds: new Set(scenes.map((scene) => scene.id as string)),
+      isFirstDream: scenes.length === 0,
+      firstDreamElementIds: elementIds,
     });
     const payload = await mergeJobPayload(client, jobId, job.payload, {
       plan_complete: true,
@@ -81,6 +93,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       target_length: plan.target_length,
       scene_title: plan.scene_title,
       scene_order_key: nextSceneOrderKey(scenes.map((scene) => scene.order_key as string)),
+      is_first_dream: scenes.length === 0,
       adaptation,
       style: volumeQuery.data.style,
       narrative_voice: volumeQuery.data.narrative_voice,

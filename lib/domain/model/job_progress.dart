@@ -8,6 +8,7 @@ class JobProgress {
     required this.status,
     required this.attempt,
     required this.stageLabel,
+    this.archivedOnly = false,
   });
 
   final String dreamId;
@@ -15,6 +16,7 @@ class JobProgress {
   final JobStatus status;
   final int attempt;
   final String stageLabel;
+  final bool archivedOnly;
 
   JobProgress copyWith({
     String? dreamId,
@@ -22,6 +24,7 @@ class JobProgress {
     JobStatus? status,
     int? attempt,
     String? stageLabel,
+    bool? archivedOnly,
   }) {
     return JobProgress(
       dreamId: dreamId ?? this.dreamId,
@@ -29,6 +32,7 @@ class JobProgress {
       status: status ?? this.status,
       attempt: attempt ?? this.attempt,
       stageLabel: stageLabel ?? this.stageLabel,
+      archivedOnly: archivedOnly ?? this.archivedOnly,
     );
   }
 
@@ -38,6 +42,7 @@ class JobProgress {
     'status': status.databaseValue,
     'attempt': attempt,
     'stage_label': stageLabel,
+    'archived_only': archivedOnly,
   };
 
   factory JobProgress.fromJson(Map<String, dynamic> json) {
@@ -47,6 +52,7 @@ class JobProgress {
       status: enumFromDatabase(json['status'], JobStatus.values),
       attempt: jsonInt(json['attempt'], 'attempt'),
       stageLabel: json['stage_label'] as String,
+      archivedOnly: json['archived_only'] as bool? ?? false,
     );
   }
 }

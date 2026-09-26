@@ -13,16 +13,24 @@ import '../memory/memory_repository.dart';
 import 'database.dart';
 
 class DriftRepository implements MumumongRepository, MockEngineStore {
-  DriftRepository(this._database, {DateTime Function()? now, Uuid? uuid})
-    : _now = now ?? DateTime.now,
-      _uuid = uuid ?? const Uuid() {
-    _ready = _seedIfEmpty();
+  DriftRepository(
+    this._database, {
+    DateTime Function()? now,
+    Uuid? uuid,
+    bool seedPrototype = true,
+    this.queueCloudMutations = false,
+  }) : _now = now ?? DateTime.now,
+       _uuid = uuid ?? const Uuid() {
+    _ready = seedPrototype ? _seedIfEmpty() : Future.value();
   }
 
   final AppDatabase _database;
   final DateTime Function() _now;
   final Uuid _uuid;
+  final bool queueCloudMutations;
   late final Future<void> _ready;
+
+  Future<void> get ready => _ready;
 
   @override
   Stream<Volume?> watchActiveVolume() => _afterReady(
@@ -240,6 +248,14 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
             ),
           );
       await _database.delete(_database.dreamDrafts).go();
+      if (queueCloudMutations) {
+        await _enqueueCloudMutation(
+          operation: 'create_dream',
+          aggregateId: dreamId,
+          idempotencyKey: _uuid.v4(),
+          timestamp: timestamp,
+        );
+      }
     });
     return dreamId;
   }
@@ -295,7 +311,45 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
           ),
         );
       }
+      if (queueCloudMutations) {
+        await _enqueueCloudMutation(
+          operation: 'process_dream',
+          aggregateId: dreamId,
+          idempotencyKey: dreamId,
+          timestamp: timestamp,
+        );
+      }
     });
+  }
+
+  Future<void> _enqueueCloudMutation({
+    required String operation,
+    required String aggregateId,
+    required String idempotencyKey,
+    required DateTime timestamp,
+  }) async {
+    final id = '$operation:$aggregateId';
+    final existing = await (_database.select(
+      _database.outbox,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (existing != null) return;
+    await _database
+        .into(_database.outbox)
+        .insert(
+          LocalOutboxRow(
+            id: id,
+            op: operation,
+            payload: jsonEncode({
+              'aggregate_id': aggregateId,
+              'created_at': timestamp.toIso8601String(),
+              'body': {'dream_id': aggregateId},
+            }),
+            idempotencyKey: idempotencyKey,
+            attempt: 0,
+            nextAttemptAt: timestamp,
+            status: 'pending',
+          ),
+        );
   }
 
   @override

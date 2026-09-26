@@ -131,6 +131,16 @@ class AuthenticationController extends ChangeNotifier {
     return signInWithApple();
   }
 
+  void completeVolumeSetup() {
+    if (_state.phase != AuthenticationPhase.signedIn) return;
+    _setState(
+      const AuthenticationState(
+        phase: AuthenticationPhase.signedIn,
+        destination: AuthenticationDestination.manuscript,
+      ),
+    );
+  }
+
   Future<void> _completeAuthentication() async {
     try {
       final hasVolume = await _backend.hasRemoteVolume();

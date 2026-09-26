@@ -4,6 +4,8 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/design/design_system.dart';
 import '../../data/auth/auth_controller.dart';
+import '../../core/env/env.dart';
+import '../../domain/model/enums.dart';
 import '../../di/providers.dart';
 
 class AuthGate extends ConsumerWidget {
@@ -31,8 +33,10 @@ class AuthGate extends ConsumerWidget {
       ),
       AuthenticationPhase.signedIn =>
         state.destination == AuthenticationDestination.manuscript
-            ? manuscript
-            : const VolumeSetupBoundary(),
+            ? AppEnv.engine == EngineMode.remote
+                  ? _CloudBootstrapGate(child: manuscript)
+                  : manuscript
+            : VolumeSetupScreen(onComplete: controller.completeVolumeSetup),
     };
   }
 }
@@ -109,16 +113,163 @@ class _AuthenticationFailureScreen extends StatelessWidget {
   }
 }
 
-class VolumeSetupBoundary extends StatelessWidget {
-  const VolumeSetupBoundary({super.key});
+class VolumeSetupScreen extends ConsumerStatefulWidget {
+  const VolumeSetupScreen({super.key, required this.onComplete});
+
+  final VoidCallback onComplete;
+
+  @override
+  ConsumerState<VolumeSetupScreen> createState() => _VolumeSetupScreenState();
+}
+
+class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
+  AdaptationLevel _adaptation = AdaptationLevel.balanced;
+  WritingStyle _style = WritingStyle.plain;
+  bool _saving = false;
+  bool _failed = false;
+
+  Future<void> _start() async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _failed = false;
+    });
+    try {
+      await ref
+          .read(cloudSyncServiceProvider)
+          .createVolume(adaptation: _adaptation, style: _style);
+      if (mounted) widget.onComplete();
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _failed = true;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const _AccountPage(
-      meta: 'VOL. 01',
-      title: '첫 원고를\n준비할게요.',
-      body: '다음 단계에서 원고의 분량과\n꿈을 이어갈 방식을 정합니다.',
-      footer: MetaText('VOLUME SETUP · S02', textAlign: TextAlign.center),
+    return _AccountPage(
+      meta: 'VOL. 01 · SHORT',
+      title: '첫 원고의\n결을 정합니다.',
+      body: '기본값 그대로 바로 시작할 수 있어요.\n설정은 이후 생성분부터 바꿀 수 있습니다.',
+      middle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const MetaText('ADAPTATION'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChipEditorial(
+                label: '꿈에 충실하게',
+                selected: _adaptation == AdaptationLevel.faithful,
+                onTap: () =>
+                    setState(() => _adaptation = AdaptationLevel.faithful),
+              ),
+              ChoiceChipEditorial(
+                label: '균형 있게',
+                selected: _adaptation == AdaptationLevel.balanced,
+                onTap: () =>
+                    setState(() => _adaptation = AdaptationLevel.balanced),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const MetaText('WRITING STYLE'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in const [
+                (WritingStyle.plain, '담백하게'),
+                (WritingStyle.lyrical, '서정적으로'),
+                (WritingStyle.cinematic, '영화적으로'),
+              ])
+                ChoiceChipEditorial(
+                  label: option.$2,
+                  selected: _style == option.$1,
+                  onTap: () => setState(() => _style = option.$1),
+                ),
+            ],
+          ),
+        ],
+      ),
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const MetaText(
+            '꿈 내용은 원고 생성을 위해 Groq API로 전송됩니다. 시작하면 AI 처리에 동의합니다.',
+            textAlign: TextAlign.center,
+          ),
+          if (_failed) ...[
+            const SizedBox(height: 10),
+            const Text(
+              '원고를 만들지 못했어요. 연결을 확인하고 다시 시도해 주세요.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+          const SizedBox(height: 16),
+          EditorialButton(
+            label: _saving ? '원고를 여는 중' : '이 설정으로 시작',
+            onPressed: _saving ? null : _start,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CloudBootstrapGate extends ConsumerStatefulWidget {
+  const _CloudBootstrapGate({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_CloudBootstrapGate> createState() =>
+      _CloudBootstrapGateState();
+}
+
+class _CloudBootstrapGateState extends ConsumerState<_CloudBootstrapGate> {
+  late Future<bool> _loading;
+
+  @override
+  void initState() {
+    super.initState();
+    _loading = ref.read(cloudSyncServiceProvider).bootstrapCurrentAccount();
+  }
+
+  void _retry() {
+    setState(() {
+      _loading = ref.read(cloudSyncServiceProvider).bootstrapCurrentAccount();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _loading,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const _QuietStatusScreen(
+            meta: 'ACCOUNT',
+            title: '원고를 동기화하는 중',
+          );
+        }
+        if (snapshot.hasError || snapshot.data != true) {
+          return _AccountPage(
+            meta: 'ACCOUNT',
+            title: '원고를 불러오지 못했어요.',
+            body: '연결을 확인한 뒤 다시 시도해 주세요.',
+            footer: EditorialButton(label: '다시 시도', onPressed: _retry),
+          );
+        }
+        return widget.child;
+      },
     );
   }
 }
@@ -140,12 +291,14 @@ class _AccountPage extends StatelessWidget {
     required this.meta,
     required this.title,
     this.body,
+    this.middle,
     this.footer,
   });
 
   final String meta;
   final String title;
   final String? body;
+  final Widget? middle;
   final Widget? footer;
 
   @override
@@ -169,7 +322,8 @@ class _AccountPage extends StatelessWidget {
                   ).textTheme.bodyMedium?.copyWith(color: MongColor.ink2),
                 ),
               ],
-              const Spacer(flex: 5),
+              if (middle != null) ...[const SizedBox(height: 34), middle!],
+              const Spacer(flex: 3),
               ?footer,
             ],
           ),

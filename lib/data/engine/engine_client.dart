@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../domain/model/models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -6,6 +8,12 @@ abstract interface class EngineClient {
   Future<String> enqueue(String dreamId, String idempotencyKey);
 
   Stream<JobProgress> watch(String dreamId);
+}
+
+abstract interface class RemoteEngineSync {
+  Future<void> pushDream(String dreamId);
+
+  Future<void> pullDreamResult(String dreamId);
 }
 
 abstract interface class MockEngineStore {
@@ -32,12 +40,14 @@ class RemoteJobRecord {
     required this.type,
     required this.status,
     required this.attempt,
+    this.archivedOnly = false,
   });
   final String id;
   final String dreamId;
   final String type;
   final String status;
   final int attempt;
+  final bool archivedOnly;
 }
 
 abstract interface class RemoteEngineGateway {
@@ -117,36 +127,84 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
   }
 
   @override
-  Stream<List<RemoteJobRecord>> watchJobs(String dreamId) => client
-      .from('jobs')
-      .stream(primaryKey: ['id'])
-      .eq('dream_id', dreamId)
-      .order('updated_at')
-      .map(
-        (rows) => rows
-            .map(
-              (row) => RemoteJobRecord(
-                id: row['id'] as String,
-                dreamId: row['dream_id'] as String,
-                type: row['type'] as String,
-                status: row['status'] as String,
-                attempt: row['attempt'] as int,
-              ),
-            )
-            .toList(),
-      );
+  Stream<List<RemoteJobRecord>> watchJobs(String dreamId) {
+    late final StreamController<List<RemoteJobRecord>> controller;
+    StreamSubscription<List<Map<String, dynamic>>>? realtime;
+    Timer? polling;
+    var consecutivePollFailures = 0;
+
+    List<RemoteJobRecord> decode(List<Map<String, dynamic>> rows) => rows
+        .map(
+          (row) => RemoteJobRecord(
+            id: row['id'] as String,
+            dreamId: row['dream_id'] as String,
+            type: row['type'] as String,
+            status: row['status'] as String,
+            attempt: row['attempt'] as int,
+            archivedOnly: (row['payload'] as Map?)?['archived_only'] == true,
+          ),
+        )
+        .toList(growable: false);
+
+    Future<void> poll() async {
+      try {
+        final rows = await client
+            .from('jobs')
+            .select('id,dream_id,type,status,attempt,payload,updated_at')
+            .eq('dream_id', dreamId)
+            .order('updated_at');
+        consecutivePollFailures = 0;
+        if (!controller.isClosed) {
+          controller.add(decode(List<Map<String, dynamic>>.from(rows)));
+        }
+      } on Object catch (error, stackTrace) {
+        consecutivePollFailures++;
+        if (consecutivePollFailures >= 3 && !controller.isClosed) {
+          controller.addError(error, stackTrace);
+        }
+      }
+    }
+
+    controller = StreamController<List<RemoteJobRecord>>(
+      onListen: () {
+        realtime = client
+            .from('jobs')
+            .stream(primaryKey: ['id'])
+            .eq('dream_id', dreamId)
+            .order('updated_at')
+            .listen(
+              (rows) => controller.add(decode(rows)),
+              onError: (_, _) {
+                // Polling remains authoritative when Realtime is unavailable.
+              },
+            );
+        unawaited(poll());
+        polling = Timer.periodic(
+          const Duration(seconds: 3),
+          (_) => unawaited(poll()),
+        );
+      },
+      onCancel: () async {
+        polling?.cancel();
+        await realtime?.cancel();
+      },
+    );
+    return controller.stream;
+  }
 }
 
 class RemoteEngineClient implements EngineClient {
-  RemoteEngineClient(this.gateway, {String Function()? idGenerator})
+  RemoteEngineClient(this.gateway, {this.sync, String Function()? idGenerator})
     : _idGenerator = idGenerator ?? const Uuid().v4;
   final RemoteEngineGateway gateway;
+  final RemoteEngineSync? sync;
   final String Function() _idGenerator;
 
   @override
   Future<String> enqueue(String dreamId, String idempotencyKey) async {
     final userId = gateway.currentUserId;
     if (userId == null) throw StateError('authentication_required');
+    await sync?.pushDream(dreamId);
     final existing = await gateway.findJobByKey(userId, idempotencyKey);
     if (existing != null) {
       await gateway.kickWorker();
@@ -174,16 +232,21 @@ class RemoteEngineClient implements EngineClient {
   Stream<JobProgress> watch(String dreamId) => gateway
       .watchJobs(dreamId)
       .where((rows) => rows.isNotEmpty)
-      .map((rows) {
+      .asyncMap((rows) async {
         final row = rows.last;
         final type = enumFromDatabase(row.type, JobType.values);
         final status = enumFromDatabase(row.status, JobStatus.values);
+        if (status == JobStatus.done &&
+            (type == JobType.commit || type == JobType.remember)) {
+          await sync?.pullDreamResult(dreamId);
+        }
         return JobProgress(
           dreamId: row.dreamId,
           type: type,
           status: status,
           attempt: row.attempt,
           stageLabel: _stageLabel(type, status),
+          archivedOnly: row.archivedOnly,
         );
       })
       .distinct(
