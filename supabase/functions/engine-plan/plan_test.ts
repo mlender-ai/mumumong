@@ -36,12 +36,32 @@ Deno.test("the first dream is always planned as a manuscript prologue", () => {
     rawText: "여왕개미의 책상을 가져왔다.",
   });
   assertEquals(first.placement, "continuation");
-  assertEquals(first.beats, [{
-    kind: "D",
-    element_ids: [elementId],
-    note: "사용자의 의도와 행동으로 여는 첫 장면",
-  }]);
+  assertEquals(first.beats.length, 5);
+  assertEquals(first.beats.map((beat) => beat.kind), ["D", "D", "D", "D", "C"]);
+  assertEquals(first.target_length, 700);
   assertEquals(first.scene_title, "여왕개미의 책상");
+});
+
+Deno.test("a first dream uses the full opening target without breaking the length cap", () => {
+  const first = enforcePlan({
+    placement: "continuation",
+    attach_to_scene_id: null,
+    beats: [{
+      kind: "D",
+      element_ids: ["00000000-0000-4000-8000-000000000001"],
+      note: "short",
+    }],
+    target_length: 240,
+    scene_title: "책상",
+  }, {
+    lengthCap: 2340,
+    cRatioMax: 0.35,
+    validSceneIds: new Set(),
+    isFirstDream: true,
+    firstDreamElementIds: ["00000000-0000-4000-8000-000000000001"],
+  });
+  assertEquals(first.target_length, 700);
+  assertEquals(first.placement, "continuation");
 });
 
 Deno.test("meta titles fall back to a concrete high-salience dream image", () => {

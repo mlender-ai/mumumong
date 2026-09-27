@@ -1,5 +1,5 @@
 import { loadJob } from "../_shared/jobs.ts";
-import { callStructured, QUALITY_MODEL } from "../_shared/llm.ts";
+import { callStructured, LIGHT_MODEL, QUALITY_MODEL } from "../_shared/llm.ts";
 import { logEvent } from "../_shared/log.ts";
 import {
   enqueueStage,
@@ -12,7 +12,16 @@ import { WRITE_FALLBACK, WRITE_PROMPT_VERSION, WRITE_SYSTEM } from "../_shared/p
 import { writeJsonSchema, writeOutputSchema } from "../_shared/stage_contracts.ts";
 import { serviceRoleClient } from "../_shared/supabase.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
-import { fallbackTarget, toSceneDraft } from "./write.ts";
+import { fallbackTarget, FIRST_SCENE_OPENING_CONTRACT, toSceneDraft } from "./write.ts";
+import {
+  aggregateModelResults,
+  expandedOpening,
+  needsOpeningExpansion,
+  OPENING_EXPANSION_SCHEMA,
+  OPENING_EXPANSION_SYSTEM,
+  prepareOpeningProvenance,
+} from "./opening_expansion.ts";
+import { OPENING_POLISH_SYSTEM, shouldUsePolishedOpening } from "./opening_polish.ts";
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (!authorizedWorker(request, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))) {
@@ -63,11 +72,28 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const baseTarget = typeof job.payload.target_length === "number"
       ? job.payload.target_length
       : 700;
+    const feedbackCodes = Array.isArray(job.payload.validation_feedback)
+      ? job.payload.validation_feedback.flatMap((feedback) =>
+        feedback && typeof feedback === "object" && "code" in feedback &&
+          typeof feedback.code === "string"
+          ? [feedback.code]
+          : []
+      )
+      : [];
+    const retryDirective = feedbackCodes.length === 0
+      ? ""
+      : `\n\n이번 출력은 재생성이다. 이전 초안의 ${
+        feedbackCodes.join(
+          ", ",
+        )
+      } 위반을 반드시 수정한다. target_length=${baseTarget}이며 첫 장면이면 최소 ${
+        Math.max(350, Math.floor(baseTarget * 0.7))
+      }자를 쓴다.`;
     const result = await callStructured<unknown>({
       model: QUALITY_MODEL,
       schemaName: "mumumong_write_v1",
       schema: writeJsonSchema,
-      system: `${WRITE_SYSTEM}${isFallback ? `\n\n${WRITE_FALLBACK}` : ""}`,
+      system: `${WRITE_SYSTEM}${retryDirective}${isFallback ? `\n\n${WRITE_FALLBACK}` : ""}`,
       input: {
         settings: {
           adaptation: volumeQuery.data.adaptation,
@@ -97,14 +123,121 @@ Deno.serve(async (request: Request): Promise<Response> => {
             relationship_terms_are_third_parties: true,
             preserve_agent_recipient_goal_cause_and_sequence: true,
           },
+          opening_contract: job.payload.is_first_dream === true
+            ? FIRST_SCENE_OPENING_CONTRACT
+            : null,
         },
         locked_passages: lockedPassages,
         validation_feedback: job.payload.validation_feedback ?? [],
       },
-      temperature: isFallback ? 0.2 : 0.8,
-      maxTokens: 5000,
+      temperature: isFallback ? 0.2 : writeAttempt === 0 ? 0.75 : 0.45,
+      maxTokens: job.payload.is_first_dream === true ? 8000 : 5000,
     });
-    const parsed = writeOutputSchema.parse(result.value);
+    let parsed = writeOutputSchema.parse(result.value);
+    let measuredResult = result;
+    const openingElements =
+      job.payload.is_first_dream === true && Array.isArray(job.payload.elements)
+        ? job.payload.elements.flatMap((element) => {
+          if (!element || typeof element !== "object") return [];
+          const candidate = element as Record<string, unknown>;
+          return typeof candidate.id === "string" && typeof candidate.label === "string" &&
+              typeof candidate.salience === "string"
+            ? [{ id: candidate.id, label: candidate.label, salience: candidate.salience }]
+            : [];
+        })
+        : [];
+    const provenancePlan = prepareOpeningProvenance(parsed, openingElements);
+    const hasMissingHighElements = provenancePlan.addedIds.some((ids) => ids.length > 0);
+    if (
+      !isFallback &&
+      (needsOpeningExpansion(parsed, job.payload.is_first_dream === true, baseTarget) ||
+        hasMissingHighElements)
+    ) {
+      parsed = provenancePlan.output;
+      const expansionCalls = parsed.passages.map((passage, index) =>
+        callStructured<unknown>({
+          model: LIGHT_MODEL,
+          schemaName: "mumumong_opening_passage_v1",
+          schema: OPENING_EXPANSION_SCHEMA,
+          system: OPENING_EXPANSION_SYSTEM,
+          input: {
+            origin: passage.origin,
+            text: passage.text,
+            position: index + 1,
+            passage_count: parsed.passages.length,
+            previous_passage: index > 0 ? parsed.passages[index - 1].text : null,
+            next_passage: index + 1 < parsed.passages.length
+              ? parsed.passages[index + 1].text
+              : null,
+            raw_text: dreamQuery.data.raw_text,
+            source_elements: job.payload.elements ?? [],
+            narrative_voice: volumeQuery.data.narrative_voice,
+            style: volumeQuery.data.style,
+            required_labels: provenancePlan.requiredLabels[index],
+          },
+          temperature: 0.45,
+          maxTokens: 900,
+        })
+      );
+      const settledExpansions = await Promise.allSettled(expansionCalls);
+      const expansions = [];
+      const expandedTexts = parsed.passages.map((passage) => passage.text);
+      for (let index = 0; index < settledExpansions.length; index += 1) {
+        const settled = settledExpansions[index];
+        if (settled.status !== "fulfilled") continue;
+        const expanded = settled.value;
+        const expandedValue = expanded.value as { text?: unknown };
+        if (typeof expandedValue.text !== "string" || expandedValue.text.trim().length === 0) {
+          continue;
+        }
+        expansions.push(expanded);
+        expandedTexts[index] = expandedValue.text;
+      }
+      parsed = expandedOpening(provenancePlan, expandedTexts);
+      measuredResult = aggregateModelResults(result, expansions);
+    }
+    if (!isFallback && job.payload.is_first_dream === true) {
+      try {
+        const polished = await callStructured<unknown>({
+          model: QUALITY_MODEL,
+          schemaName: "mumumong_opening_polish_v1",
+          schema: writeJsonSchema,
+          system: OPENING_POLISH_SYSTEM,
+          input: {
+            raw_text: dreamQuery.data.raw_text,
+            source_elements: job.payload.elements ?? [],
+            expanded_draft: parsed,
+            planned_title: job.payload.scene_title,
+            target_length: baseTarget,
+            narrative_voice: volumeQuery.data.narrative_voice,
+            style: volumeQuery.data.style,
+            adaptation: volumeQuery.data.adaptation,
+            protagonist_contract: {
+              protagonist: "the user who recorded the dream",
+              relationship_terms_are_third_parties: true,
+              preserve_agent_recipient_goal_cause_and_sequence: true,
+            },
+          },
+          temperature: 0.35,
+          maxTokens: 8000,
+        });
+        measuredResult = aggregateModelResults(measuredResult, [polished]);
+        const candidate = writeOutputSchema.safeParse(polished.value);
+        const candidateMissingHigh = candidate.success
+          ? prepareOpeningProvenance(candidate.data, openingElements).addedIds.some((ids) =>
+            ids.length > 0
+          )
+          : true;
+        if (
+          candidate.success && !candidateMissingHigh &&
+          shouldUsePolishedOpening(parsed, candidate.data, baseTarget)
+        ) {
+          parsed = candidate.data;
+        }
+      } catch {
+        // Expansion output is still validated normally when optional polishing fails.
+      }
+    }
     const draft = toSceneDraft(parsed, {
       validEntityIds: new Set(
         (entitiesQuery.data ?? []).map((entity) => entity.id as string),
@@ -124,7 +257,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       jobId,
       stage: "write",
       promptVersion: WRITE_PROMPT_VERSION,
-      result,
+      result: measuredResult,
       validation: { schema: true, passages: parsed.passages.length },
       isFallback,
     });

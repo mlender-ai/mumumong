@@ -1,5 +1,22 @@
 import type { WriteOutput } from "../_shared/stage_contracts.ts";
 
+export const FIRST_SCENE_OPENING_CONTRACT = {
+  mode: "serialized_prologue",
+  purpose: "turn the recorded dream into an opening scene, not a recap",
+  paragraph_range: [7, 9],
+  minimum_target_ratio: 0.7,
+  passage_length_chars: { dream: [70, 120], adaptation: [70, 100] },
+  provenance_mix: { minimum_dream_passages: 5, adaptation_must_be_shorter: true },
+  stages: [
+    "concrete_hook",
+    "protagonist_immediate_want",
+    "dream_anomaly",
+    "irreversible_choice",
+    "consequence_before_goal_completion",
+  ],
+  ending: "specific unresolved change caused by the protagonist's choice",
+} as const;
+
 export function toSceneDraft(
   output: WriteOutput,
   options: {

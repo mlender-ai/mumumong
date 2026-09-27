@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { fallbackTarget, toSceneDraft } from "./write.ts";
+import { fallbackTarget, FIRST_SCENE_OPENING_CONTRACT, toSceneDraft } from "./write.ts";
 
 Deno.test("write normalization removes null optionals and preserves provenance", () => {
   const draft = toSceneDraft({
@@ -61,4 +61,17 @@ Deno.test("the first manuscript scene is deterministically a prologue", () => {
     placement: "continuation",
     open_image: "문",
   });
+});
+
+Deno.test("the first scene contract describes a serialized opening instead of a recap", () => {
+  assertEquals(FIRST_SCENE_OPENING_CONTRACT.paragraph_range, [7, 9]);
+  assertEquals(FIRST_SCENE_OPENING_CONTRACT.minimum_target_ratio, 0.7);
+  assertEquals(FIRST_SCENE_OPENING_CONTRACT.provenance_mix.minimum_dream_passages, 5);
+  assertEquals(FIRST_SCENE_OPENING_CONTRACT.stages, [
+    "concrete_hook",
+    "protagonist_immediate_want",
+    "dream_anomaly",
+    "irreversible_choice",
+    "consequence_before_goal_completion",
+  ]);
 });

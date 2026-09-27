@@ -65,6 +65,7 @@ export interface ValidateInput {
   /// Hashes of the `U` passages in the target scene, via `lockedPassageHash`.
   readonly lockedPassageHashes?: readonly string[];
   readonly minimumChars?: number;
+  readonly minimumPassages?: number;
   readonly profile?: ValidationProfile;
 }
 
@@ -186,6 +187,15 @@ export async function validateSceneDraft(input: ValidateInput): Promise<Validati
         message: `첫 장면이 목표 분량보다 짧다 (${totalChars}자 < ${input.minimumChars}자)`,
         observed: totalChars,
         allowed: input.minimumChars,
+      });
+    }
+    if (input.minimumPassages && draft.passages.length < input.minimumPassages) {
+      violations.push({
+        code: "V4",
+        message:
+          `첫 장면의 호흡이 너무 짧다 (${draft.passages.length}개 문단 < ${input.minimumPassages}개 문단)`,
+        observed: draft.passages.length,
+        allowed: input.minimumPassages,
       });
     }
     if (totalChars > cap) {

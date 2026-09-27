@@ -118,6 +118,14 @@ Deno.test("V4 rejects a first scene that is only a short summary", async () => {
   assertEquals(violation.allowed, 300);
 });
 
+Deno.test("V4 rejects a first scene without enough narrative beats", async () => {
+  const result = await validateSceneDraft(input({ minimumPassages: 5 }));
+  const violation = result.violations.find((entry) => entry.code === "V4");
+  assert(violation, "expected V4");
+  assertEquals(violation.observed, 2);
+  assertEquals(violation.allowed, 5);
+});
+
 Deno.test("V5 detects an unused high-salience element", async () => {
   const draft = baseDraft();
   // Provenance cites only the mid-salience element.

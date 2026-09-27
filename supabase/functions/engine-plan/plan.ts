@@ -70,24 +70,54 @@ export function enforcePlan(
     rawText?: string;
   },
 ): PlanOutput {
-  const targetLength = Math.max(1, Math.min(output.target_length, input.lengthCap));
+  const targetLength = input.isFirstDream
+    ? Math.min(700, input.lengthCap)
+    : Math.max(1, Math.min(output.target_length, input.lengthCap));
   const sceneTitle = normalizeSceneTitle(output.scene_title, input.firstDreamElements, {
     preferSourceImage: input.isFirstDream,
     rawText: input.rawText,
   });
-  if (input.isFirstDream && output.placement === "standalone") {
+  if (input.isFirstDream) {
     const elementIds = input.firstDreamElementIds ?? [];
+    const dreamBeats: PlanOutput["beats"] = elementIds.length > 0
+      ? [
+        {
+          kind: "D",
+          element_ids: [...elementIds],
+          note: "첫 1~2문장에 사용자의 구체적인 문제·행동과 핵심 사물을 세운다",
+        },
+        {
+          kind: "D",
+          element_ids: [...elementIds],
+          note: "사용자가 지금 이루려는 목적과 제3자인 관계 인물을 분명히 한다",
+        },
+        {
+          kind: "D",
+          element_ids: [...elementIds],
+          note: "꿈에 기록된 크기 불일치나 비현실적 사물을 행동으로 발견한다",
+        },
+        {
+          kind: "D",
+          element_ids: [...elementIds],
+          note: "목적을 위해 사용자가 직접 내린 선택과 행동을 보여준다",
+        },
+      ]
+      : output.beats.filter((beat) => beat.kind === "D");
+    const mayAdaptEnding = Math.floor((dreamBeats.length + 1) * input.cRatioMax) >= 1;
     return {
       ...output,
       placement: "continuation",
       attach_to_scene_id: null,
-      beats: elementIds.length > 0
-        ? [{
-          kind: "D",
-          element_ids: [...elementIds],
-          note: "사용자의 의도와 행동으로 여는 첫 장면",
-        }]
-        : output.beats,
+      beats: mayAdaptEnding
+        ? [
+          ...dreamBeats,
+          {
+            kind: "C",
+            element_ids: [...elementIds],
+            note: "선택 직후 생긴 최소한의 변화로 다음 장면을 열되 원문의 목적은 완료하지 않는다",
+          },
+        ]
+        : dreamBeats,
       target_length: targetLength,
       scene_title: sceneTitle,
     };
