@@ -352,6 +352,32 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
         );
   }
 
+  Future<void> _enqueueInteraction({
+    required String operation,
+    required String aggregateId,
+    required Map<String, dynamic> body,
+    required DateTime timestamp,
+  }) async {
+    final mutationId = _uuid.v4();
+    await _database
+        .into(_database.outbox)
+        .insert(
+          LocalOutboxRow(
+            id: '$operation:$mutationId',
+            op: operation,
+            payload: jsonEncode({
+              'aggregate_id': aggregateId,
+              'created_at': timestamp.toIso8601String(),
+              'body': body,
+            }),
+            idempotencyKey: mutationId,
+            attempt: 0,
+            nextAttemptAt: timestamp,
+            status: 'pending',
+          ),
+        );
+  }
+
   @override
   Future<void> writeEngineProgress(JobProgress progress) async {
     await _ready;
@@ -622,21 +648,41 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
               createdAt: timestamp,
             ),
           );
+      if (queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'decide_link',
+          aggregateId: decisionId,
+          body: {'decision_id': decisionId, 'status': status.databaseValue},
+          timestamp: timestamp,
+        );
+      }
     });
   }
 
   @override
   Future<void> changePlacement(String sceneId, PlacementKind kind) async {
     await _ready;
-    final changed =
-        await (_database.update(
-          _database.scenes,
-        )..where((row) => row.id.equals(sceneId))).write(
-          ScenesCompanion(
-            placement: Value(kind.databaseValue),
-            updatedAt: Value(_now().toUtc()),
-          ),
+    final timestamp = _now().toUtc();
+    var changed = 0;
+    await _database.transaction(() async {
+      changed =
+          await (_database.update(
+            _database.scenes,
+          )..where((row) => row.id.equals(sceneId))).write(
+            ScenesCompanion(
+              placement: Value(kind.databaseValue),
+              updatedAt: Value(timestamp),
+            ),
+          );
+      if (changed > 0 && queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'change_placement',
+          aggregateId: sceneId,
+          body: {'scene_id': sceneId, 'placement': kind.databaseValue},
+          timestamp: timestamp,
         );
+      }
+    });
     if (changed == 0) {
       throw StateError('Scene not found: $sceneId');
     }
@@ -646,17 +692,28 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
   Future<void> editPassage(String passageId, String text) async {
     await _ready;
     final passage = await _passageRow(passageId);
-    await (_database.update(
-      _database.passages,
-    )..where((row) => row.id.equals(passageId))).write(
-      PassagesCompanion(
-        content: Value(text),
-        origin: Value(PassageOrigin.user.databaseValue),
-        originalText: Value(passage.originalText ?? passage.content),
-        locked: const Value(true),
-        updatedAt: Value(_now().toUtc()),
-      ),
-    );
+    final timestamp = _now().toUtc();
+    await _database.transaction(() async {
+      await (_database.update(
+        _database.passages,
+      )..where((row) => row.id.equals(passageId))).write(
+        PassagesCompanion(
+          content: Value(text),
+          origin: Value(PassageOrigin.user.databaseValue),
+          originalText: Value(passage.originalText ?? passage.content),
+          locked: const Value(true),
+          updatedAt: Value(timestamp),
+        ),
+      );
+      if (queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'edit_passage',
+          aggregateId: passageId,
+          body: {'passage_id': passageId, 'text': text},
+          timestamp: timestamp,
+        );
+      }
+    });
   }
 
   @override
@@ -667,17 +724,28 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
       throw StateError('Passage has no edit to revert: $passageId');
     }
     final originalOrigin = _originalOrigin(passage);
-    await (_database.update(
-      _database.passages,
-    )..where((row) => row.id.equals(passageId))).write(
-      PassagesCompanion(
-        content: Value(passage.originalText!),
-        origin: Value(originalOrigin.databaseValue),
-        originalText: const Value(null),
-        locked: Value(originalOrigin == PassageOrigin.user),
-        updatedAt: Value(_now().toUtc()),
-      ),
-    );
+    final timestamp = _now().toUtc();
+    await _database.transaction(() async {
+      await (_database.update(
+        _database.passages,
+      )..where((row) => row.id.equals(passageId))).write(
+        PassagesCompanion(
+          content: Value(passage.originalText!),
+          origin: Value(originalOrigin.databaseValue),
+          originalText: const Value(null),
+          locked: Value(originalOrigin == PassageOrigin.user),
+          updatedAt: Value(timestamp),
+        ),
+      );
+      if (queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'revert_passage',
+          aggregateId: passageId,
+          body: {'passage_id': passageId},
+          timestamp: timestamp,
+        );
+      }
+    });
   }
 
   @override
@@ -685,14 +753,28 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
     await _ready;
     final passage = await _passageRow(passageId);
     if (passage.firstReadAt != null) return;
-    await (_database.update(
-      _database.passages,
-    )..where((row) => row.id.equals(passageId))).write(
-      PassagesCompanion(
-        firstReadAt: Value(_now().toUtc()),
-        updatedAt: Value(_now().toUtc()),
-      ),
-    );
+    final timestamp = _now().toUtc();
+    await _database.transaction(() async {
+      await (_database.update(
+        _database.passages,
+      )..where((row) => row.id.equals(passageId))).write(
+        PassagesCompanion(
+          firstReadAt: Value(timestamp),
+          updatedAt: Value(timestamp),
+        ),
+      );
+      if (queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'mark_passage_read',
+          aggregateId: passageId,
+          body: {
+            'passage_id': passageId,
+            'first_read_at': timestamp.toIso8601String(),
+          },
+          timestamp: timestamp,
+        );
+      }
+    });
   }
 
   @override

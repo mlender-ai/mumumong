@@ -216,7 +216,16 @@ class SyncState extends Table {
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(driftDatabase(name: 'mumumong'));
+  AppDatabase()
+    : super(
+        driftDatabase(
+          name: 'mumumong',
+          web: DriftWebOptions(
+            sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+            driftWorker: Uri.parse('drift_worker.js'),
+          ),
+        ),
+      );
 
   AppDatabase.forTesting(super.executor);
 

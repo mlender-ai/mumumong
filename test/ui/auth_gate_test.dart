@@ -7,7 +7,7 @@ import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/ui/auth/auth_gate.dart';
 
 void main() {
-  testWidgets('로그아웃 화면은 Apple 로그인과 최소 정보 안내만 보인다', (tester) async {
+  testWidgets('개발 로그아웃 화면은 Apple 로그인과 체험 진입을 보인다', (tester) async {
     final controller = AuthenticationController(
       const _FakeIdentity(),
       _FakeBackend(),
@@ -17,6 +17,7 @@ void main() {
     await tester.pumpWidget(_TestApp(controller: controller));
 
     expect(find.text('Apple로 계속하기'), findsOneWidget);
+    expect(find.text('체험 계정으로 시작'), findsOneWidget);
     expect(find.text('이름과 이메일은 저장하지 않습니다.'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
   });
@@ -126,6 +127,12 @@ class _FakeBackend implements AuthenticationBackend {
 
   @override
   Future<void> signInWithApple(AppleSignInResult credential) async {
+    if (signInError case final error?) throw error;
+    hasSession = true;
+  }
+
+  @override
+  Future<void> signInAnonymously() async {
     if (signInError case final error?) throw error;
     hasSession = true;
   }

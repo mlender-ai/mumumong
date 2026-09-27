@@ -40,6 +40,16 @@ abstract interface class CloudSyncGateway {
 
   Future<void> upsertDream(Map<String, dynamic> dream);
 
+  Future<void> decideLink(String decisionId, String status);
+
+  Future<void> updateScenePlacement(String sceneId, String placement);
+
+  Future<void> editPassage(String passageId, String text);
+
+  Future<void> revertPassage(String passageId);
+
+  Future<void> markPassageRead(String passageId, DateTime firstReadAt);
+
   Future<CloudVolumeBundle> fetchVolumeBundle(String volumeId);
 }
 
@@ -94,6 +104,54 @@ class SupabaseCloudSyncGateway implements CloudSyncGateway {
   @override
   Future<void> upsertDream(Map<String, dynamic> dream) async {
     await client.from('dreams').upsert(dream, onConflict: 'id');
+  }
+
+  @override
+  Future<void> decideLink(String decisionId, String status) async {
+    await client.rpc(
+      'user_decide_link',
+      params: {'p_decision_id': decisionId, 'p_status': status},
+    );
+  }
+
+  @override
+  Future<void> updateScenePlacement(String sceneId, String placement) async {
+    await client
+        .from('scenes')
+        .update({
+          'placement': placement,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', sceneId)
+        .select('id')
+        .single();
+  }
+
+  @override
+  Future<void> editPassage(String passageId, String text) async {
+    await client.rpc(
+      'user_edit_passage',
+      params: {'p_passage_id': passageId, 'p_text': text},
+    );
+  }
+
+  @override
+  Future<void> revertPassage(String passageId) async {
+    await client.rpc(
+      'user_revert_passage',
+      params: {'p_passage_id': passageId},
+    );
+  }
+
+  @override
+  Future<void> markPassageRead(String passageId, DateTime firstReadAt) async {
+    await client.rpc(
+      'user_mark_passage_read',
+      params: {
+        'p_passage_id': passageId,
+        'p_first_read_at': firstReadAt.toUtc().toIso8601String(),
+      },
+    );
   }
 
   @override
@@ -215,6 +273,39 @@ class CloudSyncService implements RemoteEngineSync {
     final volumeId = dream.volumeId;
     if (volumeId == null) throw StateError('dream_volume_required');
     await _apply(await gateway.fetchVolumeBundle(volumeId));
+  }
+
+  Future<void> deliverInteraction(
+    String operation,
+    Map<String, dynamic> payload,
+  ) async {
+    _requireUser();
+    switch (operation) {
+      case 'decide_link':
+        await gateway.decideLink(
+          payload['decision_id'] as String,
+          payload['status'] as String,
+        );
+      case 'change_placement':
+        await gateway.updateScenePlacement(
+          payload['scene_id'] as String,
+          payload['placement'] as String,
+        );
+      case 'edit_passage':
+        await gateway.editPassage(
+          payload['passage_id'] as String,
+          payload['text'] as String,
+        );
+      case 'revert_passage':
+        await gateway.revertPassage(payload['passage_id'] as String);
+      case 'mark_passage_read':
+        await gateway.markPassageRead(
+          payload['passage_id'] as String,
+          DateTime.parse(payload['first_read_at'] as String),
+        );
+      default:
+        throw StateError('unsupported_cloud_interaction');
+    }
   }
 
   String _requireUser() {

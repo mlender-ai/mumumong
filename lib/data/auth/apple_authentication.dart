@@ -100,6 +100,26 @@ class SupabaseAuthenticationBackend implements AuthenticationBackend {
   }
 
   @override
+  Future<void> signInAnonymously() async {
+    try {
+      final response = await _client.auth.signInAnonymously();
+      if (response.session == null) {
+        throw const AuthenticationException(
+          AuthenticationFailure.invalidCredential,
+        );
+      }
+    } on AuthenticationException {
+      rethrow;
+    } on AuthRetryableFetchException {
+      throw const AuthenticationException(AuthenticationFailure.network);
+    } on AuthException {
+      throw const AuthenticationException(AuthenticationFailure.unavailable);
+    } catch (_) {
+      throw const AuthenticationException(AuthenticationFailure.network);
+    }
+  }
+
+  @override
   Future<bool> hasRemoteVolume() async {
     try {
       final rows = await _client.from('volumes').select('id').limit(1);

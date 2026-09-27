@@ -20,6 +20,7 @@ class _FakeCloudGateway implements CloudSyncGateway {
   final dreams = <Map<String, dynamic>>[];
   CloudVolumeBundle? bundle;
   bool loseCreateResponse = false;
+  final interactions = <Map<String, dynamic>>[];
 
   @override
   Future<Map<String, dynamic>> createVolume({
@@ -57,6 +58,47 @@ class _FakeCloudGateway implements CloudSyncGateway {
   Future<void> upsertDream(Map<String, dynamic> dream) async {
     dreams.removeWhere((row) => row['id'] == dream['id']);
     dreams.add(dream);
+  }
+
+  @override
+  Future<void> decideLink(String decisionId, String status) async {
+    interactions.add({
+      'operation': 'decide_link',
+      'decision_id': decisionId,
+      'status': status,
+    });
+  }
+
+  @override
+  Future<void> updateScenePlacement(String sceneId, String placement) async {
+    interactions.add({
+      'operation': 'change_placement',
+      'scene_id': sceneId,
+      'placement': placement,
+    });
+  }
+
+  @override
+  Future<void> editPassage(String passageId, String text) async {
+    interactions.add({
+      'operation': 'edit_passage',
+      'passage_id': passageId,
+      'text': text,
+    });
+  }
+
+  @override
+  Future<void> revertPassage(String passageId) async {
+    interactions.add({'operation': 'revert_passage', 'passage_id': passageId});
+  }
+
+  @override
+  Future<void> markPassageRead(String passageId, DateTime firstReadAt) async {
+    interactions.add({
+      'operation': 'mark_passage_read',
+      'passage_id': passageId,
+      'first_read_at': firstReadAt,
+    });
   }
 }
 
@@ -144,6 +186,54 @@ void main() {
       expect(passages.single.sourceElementIds, [_elementId]);
       expect(progress.single.deltaMu, 2.25);
       expect((await repository.watchActiveVolume().first)!.progressMu, 2.25);
+
+      await repository.editPassage(_passageId, '사용자가 고친 문장');
+      await repository.markPassageRead(_passageId);
+      await repository.changePlacement(_sceneId, PlacementKind.interlude);
+
+      final interactionRows =
+          await (database.select(database.outbox)..where(
+                (row) =>
+                    row.op.isNotIn(const ['create_dream', 'process_dream']),
+              ))
+              .get();
+      expect(interactionRows.map((row) => row.op), [
+        'edit_passage',
+        'mark_passage_read',
+        'change_placement',
+      ]);
+    },
+  );
+
+  test(
+    'durable interaction payloads are delivered through the cloud gateway',
+    () async {
+      final database = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+      final gateway = _FakeCloudGateway();
+      final sync = CloudSyncService(database, gateway);
+
+      await sync.deliverInteraction('edit_passage', {
+        'passage_id': _passageId,
+        'text': '사용자가 고친 문장',
+      });
+      await sync.deliverInteraction('change_placement', {
+        'scene_id': _sceneId,
+        'placement': 'interlude',
+      });
+
+      expect(gateway.interactions, [
+        {
+          'operation': 'edit_passage',
+          'passage_id': _passageId,
+          'text': '사용자가 고친 문장',
+        },
+        {
+          'operation': 'change_placement',
+          'scene_id': _sceneId,
+          'placement': 'interlude',
+        },
+      ]);
     },
   );
 }

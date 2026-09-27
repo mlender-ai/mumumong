@@ -50,6 +50,7 @@ abstract interface class AuthenticationBackend {
 
   Future<void> refreshSession();
   Future<void> signInWithApple(AppleSignInResult credential);
+  Future<void> signInAnonymously();
   Future<bool> hasRemoteVolume();
 }
 
@@ -68,6 +69,7 @@ class AuthenticationController extends ChangeNotifier {
 
   final AppleIdentityProvider _appleIdentityProvider;
   final AuthenticationBackend _backend;
+  bool _lastAttemptWasAnonymous = false;
 
   AuthenticationState _state = const AuthenticationState.restoring();
   AuthenticationState get state => _state;
@@ -97,6 +99,7 @@ class AuthenticationController extends ChangeNotifier {
 
   Future<void> signInWithApple() async {
     if (_state.phase == AuthenticationPhase.signingIn) return;
+    _lastAttemptWasAnonymous = false;
     _setState(const AuthenticationState(phase: AuthenticationPhase.signingIn));
 
     try {
@@ -122,13 +125,38 @@ class AuthenticationController extends ChangeNotifier {
     }
   }
 
+  Future<void> signInAnonymously() async {
+    if (_state.phase == AuthenticationPhase.signingIn) return;
+    _lastAttemptWasAnonymous = true;
+    _setState(const AuthenticationState(phase: AuthenticationPhase.signingIn));
+
+    try {
+      await _backend.signInAnonymously();
+      await _completeAuthentication();
+    } on AuthenticationException catch (error) {
+      _setState(
+        AuthenticationState(
+          phase: AuthenticationPhase.failure,
+          failure: error.failure,
+        ),
+      );
+    } catch (_) {
+      _setState(
+        const AuthenticationState(
+          phase: AuthenticationPhase.failure,
+          failure: AuthenticationFailure.unknown,
+        ),
+      );
+    }
+  }
+
   Future<void> retry() {
     if (_state.failure == AuthenticationFailure.network &&
         _backend.hasSession) {
       _setState(const AuthenticationState.restoring());
       return _completeAuthentication();
     }
-    return signInWithApple();
+    return _lastAttemptWasAnonymous ? signInAnonymously() : signInWithApple();
   }
 
   void completeVolumeSetup() {

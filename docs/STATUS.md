@@ -4,13 +4,13 @@ Last updated: 2026-09-26
 
 ## Summary
 
-The repository contains a runnable Flutter implementation of the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and both deterministic mock and hosted AI engines exist. The dedicated `mumumong` Supabase project (`dtdmfjovpufyyekdumga`) has migrations 0001–0008 and E1–E7 plus the queue worker deployed. The hosted app path now creates its first short volume, pushes a locally captured dream through authenticated RLS, follows the Groq job, and pulls the generated elements, scene, passages, provenance and progress back into Drift before reveal. A disposable app-equivalent account completed this full round trip with stable retry identity. Remaining sync work concerns later author mutations rather than the capture-to-reveal path.
+The repository contains a runnable Flutter implementation of the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and both deterministic mock and hosted AI engines exist. The dedicated `mumumong` Supabase project (`dtdmfjovpufyyekdumga`) has migrations 0001–0010 and E1–E7 plus the queue worker deployed. The hosted app path creates its first short volume, pushes a locally captured dream through authenticated RLS, follows the Groq job, and pulls the generated elements, scene, passages, provenance and progress back into Drift before reveal. Development builds can use a device-bound anonymous trial account while Apple provisioning is pending. Passage edit/revert/read, scene placement and link decisions now use the durable Outbox and authenticated server mutations; dream removal/deletion remains local-only.
 
 ## Implemented locally
 
 | Area | Status | Notes |
 |---|---|---|
-| S01 Apple Sign In | Implemented, provisioning pending | Native Apple credential exchange through Supabase, cancellation/error/retry states, automatic refresh, and Keychain-backed session storage; live account verification still depends on Apple and Supabase provider configuration |
+| S01 Apple Sign In | Implemented, provisioning pending | Native Apple credential exchange through Supabase, cancellation/error/retry states, automatic refresh, and Keychain-backed session storage. Development builds also offer an anonymous trial account backed by hosted Supabase; live Apple-account verification still depends on Apple and Supabase provider configuration |
 | S02 Volume Setup | Implemented for M1 | Authenticated empty accounts choose faithful/balanced adaptation and one of three styles, see the Groq processing notice, and create a short volume with a 20 MU target in Supabase and Drift |
 | S03 Manuscript Home | Repository-backed prototype | Dot cover, MU percentage, event-derived delta reason, open scene |
 | S04 Capture | Repository-backed prototype with autosave and native STT | Text autosaves after 500ms. iOS uses `ko-KR` `SFSpeechRecognizer` with `requiresOnDeviceRecognition=true`; audio buffers are never written to files, partial text saves immediately, RMS drives dots, and unsupported/denied/empty paths return to text. Real-device accuracy evaluation remains open |
@@ -31,18 +31,18 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 | E6 Commit assembly | Deployed and cloud-smoked | Real `commit_scene` RPC, retry deduplication, remember enqueue, rollback on invalid provenance, and worker-only access are verified locally; an authorized hosted call reaches database lookup while public callers are denied |
 | E1–E4 + E7 model stages | Deployed and cloud-smoked | Groq `openai/gpt-oss-20b` handles extract/link/remember and `openai/gpt-oss-120b` handles plan/write through strict JSON schemas. Deterministic span, clarity, link-threshold, adaptation-budget, retry/fallback, provenance, and memory caps are applied outside the model. First dreams are now deterministically kept out of `standalone` and normalized to prologue scenes |
 | WO-14 worker | Deployed | Atomic per-user/service job claiming, self-invocation, bounded retry scheduling, metadata-only diagnostics, and public-key denial are implemented. A durable cron recovery schedule is still pending |
-| Offline retry core | Capture path wired | Dream creation and processing mutations enter the durable FIFO in the same Drift transactions, use the dream UUID as the processing idempotency key, and are delivered to Supabase on connectivity/foreground wakeups. Later edit, placement, link-decision and deletion mutations still need adapters |
+| Offline retry core | Authoring path wired | Dream creation/processing, passage edit/revert/read, scene placement and link-decision mutations enter the durable FIFO in the same Drift transactions and are delivered to Supabase on connectivity/foreground wakeups. Dream removal/deletion still needs a server mutation |
 | Privacy settings | Implemented locally and partially deployed | JSON export includes dreams, drafts, manuscript and provenance but excludes credentials/job payloads; app lock uses Face ID/device passcode and Keychain with default OFF; account deletion requires typed confirmation, calls an authenticated Edge Function for server deletion, then clears local tables and signs out |
 
 ## Simulated or not connected
 
 | Area | Current boundary |
 |---|---|
-| Persistence | Active-volume bootstrap and capture-to-reveal push/pull are connected. Cross-device synchronization for later edits, placement changes, link decisions and deletion is not yet complete |
+| Persistence | Active-volume bootstrap, capture-to-reveal push/pull, passage edit/revert/read, placement and link decisions are connected. Dream removal/deletion synchronization is not yet complete |
 | Voice and STT | Native on-device implementation builds and its Flutter callback behavior is tested; the required ten-recording quality check needs a physical iPhone and human review |
 | AI pipeline | E1–E7 and the worker are deployed and a real hosted dream completed the entire pipeline. Durable cron recovery and model-assisted semantic V5/V7 checks remain open |
-| Backend | The dedicated cloud project has migrations 0001–0008, RLS, locked-passage trigger, transactional RPCs, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. Durable cron recovery remains open |
-| Offline | Capture autosave/restore plus durable create/process delivery are implemented. The next app launch imports hosted results, but a background completion notification and non-capture mutation delivery remain open |
+| Backend | The dedicated cloud project has migrations 0001–0010, RLS, locked-passage trigger, authenticated edit/revert/read/link RPCs, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. Durable cron recovery remains open |
+| Offline | Capture autosave/restore plus durable create/process and author-interaction delivery are implemented. The next app launch imports hosted results; background completion notification and dream deletion delivery remain open |
 | Notifications | Morning/night and completion notifications are not present |
 | Completion | S14 and PDF export are not present |
 | Privacy controls | App lock, JSON export, and deletion are present. Groq is selected, but the onboarding provider notice, retention-language review, and server-enforced consent gate remain open |
@@ -50,19 +50,20 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 ## Verified baseline
 
 - `dart analyze lib test integration_test`: no issues
-- `flutter test`: 114 tests passing, including S02 creation/recovery, stable Outbox enqueue, authenticated push/pull mapping, engine result import, standalone archive handling, Reader edit/revert, Unicode source highlights, export redaction, local wipe and app lock
+- `flutter test`: 117 tests passing, including S02 creation/recovery, anonymous trial routing/retry, stable Outbox enqueue, authenticated push/pull and author-interaction mapping, engine result import, standalone archive handling, Reader edit/revert, Unicode source highlights, export redaction, local wipe and app lock
 - `flutter test integration_test`: 5 iOS integration scenarios passing: four capture-to-reveal engine cases plus native SQLite autosave/reopen/restore/discard. The restart check reopens storage and recreates the screen; it does not simulate an OS kill inside the 500ms debounce window
 - `flutter build web --release`: passing
+- Hosted web runtime smoke: Drift opens with the lock-matched wasm/worker assets, anonymous trial sign-in reaches S02, creates the first short volume, and opens S04 capture
 - `flutter build ios --simulator --no-codesign`: passing
 - Apple authentication screen runtime smoke: passing on iPhone 17 Pro Simulator
 - Drift iOS runtime open/query/close smoke: passing on iPhone 17 Pro Simulator (SQLite 3.53.4)
-- `supabase db reset`: migrations 0001–0008 and seed passing
-- `supabase test db`: 111 database tests passing
+- `supabase db reset`: migrations 0001–0010 and seed passing
+- `supabase test db`: 123 database tests passing
 - `supabase db lint --local --schema public --level warning`: no schema errors
 - `npx deno task verify` in `supabase/functions`: 59 tests passing
 - `node tool/engine_smoke.mjs` with `supabase functions serve`: real HTTP validation/audit, worker authorization, repeated commit, remember deduplication, and transaction rollback passing; disposable smoke account removed after verification
 - Mobile visual QA at 390×844: capture through reveal, manuscript growth, Reader, source sheet, and Night Paper
-- Cloud deployment smoke: migrations 0001–0008 match remote; every engine stage accepts only the hosted service secret; public manuscript reads and anonymous account deletion are denied
+- Cloud deployment smoke: migrations 0001–0010 match remote; every engine stage accepts only the hosted service secret; public manuscript reads and anonymous account deletion are denied. Hosted anonymous sign-in is enabled and a disposable trial account was created and automatically removed
 - Hosted AI pipeline smoke: disposable authenticated accounts repeatedly completed extract → link → plan → write → validate → commit → remember, including write/validate regeneration, and committed passages with real D provenance; all disposable owned data was then deleted
 - Hosted app round-trip smoke: an RLS-constrained disposable user created the S02 short volume, idempotently upserted the same dream twice, processed it with the stable dream UUID, and read back a prologue scene, real D provenance and an exactly matching progress cache/event before automatic cleanup
 
@@ -70,7 +71,7 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 
 Connect the durable local implementation to the now-live backend:
 
-1. Add cloud delivery for link decisions, passage edits/reverts, placement changes and dream removal/deletion
+1. Add cloud delivery for dream removal/deletion
 2. Add durable worker recovery scheduling and the server-enforced AI consent gate
 3. Configure Apple Sign In in the Supabase project and verify a real Apple account end to end
 4. Run the ten-recording Korean STT quality check on a physical iPhone

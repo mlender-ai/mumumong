@@ -66,12 +66,19 @@ final outboxWorkerProvider = Provider<OutboxWorker?>((ref) {
     payload,
     idempotencyKey,
   ) async {
-    final dreamId = payload['dream_id'] as String;
     switch (operation) {
       case 'create_dream':
+        final dreamId = payload['dream_id'] as String;
         await sync.pushDream(dreamId);
       case 'process_dream':
+        final dreamId = payload['dream_id'] as String;
         await engine.enqueue(dreamId, idempotencyKey);
+      case 'decide_link' ||
+          'change_placement' ||
+          'edit_passage' ||
+          'revert_passage' ||
+          'mark_passage_read':
+        await sync.deliverInteraction(operation, payload);
       default:
         throw StateError('unsupported_outbox_operation');
     }

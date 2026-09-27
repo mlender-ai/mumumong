@@ -24,6 +24,23 @@ void main() {
       expect(backend.receivedCredential, same(credential));
     });
 
+    test('체험 로그인도 신규 계정이면 S02로 보낸다', () async {
+      final backend = _FakeAuthenticationBackend(hasRemoteVolume: false);
+      final controller = AuthenticationController(
+        _FakeAppleIdentityProvider(result: credential),
+        backend,
+      );
+
+      await controller.signInAnonymously();
+
+      expect(controller.state.phase, AuthenticationPhase.signedIn);
+      expect(
+        controller.state.destination,
+        AuthenticationDestination.volumeSetup,
+      );
+      expect(backend.anonymousSignInCalls, 1);
+    });
+
     test('기존 세션과 볼륨이 있으면 S03을 연다', () async {
       final identity = _FakeAppleIdentityProvider(result: credential);
       final backend = _FakeAuthenticationBackend(
@@ -72,6 +89,24 @@ void main() {
 
       expect(controller.state.phase, AuthenticationPhase.failure);
       expect(controller.state.failure, AuthenticationFailure.network);
+    });
+
+    test('체험 로그인 실패 재시도는 Apple 인증으로 바뀌지 않는다', () async {
+      final identity = _FakeAppleIdentityProvider(result: credential);
+      final backend = _FakeAuthenticationBackend(
+        signInError: const AuthenticationException(
+          AuthenticationFailure.network,
+        ),
+      );
+      final controller = AuthenticationController(identity, backend);
+
+      await controller.signInAnonymously();
+      backend.signInError = null;
+      await controller.retry();
+
+      expect(controller.state.phase, AuthenticationPhase.signedIn);
+      expect(backend.anonymousSignInCalls, 2);
+      expect(identity.authorizeCalls, 0);
     });
 
     test('만료된 세션은 자동 갱신한 뒤 S03을 연다', () async {
@@ -172,6 +207,7 @@ class _FakeAuthenticationBackend implements AuthenticationBackend {
   Object? volumeError;
   int refreshCalls = 0;
   int volumeCalls = 0;
+  int anonymousSignInCalls = 0;
   AppleSignInResult? receivedCredential;
 
   @override
@@ -185,6 +221,13 @@ class _FakeAuthenticationBackend implements AuthenticationBackend {
   Future<void> signInWithApple(AppleSignInResult credential) async {
     if (signInError case final error?) throw error;
     receivedCredential = credential;
+    hasSession = true;
+  }
+
+  @override
+  Future<void> signInAnonymously() async {
+    anonymousSignInCalls += 1;
+    if (signInError case final error?) throw error;
     hasSession = true;
   }
 

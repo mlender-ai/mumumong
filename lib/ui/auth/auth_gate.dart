@@ -24,7 +24,10 @@ class AuthGate extends ConsumerWidget {
         title: '원고를 여는 중',
       ),
       AuthenticationPhase.signedOut => _SignInScreen(
-        onPressed: controller.signInWithApple,
+        onApplePressed: controller.signInWithApple,
+        onTrialPressed: AppEnv.environment == AppEnvironment.dev
+            ? controller.signInAnonymously
+            : null,
       ),
       AuthenticationPhase.signingIn => const _SignInScreen(isBusy: true),
       AuthenticationPhase.failure => _AuthenticationFailureScreen(
@@ -42,10 +45,15 @@ class AuthGate extends ConsumerWidget {
 }
 
 class _SignInScreen extends StatelessWidget {
-  const _SignInScreen({this.isBusy = false, this.onPressed});
+  const _SignInScreen({
+    this.isBusy = false,
+    this.onApplePressed,
+    this.onTrialPressed,
+  });
 
   final bool isBusy;
-  final VoidCallback? onPressed;
+  final VoidCallback? onApplePressed;
+  final VoidCallback? onTrialPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -60,8 +68,20 @@ class _SignInScreen extends StatelessWidget {
             text: isBusy ? 'Apple ID 확인 중' : 'Apple로 계속하기',
             height: 52,
             borderRadius: BorderRadius.zero,
-            onPressed: isBusy ? null : onPressed,
+            onPressed: isBusy ? null : onApplePressed,
           ),
+          if (onTrialPressed != null) ...[
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: isBusy ? null : onTrialPressed,
+              child: const Text('체험 계정으로 시작'),
+            ),
+            const SizedBox(height: 10),
+            const MetaText(
+              '체험 원고는 이 기기의 로그인 세션에만 연결됩니다.',
+              textAlign: TextAlign.center,
+            ),
+          ],
           const SizedBox(height: 14),
           const MetaText('이름과 이메일은 저장하지 않습니다.', textAlign: TextAlign.center),
         ],

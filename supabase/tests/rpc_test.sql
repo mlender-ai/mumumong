@@ -3,13 +3,31 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(58);
+select plan(70);
 
 select ok(
   has_function_privilege('authenticated', 'public.user_edit_passage(uuid,text)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.user_edit_passage(uuid,text)', 'EXECUTE')
   and not has_function_privilege('service_role', 'public.user_edit_passage(uuid,text)', 'EXECUTE'),
   'only authenticated users can call user_edit_passage'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.user_revert_passage(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.user_revert_passage(uuid)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.user_revert_passage(uuid)', 'EXECUTE'),
+  'only authenticated users can call user_revert_passage'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.user_decide_link(uuid,text)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.user_decide_link(uuid,text)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.user_decide_link(uuid,text)', 'EXECUTE'),
+  'only authenticated users can call user_decide_link'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.user_mark_passage_read(uuid,timestamp with time zone)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.user_mark_passage_read(uuid,timestamp with time zone)', 'EXECUTE')
+  and not has_function_privilege('service_role', 'public.user_mark_passage_read(uuid,timestamp with time zone)', 'EXECUTE'),
+  'only authenticated users can call user_mark_passage_read'
 );
 select ok(
   has_function_privilege('service_role', 'public.commit_scene(uuid,uuid,jsonb)', 'EXECUTE')
@@ -283,6 +301,37 @@ select throws_ok(
   '55000',
   'locked passage cannot be modified outside user_edit_passage',
   'user edit permission is reset immediately after the RPC'
+);
+select lives_ok(
+  $$select public.user_mark_passage_read('66666666-6666-4666-8666-666666666661', '2026-09-27T01:00:00Z')$$,
+  'user_mark_passage_read updates a locked owned passage'
+);
+select ok((select first_read_at is not null from public.passages where id = '66666666-6666-4666-8666-666666666661'), 'locked passage stores first read time');
+select lives_ok(
+  $$select public.user_revert_passage('66666666-6666-4666-8666-666666666661')$$,
+  'user_revert_passage restores an owned passage'
+);
+select is((select origin::text from public.passages where id = '66666666-6666-4666-8666-666666666661'), 'D', 'revert restores original provenance');
+select ok((select original_text is null from public.passages where id = '66666666-6666-4666-8666-666666666661'), 'revert clears the saved edit');
+
+insert into public.link_decisions (id, volume_id, dream_id, kind, payload, status)
+values (
+  '6ddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  '22222222-2222-4222-8222-222222222222',
+  '33333333-3333-4333-8333-333333333333',
+  'placement',
+  '{}'::jsonb,
+  'pending'
+);
+select lives_ok(
+  $$select public.user_decide_link('6ddddddd-dddd-4ddd-8ddd-dddddddddddd', 'same')$$,
+  'user_decide_link records an owned choice'
+);
+select is((select status from public.link_decisions where id = '6ddddddd-dddd-4ddd-8ddd-dddddddddddd'), 'same', 'link choice is persisted');
+select is((select count(*)::integer from public.progress_events where id = '6ddddddd-dddd-4ddd-8ddd-dddddddddddd'), 1, 'link choice adds one progress event');
+select lives_ok(
+  $$select public.user_decide_link('6ddddddd-dddd-4ddd-8ddd-dddddddddddd', 'same')$$,
+  'repeating the same link choice is idempotent'
 );
 
 reset role;
