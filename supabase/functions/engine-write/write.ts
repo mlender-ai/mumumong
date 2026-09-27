@@ -2,11 +2,20 @@ import type { WriteOutput } from "../_shared/stage_contracts.ts";
 
 export function toSceneDraft(
   output: WriteOutput,
-  options: { validEntityIds?: ReadonlySet<string>; isFirstScene?: boolean } = {},
+  options: {
+    validEntityIds?: ReadonlySet<string>;
+    isFirstScene?: boolean;
+    plannedTitle?: string;
+  } = {},
 ): Record<string, unknown> {
   const validEntityIds = options.validEntityIds;
+  const scene = {
+    ...output.scene,
+    ...(options.isFirstScene ? { kind: "prologue" as const } : {}),
+    ...(options.plannedTitle ? { title: options.plannedTitle } : {}),
+  };
   return {
-    scene: options.isFirstScene ? { ...output.scene, kind: "prologue" } : output.scene,
+    scene,
     passages: output.passages.map((passage) => ({
       origin: passage.origin,
       text: passage.text,

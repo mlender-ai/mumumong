@@ -91,6 +91,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
           beats: job.payload.beats ?? [],
           placement: job.payload.placement,
           scene_title: job.payload.scene_title,
+          is_first_scene: job.payload.is_first_dream === true,
+          protagonist_contract: {
+            protagonist: "the user who recorded the dream",
+            relationship_terms_are_third_parties: true,
+            preserve_agent_recipient_goal_cause_and_sequence: true,
+          },
         },
         locked_passages: lockedPassages,
         validation_feedback: job.payload.validation_feedback ?? [],
@@ -104,6 +110,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
         (entitiesQuery.data ?? []).map((entity) => entity.id as string),
       ),
       isFirstScene: job.payload.is_first_dream === true,
+      plannedTitle: typeof job.payload.scene_title === "string"
+        ? job.payload.scene_title
+        : undefined,
     });
     const payload = await mergeJobPayload(client, jobId, job.payload, {
       write_complete: true,

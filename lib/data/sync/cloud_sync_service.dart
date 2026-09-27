@@ -245,7 +245,7 @@ class CloudSyncService implements RemoteEngineSync {
   Future<void> createVolume({
     required AdaptationLevel adaptation,
     required WritingStyle style,
-    NarrativeVoice narrativeVoice = NarrativeVoice.thirdPersonPast,
+    NarrativeVoice narrativeVoice = NarrativeVoice.firstPersonPast,
   }) async {
     final userId = _requireUser();
     await _clearForeignOwner(userId);

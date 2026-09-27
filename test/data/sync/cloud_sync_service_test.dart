@@ -31,6 +31,7 @@ class _FakeCloudGateway implements CloudSyncGateway {
     final row = _volume(
       adaptation: adaptation.databaseValue,
       style: style.databaseValue,
+      narrativeVoice: narrativeVoice.databaseValue,
     );
     volumes.add(row);
     if (loseCreateResponse) throw StateError('response_lost');
@@ -149,6 +150,7 @@ void main() {
     expect(volume.targetMu, 20);
     expect(volume.adaptation, 'faithful');
     expect(volume.style, 'lyrical');
+    expect(volume.narrativeVoice, 'first_person_past');
   });
 
   test('S02 recovers an active volume after a lost create response', () async {
@@ -283,6 +285,7 @@ void main() {
 Map<String, dynamic> _volume({
   String adaptation = 'balanced',
   String style = 'plain',
+  String narrativeVoice = 'first_person_past',
   double progressMu = 0,
 }) => {
   'id': _volumeId,
@@ -292,7 +295,7 @@ Map<String, dynamic> _volume({
   'format': 'short',
   'adaptation': adaptation,
   'style': style,
-  'narrative_voice': 'third_person_past',
+  'narrative_voice': narrativeVoice,
   'status': 'active',
   'target_mu': 20,
   'progress_mu': progressMu,

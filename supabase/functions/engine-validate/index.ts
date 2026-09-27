@@ -18,7 +18,7 @@ import { lockedPassageHash } from "../_shared/text.ts";
 import { auditRecord, validateSceneDraft } from "./validate.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
 
-const PROMPT_VERSION = "e5.rules.v1";
+const PROMPT_VERSION = "e5.rules.v2";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -109,6 +109,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
     elements: (elementsQuery.data ?? []) as DreamElement[],
     registry: (registryQuery.data ?? []) as RegistryEntity[],
     lockedPassageHashes,
+    minimumChars: payload.is_first_dream === true && typeof payload.target_length === "number"
+      ? Math.max(180, Math.floor(payload.target_length * 0.5))
+      : undefined,
     profile: isFallback ? "relaxed" : "strict",
   });
 

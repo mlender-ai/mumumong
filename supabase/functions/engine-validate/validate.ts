@@ -64,6 +64,7 @@ export interface ValidateInput {
   readonly registry: readonly RegistryEntity[];
   /// Hashes of the `U` passages in the target scene, via `lockedPassageHash`.
   readonly lockedPassageHashes?: readonly string[];
+  readonly minimumChars?: number;
   readonly profile?: ValidationProfile;
 }
 
@@ -179,6 +180,14 @@ export async function validateSceneDraft(input: ValidateInput): Promise<Validati
     }
 
     const cap = lengthCapFor(input.clarity, input.adaptation);
+    if (input.minimumChars && totalChars < input.minimumChars) {
+      violations.push({
+        code: "V4",
+        message: `첫 장면이 목표 분량보다 짧다 (${totalChars}자 < ${input.minimumChars}자)`,
+        observed: totalChars,
+        allowed: input.minimumChars,
+      });
+    }
     if (totalChars > cap) {
       violations.push({
         code: "V4",

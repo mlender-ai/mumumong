@@ -46,6 +46,8 @@ void main() {
     expect(find.text('VOL. 01 · SHORT'), findsOneWidget);
     expect(find.text('균형 있게'), findsOneWidget);
     expect(find.text('담백하게'), findsOneWidget);
+    expect(find.text('나의 시점'), findsOneWidget);
+    expect(find.text('소설 속 인물 시점'), findsOneWidget);
     expect(find.text('이 설정으로 시작'), findsOneWidget);
   });
 

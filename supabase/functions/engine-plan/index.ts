@@ -35,13 +35,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const volumeQuery = await client.from("volumes")
       .select("adaptation, style, narrative_voice, genre_profile, genre_directive")
       .eq("id", job.volume_id).single();
+    const dreamQuery = await client.from("dreams")
+      .select("raw_text, recall_answers")
+      .eq("id", job.dream_id).single();
     const memoryQuery = await client.from("narrative_memory")
       .select("story_so_far, open_threads, motifs")
       .eq("volume_id", job.volume_id).maybeSingle();
     const scenesQuery = await client.from("scenes")
       .select("id, order_key, title, placement, open_image")
       .eq("volume_id", job.volume_id).order("order_key", { ascending: false }).limit(12);
-    if (volumeQuery.error || memoryQuery.error || scenesQuery.error) throw new Error("plan_inputs");
+    if (volumeQuery.error || dreamQuery.error || memoryQuery.error || scenesQuery.error) {
+      throw new Error("plan_inputs");
+    }
 
     const clarity = claritySchema.parse(job.payload.clarity);
     const adaptation = adaptationSchema.parse(volumeQuery.data.adaptation);
@@ -52,6 +57,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
       schema: planJsonSchema,
       system: PLAN_SYSTEM,
       input: {
+        raw_text: dreamQuery.data.raw_text,
+        recall_answers: dreamQuery.data.recall_answers,
         elements: job.payload.elements ?? [],
         links: job.payload.links ?? [],
         clarity,
@@ -63,6 +70,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
         genre_profile: volumeQuery.data.genre_profile,
         genre_directive: volumeQuery.data.genre_directive,
         is_first_dream: (scenesQuery.data ?? []).length === 0,
+        protagonist_contract: {
+          protagonist: "the user who recorded the dream",
+          preserve_agent_recipient_goal_and_sequence: true,
+        },
       },
       temperature: 0.3,
       maxTokens: 1800,
@@ -78,12 +89,26 @@ Deno.serve(async (request: Request): Promise<Response> => {
         )
         .filter((id): id is string => typeof id === "string")
       : [];
+    const firstDreamElements = Array.isArray(job.payload.elements)
+      ? job.payload.elements.flatMap((element) => {
+        if (!element || typeof element !== "object") return [];
+        const candidate = element as Record<string, unknown>;
+        if (typeof candidate.label !== "string") return [];
+        return [{
+          label: candidate.label,
+          type: typeof candidate.type === "string" ? candidate.type : undefined,
+          salience: typeof candidate.salience === "string" ? candidate.salience : undefined,
+        }];
+      })
+      : [];
     const plan = enforcePlan(parsed, {
       lengthCap,
       cRatioMax: ADAPTATION_BUDGETS[adaptation].cRatioMax,
       validSceneIds: new Set(scenes.map((scene) => scene.id as string)),
       isFirstDream: scenes.length === 0,
       firstDreamElementIds: elementIds,
+      firstDreamElements,
+      rawText: dreamQuery.data.raw_text,
     });
     const payload = await mergeJobPayload(client, jobId, job.payload, {
       plan_complete: true,

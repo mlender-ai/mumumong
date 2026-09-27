@@ -54,6 +54,11 @@ Deno.test("the first manuscript scene is deterministically a prologue", () => {
     new_entities: [],
     used_entities: [],
     open_image: "문",
-  }, { isFirstScene: true });
-  assertEquals((draft.scene as { kind: string }).kind, "prologue");
+  }, { isFirstScene: true, plannedTitle: "여왕개미의 책상" });
+  assertEquals(draft.scene, {
+    title: "여왕개미의 책상",
+    kind: "prologue",
+    placement: "continuation",
+    open_image: "문",
+  });
 });

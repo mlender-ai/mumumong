@@ -145,6 +145,7 @@ class VolumeSetupScreen extends ConsumerStatefulWidget {
 class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
   AdaptationLevel _adaptation = AdaptationLevel.balanced;
   WritingStyle _style = WritingStyle.plain;
+  NarrativeVoice _narrativeVoice = NarrativeVoice.firstPersonPast;
   bool _saving = false;
   bool _failed = false;
 
@@ -157,7 +158,11 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
     try {
       await ref
           .read(cloudSyncServiceProvider)
-          .createVolume(adaptation: _adaptation, style: _style);
+          .createVolume(
+            adaptation: _adaptation,
+            style: _style,
+            narrativeVoice: _narrativeVoice,
+          );
       if (mounted) widget.onComplete();
     } on Object {
       if (mounted) {
@@ -215,6 +220,29 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
                   selected: _style == option.$1,
                   onTap: () => setState(() => _style = option.$1),
                 ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const MetaText('POINT OF VIEW'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChipEditorial(
+                label: '나의 시점',
+                selected: _narrativeVoice == NarrativeVoice.firstPersonPast,
+                onTap: () => setState(
+                  () => _narrativeVoice = NarrativeVoice.firstPersonPast,
+                ),
+              ),
+              ChoiceChipEditorial(
+                label: '소설 속 인물 시점',
+                selected: _narrativeVoice == NarrativeVoice.thirdPersonPast,
+                onTap: () => setState(
+                  () => _narrativeVoice = NarrativeVoice.thirdPersonPast,
+                ),
+              ),
             ],
           ),
         ],

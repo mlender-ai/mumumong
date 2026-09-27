@@ -114,7 +114,7 @@ export const planOutputSchema = z.object({
     z.object({ kind: z.literal("C"), element_ids: z.array(z.string().uuid()), note: z.string() }),
   ])),
   target_length: z.number().int().positive(),
-  scene_title: z.string(),
+  scene_title: z.string().trim().min(1).max(24),
 });
 export type PlanOutput = z.infer<typeof planOutputSchema>;
 
@@ -137,7 +137,7 @@ export const planJsonSchema: Record<string, unknown> = {
       },
     },
     target_length: { type: "integer", minimum: 1 },
-    scene_title: { type: "string" },
+    scene_title: { type: "string", minLength: 1, maxLength: 24 },
   },
   required: ["placement", "attach_to_scene_id", "beats", "target_length", "scene_title"],
   additionalProperties: false,
@@ -145,7 +145,7 @@ export const planJsonSchema: Record<string, unknown> = {
 
 export const writeOutputSchema = z.object({
   scene: z.object({
-    title: z.string(),
+    title: z.string().trim().min(1).max(24),
     kind: z.enum(["prologue", "dream", "interlude", "ending"]),
     placement: z.enum(PLACEMENT_KINDS),
     open_image: z.string().min(1),
@@ -174,7 +174,7 @@ export const writeJsonSchema: Record<string, unknown> = {
     scene: {
       type: "object",
       properties: {
-        title: { type: "string" },
+        title: { type: "string", minLength: 1, maxLength: 24 },
         kind: { type: "string", enum: ["prologue", "dream", "interlude", "ending"] },
         placement: { type: "string", enum: PLACEMENT_KINDS },
         open_image: { type: "string" },

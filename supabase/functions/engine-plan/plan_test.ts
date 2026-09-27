@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { enforcePlan, nextSceneOrderKey } from "./plan.ts";
+import { enforcePlan, nextSceneOrderKey, normalizeSceneTitle } from "./plan.ts";
 
 Deno.test("plan clamps length, adaptation beats, and invalid fragment targets", () => {
   const invalid = enforcePlan({
@@ -28,13 +28,57 @@ Deno.test("the first dream is always planned as a manuscript prologue", () => {
     validSceneIds: new Set(),
     isFirstDream: true,
     firstDreamElementIds: [elementId],
+    firstDreamElements: [{
+      label: "여왕개미의 책상",
+      type: "object",
+      salience: "high",
+    }],
+    rawText: "여왕개미의 책상을 가져왔다.",
   });
   assertEquals(first.placement, "continuation");
   assertEquals(first.beats, [{
     kind: "D",
     element_ids: [elementId],
-    note: "첫 꿈의 핵심 장면",
+    note: "사용자의 의도와 행동으로 여는 첫 장면",
   }]);
+  assertEquals(first.scene_title, "여왕개미의 책상");
+});
+
+Deno.test("meta titles fall back to a concrete high-salience dream image", () => {
+  assertEquals(
+    normalizeSceneTitle("첫 꿈의 서막", [
+      { label: "남자친구", type: "person", salience: "high" },
+      { label: "여왕개미의 책상", type: "object", salience: "high" },
+    ]),
+    "여왕개미의 책상",
+  );
+  assertEquals(normalizeSceneTitle("붉은 책상", []), "붉은 책상");
+});
+
+Deno.test("the first title uses an exact possessed object phrase from the source", () => {
+  assertEquals(
+    normalizeSceneTitle("어두운 책상", [
+      { label: "여왕개미", type: "person", salience: "high" },
+      { label: "책상", type: "object", salience: "high" },
+    ], {
+      preferSourceImage: true,
+      rawText: "남자친구에게 주려고 여왕개미의 책상을 가져왔다.",
+    }),
+    "여왕개미의 책상",
+  );
+});
+
+Deno.test("the source possessive title survives coarse element extraction", () => {
+  assertEquals(
+    normalizeSceneTitle("어두움", [
+      { label: "남자친구", type: "person", salience: "high" },
+      { label: "작은 책상", type: "object", salience: "high" },
+    ], {
+      preferSourceImage: true,
+      rawText: "여왕개미의 책상이 딱 맞을 것 같아서 가져왔다.",
+    }),
+    "여왕개미의 책상",
+  );
 });
 
 Deno.test("scene order keys advance deterministically", () => {

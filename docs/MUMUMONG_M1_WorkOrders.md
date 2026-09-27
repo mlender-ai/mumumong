@@ -6,7 +6,7 @@
 
 **확정 결정**
 
-- D1: 서술 시점은 L1 설정으로 주입한다. 기본값은 `third_person_past`, 선택값은 `first_person_past`다.
+- D1: 서술 시점은 L1 설정으로 주입한다. 기본값은 `first_person_past`, 선택값은 `third_person_past`다. 꿈 기록자는 주인공·초점 인물로 유지한다.
 - D2: STT는 iOS 온디바이스 전용이며 서버 폴백이 없다.
 - D6: WO-00 저장소 재편을 승인한다.
 
@@ -230,7 +230,7 @@ create unique index uq_volume_active on volumes (user_id)
 alter table volumes add constraint uq_volume_no unique (user_id, vol_no);
 alter table volumes add column prologue_scene_id uuid;
 alter table volumes add column narrative_voice narrative_voice not null
-  default 'third_person_past';
+  default 'first_person_past';
 
 -- dreams
 create index idx_dreams_user_date on dreams (user_id, dream_date desc);
@@ -714,7 +714,7 @@ L5 오늘 (원문, elements, 보강 답변, 연결 결정, beats)
 6. 다음 표현을 쓰지 않는다: 꿈에서 깨어났다 / 마치 꿈처럼 / 그것은 꿈이었다 /
    눈을 떠보니. 이 장면은 꿈이 아니라 현실처럼 서술한다.
 7. 장면을 닫지 않는다. 마지막 문단은 열린 이미지나 미해결 요소로 끝낸다.
-8. L1의 `narrative_voice` 설정에 맞춰 쓴다. 기본은 3인칭 과거형이다.
+8. L1의 `narrative_voice` 설정에 맞춰 쓴다. 기본은 1인칭 과거형이며 꿈 기록자가 주인공이다.
    `first_person_past`에서는 화자만 역할명 규칙의 예외이며, 다른 인물은 역할명을 유지한다.
 9. 출력은 지정된 JSON 스키마만 낸다.
 ```
@@ -999,6 +999,6 @@ C1~C6은 코드 확인으로 모두 해소됐다. D1·D2·D6도 사용자 답변
 |---|---|
 | WO-00 | **D6 확정** — 저장소 재편 승인, 착수 가능 |
 | WO-16 | **D2 확정** — iOS 온디바이스 STT 전용, 서버 폴백 없음 |
-| WO-E4 | **D1 확정** — L1 설정형, 기본 `third_person_past` |
+| WO-E4 | **D1 확정** — L1 설정형, 기본 `first_person_past` |
 | WO-06 (AdaptationLevel) | D 결정 §31-1 (`free` 모드 M1 포함 여부) — 현재 제외로 작성됨 |
 | 전체 일정 | D5 (8~9주 수용 여부) |

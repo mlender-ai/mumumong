@@ -625,7 +625,7 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
       format: VolumeFormat.novella,
       adaptation: AdaptationLevel.balanced,
       style: WritingStyle.plain,
-      narrativeVoice: NarrativeVoice.thirdPersonPast,
+      narrativeVoice: NarrativeVoice.firstPersonPast,
       status: VolumeStatus.active,
       progressMu: 33.5,
       targetMu: 80,
