@@ -4,7 +4,7 @@ Last updated: 2026-09-27
 
 ## Summary
 
-The repository contains a runnable Flutter implementation of the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and both deterministic mock and hosted AI engines exist. The dedicated `mumumong` Supabase project (`dtdmfjovpufyyekdumga`) has migrations 0001–0011 and E1–E7 plus the queue worker deployed. The hosted app path creates its first short volume, pushes a locally captured dream through authenticated RLS, follows the Groq job, and pulls the generated elements, scene, passages, provenance and progress back into Drift before reveal. Development builds can use a device-bound anonymous trial account while Apple provisioning is pending. Dream-original edits, dream removal/deletion, passage edit/revert/read, scene placement and link decisions use the durable Outbox and authenticated cloud mutations.
+The repository contains a runnable Flutter implementation of the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and both deterministic mock and hosted AI engines exist. The dedicated `mumumong` Supabase project (`dtdmfjovpufyyekdumga`) has migrations 0001–0012 and E1–E7 plus the queue worker deployed. The hosted app path creates its first short volume, pushes a locally captured dream through authenticated RLS, follows the Groq job, and pulls the generated elements, scene, passages, provenance and progress back into Drift before reveal. Development builds can use a device-bound anonymous trial account while Apple provisioning is pending. Dream-original edits, dream removal/deletion, passage edit/revert/read, scene placement and link decisions use the durable Outbox and authenticated cloud mutations. Client retries use an authenticated safe upsert that cannot downgrade engine-owned completion, clarity, or safety fields.
 
 ## Implemented locally
 
@@ -41,7 +41,7 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 | Persistence | Active-volume bootstrap, capture-to-reveal push/pull, dream edit/removal/deletion, passage edit/revert/read, placement and link decisions are connected |
 | Voice and STT | Native on-device implementation builds and its Flutter callback behavior is tested; the required ten-recording quality check needs a physical iPhone and human review |
 | AI pipeline | E1–E7 and the worker are deployed and a real hosted dream completed the entire pipeline. Durable cron recovery and model-assisted semantic V5/V7 checks remain open |
-| Backend | The dedicated cloud project has migrations 0001–0011, RLS, locked-passage trigger, authenticated dream removal/deletion and edit/revert/read/link mutations, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. Durable cron recovery remains open |
+| Backend | The dedicated cloud project has migrations 0001–0012, RLS, locked-passage trigger, authenticated dream upsert/removal/deletion and edit/revert/read/link mutations, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. The dream upsert preserves server-owned completion, clarity, and safety fields when stale Outbox work arrives. Durable cron recovery remains open |
 | Offline | Capture autosave/restore plus durable create/process and author-interaction delivery are implemented. The next app launch imports hosted results; background completion notification remains open |
 | Notifications | Morning/night and completion notifications are not present |
 | Completion | S14 and PDF export are not present |
@@ -57,13 +57,14 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 - `flutter build ios --simulator --no-codesign`: passing
 - Apple authentication screen runtime smoke: passing on iPhone 17 Pro Simulator
 - Drift iOS runtime open/query/close smoke: passing on iPhone 17 Pro Simulator (SQLite 3.53.4)
-- `supabase db reset`: migrations 0001–0011 and seed passing
-- `supabase test db`: 136 database tests passing
+- `supabase db reset`: migrations 0001–0012 and seed passing
+- `supabase test db`: 144 database tests passing
 - `supabase db lint --local --schema public --level warning`: no schema errors
 - `npx deno task verify` in `supabase/functions`: 62 tests passing
 - `node tool/engine_smoke.mjs` with `supabase functions serve`: real HTTP validation/audit, worker authorization, repeated commit, remember deduplication, and transaction rollback passing; disposable smoke account removed after verification
 - Mobile visual QA at 390×844: capture through reveal, manuscript growth, Reader, source sheet, and Night Paper
-- Cloud deployment smoke: migrations 0001–0011 match remote; every engine stage accepts only the hosted service secret; browser preflight succeeds for the worker; public manuscript reads and anonymous account deletion are denied. Hosted anonymous sign-in is enabled and disposable trial accounts are automatically removed
+- Cloud deployment smoke: migrations 0001–0012 match remote; every engine stage accepts only the hosted service secret; browser preflight succeeds for the worker; public manuscript reads and anonymous account deletion are denied. Hosted anonymous sign-in is enabled and disposable trial accounts are automatically removed
+- Hosted safe-upsert smoke: an authenticated stale `processing` retry updates client-authored dream text while preserving the server-owned `in_manuscript` status, clarity, and safety flags
 - Hosted AI pipeline smoke: disposable authenticated accounts repeatedly completed extract → link → plan → write → validate → commit → remember, including write/validate regeneration, and committed passages with real D provenance; all disposable owned data was then deleted
 - Hosted app round-trip smoke: an RLS-constrained disposable user created the S02 short volume, idempotently upserted the same dream twice, processed it with the stable dream UUID, read back a prologue scene and real D provenance, edited the original, then deleted the dream while preserving and detaching the scene before automatic cleanup
 

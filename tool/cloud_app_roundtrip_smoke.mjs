@@ -78,16 +78,16 @@ try {
     status: 'processing',
     is_backfill: false,
   };
-  await request('/rest/v1/dreams?on_conflict=id', {
+  await request('/rest/v1/rpc/user_upsert_dream', {
     method: 'POST',
-    headers: { ...userHeaders, Prefer: 'resolution=merge-duplicates,return=representation' },
-    body: dreamPayload,
+    headers: userHeaders,
+    body: { p_payload: dreamPayload },
   });
   // The foreground path and an Outbox retry use the same row and must converge.
-  await request('/rest/v1/dreams?on_conflict=id', {
+  await request('/rest/v1/rpc/user_upsert_dream', {
     method: 'POST',
-    headers: { ...userHeaders, Prefer: 'resolution=merge-duplicates,return=representation' },
-    body: dreamPayload,
+    headers: userHeaders,
+    body: { p_payload: dreamPayload },
   });
   await request('/rest/v1/jobs', {
     method: 'POST',
@@ -130,6 +130,21 @@ try {
   assert.ok(
     ['in_manuscript', 'archived_only'].includes(dream?.status),
     'dream reaches a successful terminal state',
+  );
+
+  // A delayed Outbox retry may still carry the old processing state. It can
+  // refresh client-owned fields, but must not hide the committed result.
+  await request('/rest/v1/rpc/user_upsert_dream', {
+    method: 'POST',
+    headers: userHeaders,
+    body: { p_payload: dreamPayload },
+  });
+  [dream] = await request(`/rest/v1/dreams?id=eq.${dreamId}&select=status,clarity`, {
+    headers: userHeaders,
+  });
+  assert.ok(
+    ['in_manuscript', 'archived_only'].includes(dream?.status),
+    'stale client state cannot downgrade the committed result',
   );
 
   const [scenes, passages, elements, progress, volumes] = await Promise.all([

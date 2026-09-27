@@ -109,7 +109,7 @@ class SupabaseCloudSyncGateway implements CloudSyncGateway {
 
   @override
   Future<void> upsertDream(Map<String, dynamic> dream) async {
-    await client.from('dreams').upsert(dream, onConflict: 'id');
+    await client.rpc('user_upsert_dream', params: {'p_payload': dream});
   }
 
   @override
