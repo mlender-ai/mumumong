@@ -153,6 +153,19 @@ void runRepositoryContract(
       expect(job?.attempt, 1);
     });
 
+    test('edits a stored dream without changing its derived status', () async {
+      final before = (await repository.watchDreams(DreamStatusFilter.all).first)
+          .singleWhere((dream) => dream.id == harness.latestDreamId);
+
+      await repository.updateDreamText(harness.latestDreamId, '수정한 꿈 원문');
+
+      final after = (await repository.watchDreams(DreamStatusFilter.all).first)
+          .singleWhere((dream) => dream.id == harness.latestDreamId);
+      expect(after.rawText, '수정한 꿈 원문');
+      expect(after.status, before.status);
+      expect(after.clarity, before.clarity);
+    });
+
     test('changes placement and emits a new scene snapshot', () async {
       final changed = repository
           .watchScenes(harness.volumeId)

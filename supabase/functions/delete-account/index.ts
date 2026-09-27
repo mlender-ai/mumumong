@@ -1,15 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { logEvent } from "../_shared/log.ts";
+import { corsPreflight, json } from "../_shared/pipeline.ts";
 import { serviceRoleClient } from "../_shared/supabase.ts";
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
-}
-
 Deno.serve(async (request: Request): Promise<Response> => {
+  const preflight = corsPreflight(request);
+  if (preflight) return preflight;
   if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const authorization = request.headers.get("authorization");
   const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : null;

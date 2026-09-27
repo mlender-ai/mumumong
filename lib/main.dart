@@ -22,7 +22,9 @@ Future<void> main() async {
     url: AppEnv.supabaseUrl,
     publishableKey: AppEnv.supabasePublishableKey,
     authOptions: FlutterAuthClientOptions(
-      localStorage: kIsWeb ? const EmptyLocalStorage() : SecureSessionStorage(),
+      // Web uses Supabase's default localStorage implementation so a trial
+      // account survives reloads. Native sessions stay in Keychain.
+      localStorage: kIsWeb ? null : SecureSessionStorage(),
     ),
   );
   SystemChrome.setSystemUIOverlayStyle(

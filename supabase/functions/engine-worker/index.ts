@@ -1,5 +1,5 @@
 import { logEvent } from "../_shared/log.ts";
-import { json } from "../_shared/pipeline.ts";
+import { corsPreflight, json } from "../_shared/pipeline.ts";
 import { serviceRoleClient } from "../_shared/supabase.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
 import { isTerminalFailure, retryDelaySeconds, stageFunction } from "./worker.ts";
@@ -36,6 +36,8 @@ function continueInBackground(
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
+  const preflight = corsPreflight(request);
+  if (preflight) return preflight;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const baseUrl = Deno.env.get("SUPABASE_URL");

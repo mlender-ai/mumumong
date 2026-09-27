@@ -16,6 +16,8 @@ class FakeGateway implements RemoteEngineGateway {
   @override
   Future<String?> findJobByKey(String userId, String key) async => existing;
   @override
+  Future<String?> findActiveExtractJob(String dreamId) async => existing;
+  @override
   Future<String?> insertExtractJob({
     required String id,
     required String userId,
@@ -135,5 +137,24 @@ void main() {
       throwsA(isA<StateError>()),
     );
     await gateway.changes.close();
+  });
+
+  test('retry creates a fresh extract job after a terminal failure', () async {
+    final gateway = FakeGateway();
+    final sync = FakeSync();
+    var sequence = 0;
+    final client = RemoteEngineClient(
+      gateway,
+      sync: sync,
+      idGenerator: () =>
+          '00000000-0000-4000-8000-${(++sequence).toString().padLeft(12, '0')}',
+    );
+
+    final jobId = await client.retry('dream');
+
+    expect(jobId, '00000000-0000-4000-8000-000000000001');
+    expect(gateway.inserts, 1);
+    expect(gateway.kicks, 1);
+    expect(sync.pushed, ['dream']);
   });
 }

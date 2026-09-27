@@ -7,6 +7,8 @@ import 'package:uuid/uuid.dart';
 abstract interface class EngineClient {
   Future<String> enqueue(String dreamId, String idempotencyKey);
 
+  Future<String> retry(String dreamId);
+
   Stream<JobProgress> watch(String dreamId);
 }
 
@@ -61,6 +63,7 @@ abstract interface class RemoteEngineGateway {
     required String idempotencyKey,
   });
   Future<String?> findJobByKey(String userId, String idempotencyKey);
+  Future<String?> findActiveExtractJob(String dreamId);
   Future<void> kickWorker();
   Stream<List<RemoteJobRecord>> watchJobs(String dreamId);
 }
@@ -114,6 +117,20 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
         .select('id')
         .eq('user_id', userId)
         .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+    return row?['id'] as String?;
+  }
+
+  @override
+  Future<String?> findActiveExtractJob(String dreamId) async {
+    final row = await client
+        .from('jobs')
+        .select('id')
+        .eq('dream_id', dreamId)
+        .eq('type', JobType.extract.databaseValue)
+        .inFilter('status', const ['queued', 'running'])
+        .order('created_at', ascending: false)
+        .limit(1)
         .maybeSingle();
     return row?['id'] as String?;
   }
@@ -224,6 +241,35 @@ class RemoteEngineClient implements EngineClient {
     }
     final concurrent = await gateway.findJobByKey(userId, idempotencyKey);
     if (concurrent == null) throw StateError('idempotent_job_missing');
+    await gateway.kickWorker();
+    return concurrent;
+  }
+
+  @override
+  Future<String> retry(String dreamId) async {
+    final userId = gateway.currentUserId;
+    if (userId == null) throw StateError('authentication_required');
+    await sync?.pushDream(dreamId);
+    final active = await gateway.findActiveExtractJob(dreamId);
+    if (active != null) {
+      await gateway.kickWorker();
+      return active;
+    }
+    final volumeId = await gateway.findDreamVolume(dreamId);
+    final jobId = _idGenerator();
+    final inserted = await gateway.insertExtractJob(
+      id: jobId,
+      userId: userId,
+      dreamId: dreamId,
+      volumeId: volumeId,
+      idempotencyKey: _idGenerator(),
+    );
+    if (inserted != null) {
+      await gateway.kickWorker();
+      return inserted;
+    }
+    final concurrent = await gateway.findActiveExtractJob(dreamId);
+    if (concurrent == null) throw StateError('retry_job_missing');
     await gateway.kickWorker();
     return concurrent;
   }

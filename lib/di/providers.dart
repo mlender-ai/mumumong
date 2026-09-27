@@ -77,7 +77,10 @@ final outboxWorkerProvider = Provider<OutboxWorker?>((ref) {
           'change_placement' ||
           'edit_passage' ||
           'revert_passage' ||
-          'mark_passage_read':
+          'mark_passage_read' ||
+          'edit_dream' ||
+          'remove_dream' ||
+          'delete_dream':
         await sync.deliverInteraction(operation, payload);
       default:
         throw StateError('unsupported_outbox_operation');

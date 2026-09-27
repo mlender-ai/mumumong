@@ -146,7 +146,33 @@ try {
       && passage.source_element_ids.every(id => elements.some(element => element.id === id))));
   assert.equal(progress.length, 1);
   assert.equal(Number(volumes[0].progress_mu), Number(progress[0].delta_mu));
-  console.log(`App round-trip passed ${jobs.map(job => job.type).join(' -> ')}; RLS push/pull and provenance are intact.`);
+
+  const editedAt = new Date().toISOString();
+  const editedDream = await request(`/rest/v1/dreams?id=eq.${dreamId}`, {
+    method: 'PATCH',
+    headers: userHeaders,
+    body: {
+      raw_text: `${dreamPayload.raw_text} 수정된 기억.`,
+      raw_text_edited_at: editedAt,
+      updated_at: editedAt,
+    },
+  });
+  assert.equal(editedDream.length, 1, 'owner can edit the archived original');
+
+  await request('/rest/v1/rpc/user_delete_dream', {
+    method: 'POST',
+    headers: userHeaders,
+    body: { p_dream_id: dreamId, p_keep_derived: true },
+  });
+  const [deletedDreams, preservedScenes, detachedPassages] = await Promise.all([
+    request(`/rest/v1/dreams?id=eq.${dreamId}&select=id`, { headers: userHeaders }),
+    request(`/rest/v1/scenes?volume_id=eq.${volume.id}&select=id,source_dream_ids`, { headers: userHeaders }),
+    request(`/rest/v1/passages?scene_id=eq.${scenes[0].id}&select=origin,source_dream_id`, { headers: userHeaders }),
+  ]);
+  assert.equal(deletedDreams.length, 0, 'dream deletion removes the original');
+  assert.ok(preservedScenes.some(scene => scene.id === scenes[0].id), 'keep-derived deletion preserves the scene');
+  assert.ok(detachedPassages.every(passage => passage.origin !== 'D' && passage.source_dream_id === null));
+  console.log(`App round-trip passed ${jobs.map(job => job.type).join(' -> ')}; edit, deletion, RLS push/pull and provenance are intact.`);
 } finally {
   if (userId) {
     await fetch(`${base}/auth/v1/admin/users/${userId}`, {

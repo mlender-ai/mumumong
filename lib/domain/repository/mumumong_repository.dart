@@ -57,6 +57,7 @@ abstract class MumumongRepository {
   Future<void> clearDraft();
   Future<String> submitDream(DreamDraft draft);
   Future<void> answerRecall(String dreamId, Map<String, String> answers);
+  Future<void> updateDreamText(String dreamId, String text);
   Future<void> decideLink(String decisionId, LinkChoice choice);
   Future<void> changePlacement(String sceneId, PlacementKind kind);
   Future<void> editPassage(String passageId, String text);

@@ -300,6 +300,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     if (dreamId == null) {
       return;
     }
+    final retrying = _processingFailed;
     setState(() {
       _step = CaptureStep.processing;
       _processingStage = 0;
@@ -329,14 +330,28 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       // A dream UUID is also a valid stable server idempotency key. Reusing it
       // lets foreground submission and a later Outbox retry converge.
       _engineIdempotencyKey ??= dreamId;
-      await engine.enqueue(dreamId, _engineIdempotencyKey!);
+      if (!retrying) {
+        _jobSubscription = engine
+            .watch(dreamId)
+            .listen(
+              _onJobProgress,
+              onError: (Object _) => _failProcessing('stream_unavailable'),
+            );
+      }
+      if (retrying) {
+        await engine.retry(dreamId);
+      } else {
+        await engine.enqueue(dreamId, _engineIdempotencyKey!);
+      }
       if (!mounted) return;
-      _jobSubscription = engine
-          .watch(dreamId)
-          .listen(
-            _onJobProgress,
-            onError: (Object _) => _failProcessing('stream_unavailable'),
-          );
+      if (retrying) {
+        _jobSubscription = engine
+            .watch(dreamId)
+            .listen(
+              _onJobProgress,
+              onError: (Object _) => _failProcessing('stream_unavailable'),
+            );
+      }
     } on Object {
       if (!mounted) {
         return;
@@ -720,14 +735,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
             const SizedBox(height: 16),
             const Text('꿈은 보관함에 저장되어 있어요.'),
             const SizedBox(height: 28),
-            EditorialButton(
-              label: '다시 시도',
-              onPressed: () {
-                // User and transport retries converge on the stable dream UUID.
-                _engineIdempotencyKey = null;
-                _startProcessing();
-              },
-            ),
+            EditorialButton(label: '다시 시도', onPressed: _startProcessing),
             QuietTextButton(
               label: '보관함에서 나중에 보기',
               onPressed: () => Navigator.pop(context),

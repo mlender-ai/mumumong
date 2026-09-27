@@ -50,6 +50,9 @@ class MockEngineClient implements EngineClient {
   }
 
   @override
+  Future<String> retry(String dreamId) => enqueue(dreamId, _uuid.v4());
+
+  @override
   Stream<JobProgress> watch(String dreamId) async* {
     _ensureOpen();
     final latest = _latestByDreamId[dreamId];

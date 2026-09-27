@@ -21,6 +21,14 @@ class ControlledEngine implements EngineClient {
   }
 
   @override
+  Future<String> retry(String dreamId) async {
+    this.dreamId = dreamId;
+    const key = 'retry-key';
+    keys.add(key);
+    return key;
+  }
+
+  @override
   Stream<JobProgress> watch(String dreamId) => controller.stream;
   void emit(JobType type, JobStatus status, {bool archivedOnly = false}) =>
       controller.add(
@@ -36,7 +44,7 @@ class ControlledEngine implements EngineClient {
 }
 
 void main() {
-  testWidgets('processing follows jobs and retries with the stable dream key', (
+  testWidgets('processing follows jobs and retries with a fresh engine job', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -88,7 +96,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(engine.keys, hasLength(2));
     expect(engine.keys[0], engine.dreamId);
-    expect(engine.keys[1], engine.keys[0]);
+    expect(engine.keys[1], 'retry-key');
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
   });

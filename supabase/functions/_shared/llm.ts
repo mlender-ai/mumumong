@@ -42,32 +42,44 @@ export async function callStructured<T>(
   const started = Date.now();
   let response: Response;
   try {
-    response = await fetcher("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: request.model,
-        messages: [
-          { role: "system", content: request.system },
-          { role: "user", content: JSON.stringify(request.input) },
-        ],
-        temperature: request.temperature,
-        max_completion_tokens: request.maxTokens,
-        reasoning_effort: "low",
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: request.schemaName,
-            strict: true,
-            schema: request.schema,
-          },
+    const send = (strict: boolean) =>
+      fetcher("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
         },
-      }),
-      signal: AbortSignal.timeout(55_000),
-    });
+        body: JSON.stringify({
+          model: request.model,
+          messages: [
+            { role: "system", content: request.system },
+            { role: "user", content: JSON.stringify(request.input) },
+          ],
+          temperature: request.temperature,
+          max_completion_tokens: request.maxTokens,
+          reasoning_effort: "low",
+          response_format: strict
+            ? {
+              type: "json_schema",
+              json_schema: {
+                name: request.schemaName,
+                strict: true,
+                schema: request.schema,
+              },
+            }
+            : {
+              type: "json_object",
+            },
+        }),
+        signal: AbortSignal.timeout(55_000),
+      });
+    response = await send(true);
+    // Groq can reject constrained decoding for a valid supported schema with
+    // HTTP 400. JSON Object Mode keeps the payload private and lets our Zod
+    // contract remain the final gate instead of dropping the whole dream.
+    if (response.status === 400) {
+      response = await send(false);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message.toLowerCase() : "";
     const category = message.includes("header")

@@ -40,6 +40,8 @@ abstract interface class CloudSyncGateway {
 
   Future<void> upsertDream(Map<String, dynamic> dream);
 
+  Future<void> updateDreamText(String dreamId, String text, DateTime editedAt);
+
   Future<void> decideLink(String decisionId, String status);
 
   Future<void> updateScenePlacement(String sceneId, String placement);
@@ -49,6 +51,10 @@ abstract interface class CloudSyncGateway {
   Future<void> revertPassage(String passageId);
 
   Future<void> markPassageRead(String passageId, DateTime firstReadAt);
+
+  Future<void> removeDreamFromManuscript(String dreamId);
+
+  Future<void> deleteDream(String dreamId, {required bool keepDerived});
 
   Future<CloudVolumeBundle> fetchVolumeBundle(String volumeId);
 }
@@ -107,6 +113,24 @@ class SupabaseCloudSyncGateway implements CloudSyncGateway {
   }
 
   @override
+  Future<void> updateDreamText(
+    String dreamId,
+    String text,
+    DateTime editedAt,
+  ) async {
+    await client
+        .from('dreams')
+        .update({
+          'raw_text': text,
+          'raw_text_edited_at': editedAt.toUtc().toIso8601String(),
+          'updated_at': editedAt.toUtc().toIso8601String(),
+        })
+        .eq('id', dreamId)
+        .select('id')
+        .single();
+  }
+
+  @override
   Future<void> decideLink(String decisionId, String status) async {
     await client.rpc(
       'user_decide_link',
@@ -151,6 +175,22 @@ class SupabaseCloudSyncGateway implements CloudSyncGateway {
         'p_passage_id': passageId,
         'p_first_read_at': firstReadAt.toUtc().toIso8601String(),
       },
+    );
+  }
+
+  @override
+  Future<void> removeDreamFromManuscript(String dreamId) async {
+    await client.rpc(
+      'user_remove_dream_from_manuscript',
+      params: {'p_dream_id': dreamId},
+    );
+  }
+
+  @override
+  Future<void> deleteDream(String dreamId, {required bool keepDerived}) async {
+    await client.rpc(
+      'user_delete_dream',
+      params: {'p_dream_id': dreamId, 'p_keep_derived': keepDerived},
     );
   }
 
@@ -302,6 +342,19 @@ class CloudSyncService implements RemoteEngineSync {
         await gateway.markPassageRead(
           payload['passage_id'] as String,
           DateTime.parse(payload['first_read_at'] as String),
+        );
+      case 'edit_dream':
+        await gateway.updateDreamText(
+          payload['dream_id'] as String,
+          payload['text'] as String,
+          DateTime.parse(payload['edited_at'] as String),
+        );
+      case 'remove_dream':
+        await gateway.removeDreamFromManuscript(payload['dream_id'] as String);
+      case 'delete_dream':
+        await gateway.deleteDream(
+          payload['dream_id'] as String,
+          keepDerived: payload['keep_derived'] as bool,
         );
       default:
         throw StateError('unsupported_cloud_interaction');

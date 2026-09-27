@@ -61,6 +61,20 @@ class _FakeCloudGateway implements CloudSyncGateway {
   }
 
   @override
+  Future<void> updateDreamText(
+    String dreamId,
+    String text,
+    DateTime editedAt,
+  ) async {
+    interactions.add({
+      'operation': 'edit_dream',
+      'dream_id': dreamId,
+      'text': text,
+      'edited_at': editedAt,
+    });
+  }
+
+  @override
   Future<void> decideLink(String decisionId, String status) async {
     interactions.add({
       'operation': 'decide_link',
@@ -98,6 +112,20 @@ class _FakeCloudGateway implements CloudSyncGateway {
       'operation': 'mark_passage_read',
       'passage_id': passageId,
       'first_read_at': firstReadAt,
+    });
+  }
+
+  @override
+  Future<void> removeDreamFromManuscript(String dreamId) async {
+    interactions.add({'operation': 'remove_dream', 'dream_id': dreamId});
+  }
+
+  @override
+  Future<void> deleteDream(String dreamId, {required bool keepDerived}) async {
+    interactions.add({
+      'operation': 'delete_dream',
+      'dream_id': dreamId,
+      'keep_derived': keepDerived,
     });
   }
 }
@@ -187,6 +215,7 @@ void main() {
       expect(progress.single.deltaMu, 2.25);
       expect((await repository.watchActiveVolume().first)!.progressMu, 2.25);
 
+      await repository.updateDreamText(dreamId, '수정한 꿈 원문');
       await repository.editPassage(_passageId, '사용자가 고친 문장');
       await repository.markPassageRead(_passageId);
       await repository.changePlacement(_sceneId, PlacementKind.interlude);
@@ -198,6 +227,7 @@ void main() {
               ))
               .get();
       expect(interactionRows.map((row) => row.op), [
+        'edit_dream',
         'edit_passage',
         'mark_passage_read',
         'change_placement',
@@ -221,6 +251,12 @@ void main() {
         'scene_id': _sceneId,
         'placement': 'interlude',
       });
+      final editedAt = DateTime.utc(2026, 9, 27, 3);
+      await sync.deliverInteraction('edit_dream', {
+        'dream_id': 'dream-id',
+        'text': '수정한 꿈',
+        'edited_at': editedAt.toIso8601String(),
+      });
 
       expect(gateway.interactions, [
         {
@@ -232,6 +268,12 @@ void main() {
           'operation': 'change_placement',
           'scene_id': _sceneId,
           'placement': 'interlude',
+        },
+        {
+          'operation': 'edit_dream',
+          'dream_id': 'dream-id',
+          'text': '수정한 꿈',
+          'edited_at': editedAt,
         },
       ]);
     },

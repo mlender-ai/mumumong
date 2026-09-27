@@ -219,6 +219,18 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
   }
 
   @override
+  Future<void> updateDreamText(String dreamId, String text) async {
+    _ensureOpen();
+    final normalized = text.trim();
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(text, 'text', 'a dream cannot be empty');
+    }
+    final index = _dreamIndex(dreamId);
+    _dreams[index] = _dreams[index].copyWith(rawText: normalized);
+    _notify();
+  }
+
+  @override
   Future<void> decideLink(String decisionId, LinkChoice choice) async {
     _ensureOpen();
     final index = _linkDecisions.indexWhere(

@@ -17,9 +17,9 @@ Deno.test("structured model call sends strict schema and returns usage without l
     temperature: 0,
     maxTokens: 32,
     apiKey: "gsk_test_only_key",
-  }, async (_url, init) => {
+  }, (_url, init) => {
     sentBodies.push(JSON.parse(init?.body as string) as Record<string, unknown>);
-    return await Promise.resolve(
+    return Promise.resolve(
       new Response(
         JSON.stringify({
           model: "openai/gpt-oss-20b",
@@ -54,6 +54,44 @@ Deno.test("provider errors collapse to metadata-only codes", async () => {
     ModelCallError,
     "provider_http_429",
   );
+});
+
+Deno.test("a provider schema 400 retries once in JSON Object Mode", async () => {
+  const formats: string[] = [];
+  const result = await callStructured<{ ok: boolean }>({
+    model: "openai/gpt-oss-20b",
+    schemaName: "test",
+    schema: {
+      type: "object",
+      properties: { ok: { type: "boolean" } },
+      required: ["ok"],
+      additionalProperties: false,
+    },
+    system: "Return JSON.",
+    input: { private_text: "never log me" },
+    temperature: 0,
+    maxTokens: 32,
+    apiKey: "gsk_test_only_key",
+  }, (_url, init) => {
+    const body = JSON.parse(init?.body as string) as {
+      response_format: { type: string };
+    };
+    formats.push(body.response_format.type);
+    if (formats.length === 1) {
+      return Promise.resolve(new Response("private echo", { status: 400 }));
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{"ok":true}' } }],
+        }),
+        { status: 200 },
+      ),
+    );
+  });
+
+  assertEquals(formats, ["json_schema", "json_object"]);
+  assertEquals(result.value, { ok: true });
 });
 
 Deno.test("provider credentials are trimmed and malformed values never reach fetch", async () => {

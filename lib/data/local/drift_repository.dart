@@ -322,6 +322,42 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
     });
   }
 
+  @override
+  Future<void> updateDreamText(String dreamId, String text) async {
+    await _ready;
+    final normalized = text.trim();
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(text, 'text', 'a dream cannot be empty');
+    }
+    final timestamp = _now().toUtc();
+    var changed = 0;
+    await _database.transaction(() async {
+      changed =
+          await (_database.update(
+            _database.dreams,
+          )..where((row) => row.id.equals(dreamId))).write(
+            DreamsCompanion(
+              rawText: Value(normalized),
+              rawTextEditedAt: Value(timestamp),
+              updatedAt: Value(timestamp),
+            ),
+          );
+      if (changed > 0 && queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'edit_dream',
+          aggregateId: dreamId,
+          body: {
+            'dream_id': dreamId,
+            'text': normalized,
+            'edited_at': timestamp.toIso8601String(),
+          },
+          timestamp: timestamp,
+        );
+      }
+    });
+    if (changed == 0) throw StateError('Dream not found: $dreamId');
+  }
+
   Future<void> _enqueueCloudMutation({
     required String operation,
     required String aggregateId,
@@ -782,6 +818,7 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
     await _ready;
     final dream = await _dreamRow(dreamId);
     if (dream.status == DreamStatus.archivedOnly.databaseValue) return;
+    final timestamp = _now().toUtc();
     await _database.transaction(() async {
       await _removeDerivedContent(dreamId);
       await (_database.update(
@@ -789,10 +826,18 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
       )..where((row) => row.id.equals(dreamId))).write(
         DreamsCompanion(
           status: Value(DreamStatus.archivedOnly.databaseValue),
-          updatedAt: Value(_now().toUtc()),
+          updatedAt: Value(timestamp),
         ),
       );
       await _cancelDreamProgress(dream, keepDreamReference: true);
+      if (queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'remove_dream',
+          aggregateId: dreamId,
+          body: {'dream_id': dreamId},
+          timestamp: timestamp,
+        );
+      }
     });
   }
 
@@ -800,6 +845,7 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
   Future<void> deleteDream(String dreamId, DeleteMode mode) async {
     await _ready;
     final dream = await _dreamRow(dreamId);
+    final timestamp = _now().toUtc();
     await _database.transaction(() async {
       switch (mode) {
         case DeleteMode.deleteDerivedContent:
@@ -823,6 +869,17 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
       await (_database.delete(
         _database.dreams,
       )..where((row) => row.id.equals(dreamId))).go();
+      if (queueCloudMutations) {
+        await _enqueueInteraction(
+          operation: 'delete_dream',
+          aggregateId: dreamId,
+          body: {
+            'dream_id': dreamId,
+            'keep_derived': mode == DeleteMode.keepDerivedContent,
+          },
+          timestamp: timestamp,
+        );
+      }
     });
   }
 
