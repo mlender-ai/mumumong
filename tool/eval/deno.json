@@ -1,7 +1,11 @@
 {
-  "imports": { "ajv": "npm:ajv@8.20.0" },
+  "imports": {
+    "ajv": "npm:ajv@8.20.0",
+    "zod": "npm:zod@3.23.8",
+    "@std/assert": "jsr:@std/assert@^1.0.8"
+  },
   "fmt": { "lineWidth": 100 },
   "tasks": {
-    "verify": "deno fmt --check && deno lint && deno check validate_corpus.ts validate_corpus_test.ts && deno test --allow-read --allow-write --allow-run --allow-env && deno run --allow-read validate_corpus.ts ../../eval/fixtures/sample.jsonl"
+    "verify": "deno fmt --check && deno lint && deno check *.ts && deno test --allow-read --allow-write --allow-run --allow-env && deno run --allow-read validate_corpus.ts ../../eval/fixtures/sample.jsonl"
   }
 }

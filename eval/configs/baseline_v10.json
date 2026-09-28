@@ -1,0 +1,19 @@
+{
+  "label": "baseline_v10",
+  "engine_version": "v10",
+  "models": {
+    "extract": "groq:openai/gpt-oss-20b",
+    "link": "groq:openai/gpt-oss-20b",
+    "plan": "groq:openai/gpt-oss-120b",
+    "write": "groq:openai/gpt-oss-120b",
+    "write_aux": "groq:openai/gpt-oss-20b",
+    "polish": "groq:openai/gpt-oss-120b",
+    "remember": "groq:openai/gpt-oss-20b",
+    "judge": null
+  },
+  "settings": {
+    "style": "plain",
+    "adaptation": "balanced",
+    "narrative_voice": "first_person_past"
+  }
+}

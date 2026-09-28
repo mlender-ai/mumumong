@@ -1,4 +1,4 @@
-# MUMUMONG evaluation corpus (Q-01)
+# MUMUMONG evaluation corpus and offline runner (Q-01 / Q-03)
 
 `corpus.schema.json`은 JSONL의 한 레코드를 검증하는 JSON Schema다.
 레포는 public이므로 실제 꿈, 생성 원고, 판정 데이터는 아래 비공개 디렉터리에만 둔다.
@@ -7,7 +7,7 @@
 eval/
   README.md                # 커밋: 규격·절차
   corpus.schema.json       # 커밋: 레코드 스키마
-  configs/                 # 커밋: 본문·키 없는 설정 (Q-03에서 구현)
+  configs/                 # 커밋: 본문·키 없는 실행 설정
   fixtures/sample.jsonl    # 커밋: 새로 지어낸 가짜 꿈만
   corpus/                  # 비공개: dev.jsonl, holdout.jsonl, sentinel.jsonl
   runs/                    # 비공개: 생성 결과
@@ -30,12 +30,12 @@ fixture 결과는 문장 품질의 기준선이나 게이트 점수가 아니다
 | `raw_text` | 필수. 공백뿐인 문자열 금지. 깬 직후 기록 그대로 | `dreams` 내부 각 꿈에 필수 |
 | `expected_clarity` | 필수. 사용자 판단: fragment / partial / vivid | 각 꿈에 필수 |
 | `recall_answers` | 선택. 슬롯→문자열 맵 | 각 꿈에서 선택 |
-| `settings` | 필수. null이면 향후 run config 기본값 사용 | 동일 |
+| `settings` | 필수. null이면 run config 기본값 사용 | 동일 |
 | `notes` | 선택. 비공개 사용자 메모 | 없음 |
 | `dreams` | 없음 | 정확히 4개. 배열 순서가 처리 순서 |
 
 S05 슬롯 키는 `object`, `company`, `place`, `feeling`, `light`다.
-`settings`는 현재 객체 또는 null만 검증한다. 러너 설정의 세부 규격은 Q-03 범위다.
+형식 검증기는 `settings`의 객체/null 여부를 확인하며, 러너가 설정의 enum·필드까지 검증한다.
 본문을 다듬거나 모델로 clarity를 대신 정하지 않는다.
 
 ## 수집 목표
@@ -58,7 +58,8 @@ Q-32 최종 게이트 단 한 번이다. 한 번 본 holdout은 소모된 것으
 기존 여왕개미 꿈은 `corpus/sentinel.jsonl`에만 두며 dev / holdout에 섞지 않는다.
 레코드는 `set: "sentinel"`, `kind: "single"`을 사용한다. 게이트 판정 단위는 항상 0이다.
 사람이 clarity를 아직 지정하지 않았다면 **sentinel에서만** `expected_clarity: null`을 허용한다.
-dev / holdout에는 null을 허용하지 않는다. 감시용 실행과 러너 연동은 Q-03에서 구현한다.
+dev / holdout에는 null을 허용하지 않는다. `--set sentinel`은 별도 감시 실행이며
+summary의 gate_units는 항상 0이다. fixture 실행도 gate_units가 0이다.
 
 ## 로컬 형식 검증
 
@@ -82,4 +83,67 @@ JSON 파서 오류 원문, 스키마 오류 경로를 출력하지 않는다. �
 CI가 Git index의 추적 파일을 검사한다. `git add -f`로 넣어도 CI가 실패한다.
 위 폴더의 내용을 외부 경로에 복사해 커밋하거나 fixture로 옮기지 않는다.
 CI는 지어낸 fixture와 유출 방지 테스트만 실행한다.
-API 호출, 평가 러너, 블라인드 판정, 기준선 측정은 Q-01에 포함하지 않는다.
+Q-01 자체는 API 호출이나 품질 평가를 포함하지 않는다.
+
+## Q-03 오프라인 러너
+
+레포 루트에서 실행한다. 루트 `deno.json`이 기존 코어의 의존성을 해석한다.
+fixture는 결정론적 `LlmPort`로만 실행되며 네트워크·API 키·Supabase DB가 필요 없다.
+기본 concurrency는 4이며 최대 32다.
+
+```bash
+deno run -A tool/eval/run.ts --config eval/configs/baseline_v10.json --set fixtures
+deno run -A tool/eval/run.ts --config eval/configs/baseline_v10.json --set fixtures --resume
+deno run -A tool/eval/run.ts --config eval/configs/baseline_v10.json --set dev --cases d01,d02,s1 --concurrency 4
+deno run -A tool/eval/run.ts --config eval/configs/baseline_v10.json --set sentinel
+```
+
+dev / sentinel만 실제 Groq를 호출한다. 로컬 환경에 키를 설정하되 명령 출력·설정·레포에
+복사하지 않는다. 엔진 모델 역할은 설정에서 읽으며 운영의 `MODEL_*` 값에 영향받지 않는다.
+Q-03은 v10만 지원한다. `--fidelity` / `--lint`는 아직 미구현 오류를 반환한다.
+`--set holdout`은 코퍼스를 읽기 전에 차단된다. Q-32의 1회 게이트에서만 해제할 예정이다.
+fixture 원고는 단순 반복 텍스트이며 문장 품질 측정에 사용할 수 없다.
+
+출력은 `eval/runs/<label>-<UTC YYYYMMDDHHmm>-<config SHA256 앞 6자리>/`다.
+
+- `config.json`: 설정, 전체 프롬프트 버전, git 커밋, 소스/코퍼스 SHA256, 세트·선택 ID.
+  버전 상수가 없는 expansion / polish는 동결 기준 커밋을 기록한다.
+- `results.jsonl`: 케이스별 1줄, 각 꿈의 단계 출력·검증·시도·fallback·최종 출처 문단,
+  개별 모델 호출의 토큰·비용 추정·지연. sequence는 scenes 배열과 각 꿈의 E7 결과를 포함한다.
+- `summary.json`: 케이스/꿈 성공·실패·fallback, 검증 코드별 **발생 건수**(재시도 포함),
+  꿈당 비용 평균/최대, 꿈 전체 처리 지연 p50/p95(nearest-rank).
+- `.cases/`: 케이스별 원자적 checkpoint. `.lock`: 동시 writer 차단용 PID.
+
+비용은 운영의 기존 Groq 단가와 환율 상수를 재사용한 추정치다. 개별 확장·polish 호출을
+포함하므로 운영의 레거시 단일 합산 audit보다 정확한 역할별 산정이다.
+사용량을 알 수 없는 호출 실패나 미등록 모델 단가가 있으면 `cost_complete: false` /
+summary의 `cost_krw.complete: false`이며 숫자는 **알려진 비용의 하한**이다.
+fixture는 비용 0이며 실제 LLM 비용·지연의 증거가 아니다.
+
+`--resume`은 동일 설정·세트·선택 ID·코퍼스·git 커밋·소스 지문을 가진 가장 최근 런을 찾는다.
+성공한 케이스만 건너뛰고 실패/미완료 케이스는 처음부터 다시 실행한다.
+sequence 중간부터 이어 붙이지 않으므로 인물·기억 상태가 일관된다.
+checkpoint와 집계를 원자적으로 교체해 같은 ID의 중복 결과 줄이 남지 않는다.
+같은 분에 새 런 이름이 겹치면 기존 런을 덮어쓰지 않고 `--resume` 안내 코드로 실패한다.
+살아 있는 writer의 lock은 거부하며 중단된 PID의 lock은 다음 resume에서 회수한다
+(macOS/Linux; Windows stale-lock 자동 회수는 지원하지 않는다).
+실패 sequence는 그 꿈에서 중단하고 나머지 **케이스**는 계속한다.
+실패가 하나라도 있으면 CLI 종료 코드는 1이다. 콘솔에는 ID·상태·수치·고정 코드만 남긴다.
+출력 디렉터리는 0700, 결과 파일은 0600으로 만든다.
+
+### 운영 커밋과의 차이
+
+E1/E2/E3/E4/E5/E7 코어와 `writeState`/코어 내부 `sceneLoopNext`, `buildCommitPayload`,
+`nextSceneOrderKey`를 재사용한다. 재시도 0–2 / fallback 3, expansion / polish,
+정규화·검증 규칙은 운영과 동일하다. 단계 입력도 운영 select 필드와 최근 장면/인물 상한에
+맞춘다. 첫 single은 빈 상태에서 E1–E5까지 처리하며 E7을 호출하지 않는다.
+sequence는 승인된 장면을 추가하고 role_name으로 인물을 upsert하며 description/aliases를
+병합한다. 신규 인물과 사용 인물의 mention_count를 각각 증가시킨 후 E7 기억/장르를 갱신한다.
+standalone은 원고에 장면을 추가하지 않고 E7도 생략한다.
+
+이것은 `commit_scene`의 **평가용 근사**다. DB 트랜잭션·RLS·row lock·큐·중복 커밋 RPC,
+entity_mentions/progress_events·MU·보관함 상태·장면 이동·사용자 편집은 구현하지 않는다.
+엔티티/장면 ID는 평가용 결정론적 UUID이며 실제 DB의 UUID/타임스탬프와 다르다.
+모든 케이스는 새 볼륨이며 U 편집/잠금 문단이 없고 fragment_attach도 새 평가 장면으로
+추가한다. 실사용자의 대기 중인 연결 질문을 응답하지 않는다(운영처럼 auto 연결만 사용).
+DB 정합성/실제 앱 동작/사람 판정의 대체가 아니라, 같은 생성 코어의 품질 비교용 경로다.

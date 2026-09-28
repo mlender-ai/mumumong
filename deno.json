@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "ajv": "npm:ajv@8.20.0",
+    "zod": "npm:zod@3.23.8",
+    "@std/assert": "jsr:@std/assert@^1.0.8"
+  },
+  "fmt": { "lineWidth": 100 }
+}
