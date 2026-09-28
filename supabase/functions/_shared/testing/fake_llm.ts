@@ -1,10 +1,30 @@
-import type { LlmPort, StructuredCall, StructuredResult } from "../llm_port.ts";
+import type {
+  LlmPort,
+  StructuredCall,
+  StructuredResult,
+  TextCall,
+  TextResult,
+} from "../llm_port.ts";
 import { DEFAULT_MODELS } from "../model_config.ts";
 
 // Synthetic tests only; never captures production or private evaluation inputs.
 export class FakeLlm implements LlmPort {
   readonly calls: StructuredCall[] = [];
+  readonly textCalls: TextCall[] = [];
   constructor(private readonly outputs: unknown[]) {}
+  text(request: TextCall): Promise<TextResult> {
+    this.textCalls.push(request);
+    const output = this.outputs.shift();
+    if (output instanceof Error) return Promise.reject(output);
+    if (typeof output !== "string") return Promise.reject(new Error("fake_missing_text"));
+    return Promise.resolve({
+      text: output,
+      model: DEFAULT_MODELS[request.role].slice(5),
+      tokensIn: 10,
+      tokensOut: 20,
+      latencyMs: 5,
+    });
+  }
   structured<T>(request: StructuredCall): Promise<StructuredResult<T>> {
     this.calls.push(request);
     const output = this.outputs.shift();

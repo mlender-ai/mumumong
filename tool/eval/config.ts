@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resolveModel } from "../../supabase/functions/_shared/llm/registry.ts";
 import type { Clarity } from "../../supabase/functions/_shared/contract.ts";
 import { EXTRACT_PROMPT_VERSION } from "../../supabase/functions/_shared/prompts/extract.v1.ts";
 import { LINK_PROMPT_VERSION } from "../../supabase/functions/_shared/prompts/link.v1.ts";
@@ -18,7 +19,14 @@ export const settingsSchema = z.object({
   adaptation: z.enum(["faithful", "balanced", "free"]),
   narrative_voice: z.enum(["first_person_past", "third_person_past"]),
 }).strict();
-const model = z.string().regex(/^groq:[A-Za-z0-9_./-]{1,80}$/);
+const model = z.string().regex(/^(groq|anthropic|openai):[A-Za-z0-9_./-]{1,80}$/).refine((name) => {
+  try {
+    resolveModel(name);
+    return true;
+  } catch {
+    return false;
+  }
+});
 export const configSchema = z.object({
   label: z.string().regex(/^[A-Za-z0-9_-]{1,48}$/),
   engine_version: z.literal("v10"),

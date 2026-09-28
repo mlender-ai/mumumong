@@ -1,4 +1,4 @@
-# MUMUMONG evaluation corpus and offline runner (Q-01 / Q-03)
+# MUMUMONG evaluation corpus and offline runner (Q-01 / Q-03 / Q-04)
 
 `corpus.schema.json`은 JSONL의 한 레코드를 검증하는 JSON Schema다.
 레포는 public이므로 실제 꿈, 생성 원고, 판정 데이터는 아래 비공개 디렉터리에만 둔다.
@@ -98,7 +98,8 @@ deno run -A tool/eval/run.ts --config eval/configs/baseline_v10.json --set dev -
 deno run -A tool/eval/run.ts --config eval/configs/baseline_v10.json --set sentinel
 ```
 
-dev / sentinel만 실제 Groq를 호출한다. 로컬 환경에 키를 설정하되 명령 출력·설정·레포에
+dev / sentinel은 설정에서 선택한 등록 공급자(Groq / Anthropic / OpenAI)를 실제 호출한다.
+로컬 환경에 해당 공급자 키를 설정하되 명령 출력·설정·레포에
 복사하지 않는다. 엔진 모델 역할은 설정에서 읽으며 운영의 `MODEL_*` 값에 영향받지 않는다.
 Q-03은 v10만 지원한다. `--fidelity` / `--lint`는 아직 미구현 오류를 반환한다.
 `--set holdout`은 코퍼스를 읽기 전에 차단된다. Q-32의 1회 게이트에서만 해제할 예정이다.
@@ -114,7 +115,7 @@ fixture 원고는 단순 반복 텍스트이며 문장 품질 측정에 사용�
   꿈당 비용 평균/최대, 꿈 전체 처리 지연 p50/p95(nearest-rank).
 - `.cases/`: 케이스별 원자적 checkpoint. `.lock`: 동시 writer 차단용 PID.
 
-비용은 운영의 기존 Groq 단가와 환율 상수를 재사용한 추정치다. 개별 확장·polish 호출을
+비용은 공급자 레지스트리 단가와 기존 환율 상수를 재사용한 추정치다. 개별 확장·polish 호출을
 포함하므로 운영의 레거시 단일 합산 audit보다 정확한 역할별 산정이다.
 사용량을 알 수 없는 호출 실패나 미등록 모델 단가가 있으면 `cost_complete: false` /
 summary의 `cost_krw.complete: false`이며 숫자는 **알려진 비용의 하한**이다.

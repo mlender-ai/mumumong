@@ -4,7 +4,7 @@ import {
   claritySchema,
   lengthCapFor,
 } from "../_shared/contract.ts";
-import { type LlmPort, modelRun } from "../_shared/llm_port.ts";
+import { modelRun, type StructuredLlmPort } from "../_shared/llm_port.ts";
 import type {
   DreamContext,
   NarrativeMemory,
@@ -23,7 +23,7 @@ export interface PlanCoreInput {
 }
 export async function runPlan(
   { dream, volume, memory, existingScenes, payload }: PlanCoreInput,
-  llm: LlmPort,
+  llm: StructuredLlmPort,
 ) {
   const clarity = claritySchema.parse(payload.clarity);
   const adaptation = adaptationSchema.parse(volume.adaptation);

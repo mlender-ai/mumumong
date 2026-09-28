@@ -1,4 +1,4 @@
-import { type LlmPort, modelRun } from "../_shared/llm_port.ts";
+import { modelRun, type StructuredLlmPort } from "../_shared/llm_port.ts";
 import type { NarrativeMemory, RecentScene } from "../_shared/stage_context.ts";
 import { REMEMBER_PROMPT_VERSION, REMEMBER_SYSTEM } from "../_shared/prompts/remember.v1.ts";
 import { rememberJsonSchema, rememberOutputSchema } from "../_shared/stage_contracts.ts";
@@ -10,7 +10,7 @@ export interface RememberCoreInput {
 }
 export async function runRemember(
   { committedScene, previous, previousProfile }: RememberCoreInput,
-  llm: LlmPort,
+  llm: StructuredLlmPort,
 ) {
   const result = await llm.structured<unknown>({
     role: "remember",

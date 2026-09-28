@@ -2,12 +2,23 @@ import type {
   LlmPort,
   StructuredCall,
   StructuredResult,
+  TextCall,
+  TextResult,
 } from "../../supabase/functions/_shared/llm_port.ts";
 import { GENRE_KEYS } from "../../supabase/functions/_shared/stage_contracts.ts";
 import { EvalError } from "./config.ts";
 
 // This is deliberately synthetic, not a quality model. Never use it for private sets.
 export class FixtureLlm implements LlmPort {
+  text(_request: TextCall): Promise<TextResult> {
+    return Promise.resolve({
+      text: "synthetic fixture text",
+      model: "fixture",
+      tokensIn: 0,
+      tokensOut: 0,
+      latencyMs: 0,
+    });
+  }
   structured<T>(request: StructuredCall): Promise<StructuredResult<T>> {
     const input = request.input as Record<string, unknown>;
     let value: unknown;

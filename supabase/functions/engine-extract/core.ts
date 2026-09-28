@@ -1,4 +1,4 @@
-import { type LlmPort, type ModelRun, modelRun } from "../_shared/llm_port.ts";
+import { type ModelRun, modelRun, type StructuredLlmPort } from "../_shared/llm_port.ts";
 import type { DreamContext } from "../_shared/stage_context.ts";
 import { EXTRACT_PROMPT_VERSION, EXTRACT_SYSTEM } from "../_shared/prompts/extract.v1.ts";
 import { extractJsonSchema, extractOutputSchema } from "../_shared/stage_contracts.ts";
@@ -9,7 +9,7 @@ export interface ExtractCoreInput {
   dreamId: string;
   dream: DreamContext;
 }
-export async function runExtract({ dreamId, dream }: ExtractCoreInput, llm: LlmPort) {
+export async function runExtract({ dreamId, dream }: ExtractCoreInput, llm: StructuredLlmPort) {
   const result = await llm.structured<unknown>({
     role: "extract",
     schemaName: "mumumong_extract_v1",

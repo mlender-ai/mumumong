@@ -1,29 +1,13 @@
-import type { StructuredResult } from "./llm.ts";
-
-export type { StructuredResult };
-export type ModelRole =
-  | "extract"
-  | "link"
-  | "plan"
-  | "write"
-  | "write_aux"
-  | "polish"
-  | "remember"
-  | "judge";
-
-export interface StructuredCall {
-  readonly role: ModelRole;
-  readonly schemaName: string;
-  readonly schema: Record<string, unknown>;
-  readonly system: string;
-  readonly input: unknown;
-  readonly temperature: number;
-  readonly maxTokens: number;
-}
-
-export interface LlmPort {
-  structured<T>(request: StructuredCall): Promise<StructuredResult<T>>;
-}
+import type { ModelRole, UsageMetadata } from "./llm/types.ts";
+export type {
+  LlmPort,
+  ModelRole,
+  StructuredCall,
+  StructuredLlmPort,
+  StructuredResult,
+  TextCall,
+  TextResult,
+} from "./llm/types.ts";
 
 // Metadata only. A core result must never include model bodies in its audit records.
 export interface ModelRun {
@@ -38,7 +22,7 @@ export interface ModelRun {
 export function modelRun(
   role: ModelRole,
   promptVersion: string,
-  result: StructuredResult<unknown>,
+  result: UsageMetadata,
 ): ModelRun {
   return {
     role,

@@ -4,7 +4,7 @@ import {
   type DreamElement,
   type RegistryEntity,
 } from "../_shared/contract.ts";
-import type { LlmPort } from "../_shared/llm_port.ts";
+import type { StructuredLlmPort } from "../_shared/llm_port.ts";
 import { sceneLoopNext, validationProfile, writeState } from "../_shared/scene_loop_policy.ts";
 import type { LockedPassage } from "../_shared/stage_context.ts";
 import { lockedPassageHash } from "../_shared/text.ts";
@@ -20,7 +20,7 @@ export interface ValidateCoreInput {
 
 // v10 validation is deterministic. The optional port makes that absence of model
 // calls explicit to callers that pass the same fake/production port to every stage.
-export async function runValidate(input: ValidateCoreInput, _llm?: LlmPort) {
+export async function runValidate(input: ValidateCoreInput, _llm?: StructuredLlmPort) {
   const { payload, elements, registry, lockedPassages } = input;
   const { isFallback, writeAttempt } = writeState(payload);
   const lockedPassageHashes = await Promise.all(

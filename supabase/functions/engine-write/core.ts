@@ -1,4 +1,4 @@
-import { type LlmPort, type ModelRun, modelRun } from "../_shared/llm_port.ts";
+import { type ModelRun, modelRun, type StructuredLlmPort } from "../_shared/llm_port.ts";
 import type {
   DreamContext,
   EntityRow,
@@ -52,7 +52,7 @@ export async function runWrite(
     writeAttempt,
     isFallback,
   }: WriteCoreInput,
-  llm: LlmPort,
+  llm: StructuredLlmPort,
 ): Promise<WriteCoreResult> {
   const baseTarget = typeof payload.target_length === "number" ? payload.target_length : 700;
   const feedbackCodes = Array.isArray(payload.validation_feedback)

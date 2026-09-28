@@ -38,6 +38,6 @@ Deno.test("role overrides are isolated and malformed configuration never echoes 
         maxTokens: 1,
       }),
     ModelCallError,
-    "provider_not_supported",
+    "model_not_registered",
   );
 });

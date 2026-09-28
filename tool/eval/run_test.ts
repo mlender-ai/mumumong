@@ -8,6 +8,30 @@ import { type CaseResult, evaluateCase, summarize } from "./pipeline.ts";
 import { main, parseArgs, runEvaluation } from "./run.ts";
 
 const config = configSchema.parse(configJson);
+
+Deno.test("eval config accepts only registered models across three providers without changing baseline", () => {
+  for (
+    const name of [
+      "groq:openai/gpt-oss-120b",
+      "anthropic:claude-sonnet-5",
+      "anthropic:claude-sonnet-4-6",
+      "openai:gpt-4.1-2025-04-14",
+      "openai:gpt-4.1",
+    ]
+  ) {
+    assertEquals(
+      configSchema.safeParse({ ...config, models: { ...config.models, write: name } }).success,
+      true,
+    );
+  }
+  for (const name of ["anthropic:unregistered", "unknown:model", "openai:openai/gpt-oss-120b"]) {
+    assertEquals(
+      configSchema.safeParse({ ...config, models: { ...config.models, write: name } }).success,
+      false,
+    );
+  }
+  assertEquals(config.models.write, "groq:openai/gpt-oss-120b");
+});
 const fixtureFile = new URL("../../eval/fixtures/sample.jsonl", import.meta.url);
 async function fixtures(): Promise<CorpusCase[]> {
   return (await Deno.readTextFile(fixtureFile)).trim().split("\n").map((line) => JSON.parse(line));
@@ -397,4 +421,24 @@ Deno.test("all calls including optional polish contribute cost; metrics use per-
   });
   assertEquals(summarize(results).latency_ms, { p50: 30, p95: 60 });
   assertEquals(summarize(results).cost_krw.complete, true);
+});
+
+Deno.test("evaluation cost completeness reads provider registry rather than Groq-only whitelist", async () => {
+  const fake = new FixtureLlm();
+  for (
+    const [model, perCall, complete] of [["anthropic:claude-sonnet-5", 16.8, true], [
+      "openai:gpt-4.1-2025-04-14",
+      14,
+      true,
+    ], ["unregistered", 0, false]] as const
+  ) {
+    const result = await evaluateCase((await fixtures())[0], config, {
+      async structured<T>(call: StructuredCall) {
+        return { ...await fake.structured<T>(call), model, tokensIn: 1000, tokensOut: 1000 };
+      },
+    });
+    assertEquals(result.status, "success");
+    assertEquals(result.dreams[0].cost_complete, complete);
+    assertEquals(result.dreams[0].cost_krw, result.dreams[0].model_calls.length * perCall);
+  }
 });

@@ -1,9 +1,10 @@
 import { sceneDraftSchema } from "../../supabase/functions/_shared/contract.ts";
 import { estimatedCostKrw } from "../../supabase/functions/_shared/llm.ts";
+import { priceFor } from "../../supabase/functions/_shared/llm/registry.ts";
 import type {
-  LlmPort,
   ModelRun,
   StructuredCall,
+  StructuredLlmPort,
 } from "../../supabase/functions/_shared/llm_port.ts";
 import { writeState } from "../../supabase/functions/_shared/scene_loop_policy.ts";
 import type {
@@ -70,7 +71,7 @@ export interface CaseResult {
 
 // Record successful optional calls too, even when a later core/parse fails.
 // Failed transport usage is unknowable: report a lower bound, never claim a free failure.
-function measuredLlm(llm: LlmPort, calls: DreamResult["model_calls"]): LlmPort {
+function measuredLlm(llm: StructuredLlmPort, calls: DreamResult["model_calls"]): StructuredLlmPort {
   return {
     async structured<T>(request: StructuredCall) {
       const start = performance.now();
@@ -109,7 +110,7 @@ function measuredLlm(llm: LlmPort, calls: DreamResult["model_calls"]): LlmPort {
 export async function evaluateCase(
   record: CorpusCase,
   config: RunConfig,
-  llm: LlmPort,
+  llm: StructuredLlmPort,
 ): Promise<CaseResult> {
   const start = performance.now();
   const state: VolumeState = {
@@ -360,7 +361,7 @@ export async function evaluateCase(
     );
     result.cost_complete = result.model_calls.every((call) =>
       call.status === "success" &&
-      ["fixture", "openai/gpt-oss-20b", "openai/gpt-oss-120b"].includes(call.model)
+      (call.model === "fixture" || priceFor(call.model) !== undefined)
     );
     result.latency_ms = performance.now() - started;
     dreams.push(result);

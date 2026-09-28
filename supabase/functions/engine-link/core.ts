@@ -1,4 +1,4 @@
-import { type LlmPort, modelRun, type StructuredResult } from "../_shared/llm_port.ts";
+import { modelRun, type StructuredLlmPort, type StructuredResult } from "../_shared/llm_port.ts";
 import { LINK_PROMPT_VERSION, LINK_SYSTEM } from "../_shared/prompts/link.v1.ts";
 import {
   linkJsonSchema,
@@ -14,7 +14,7 @@ export interface LinkCoreInput {
 }
 export async function runLink(
   { elements, entities, dreamId, volumeId }: LinkCoreInput,
-  llm: LlmPort,
+  llm: StructuredLlmPort,
 ) {
   const rules = ruleMatch(elements, entities);
 
