@@ -59,7 +59,9 @@ try {
       type, status: 'running', attempt: 1, idempotency_key: randomUUID(), payload,
     });
   }
-  const validation = await job('validate', source.id, { draft, clarity: 'fragment', adaptation: 'balanced' });
+  const validation = await job('validate', source.id, {
+    draft, clarity: 'fragment', adaptation: 'balanced', placement: 'continuation', scene_order_key: 'a0001',
+  });
   const validated = await request('/functions/v1/engine-validate', 'POST', { job_id: validation.id });
   assert.equal(validated.status, 200, 'validate HTTP');
   assert.equal(validated.data.ok, true, 'valid scene accepted');
@@ -67,12 +69,12 @@ try {
     const denied = await request(`/functions/v1/engine-${stage}`, 'POST', { job_id: validation.id }, config.ANON_KEY);
     assert.equal(denied.status, 403, 'non-worker rejected');
   }
-  const audit = await request(`/rest/v1/generation_runs?job_id=eq.${validation.id}&select=validation`);
+  const audit = await request(`/rest/v1/generation_runs?job_id=eq.${validation.id}&select=validation,engine_version`);
   assert.equal(audit.data.length, 1);
+  assert.equal(audit.data[0].engine_version, 'v10', 'validation audit records the frozen engine version');
   assert.equal(JSON.stringify(audit.data).includes(draft.passages[0].text), false);
-  const commit = await job('commit', source.id, {
-    draft, clarity: 'fragment', placement: 'continuation', scene_order_key: 'a0001',
-  });
+  assert.ok(validated.data.next_job_id, 'validate queues the real commit job');
+  const commit = { id: validated.data.next_job_id };
   const first = await request('/functions/v1/engine-commit', 'POST', { job_id: commit.id });
   assert.equal(first.status, 200, 'commit HTTP');
   const second = await request('/functions/v1/engine-commit', 'POST', { job_id: commit.id });

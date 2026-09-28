@@ -1,24 +1,16 @@
-import {
-  ADAPTATION_BUDGETS,
-  adaptationSchema,
-  claritySchema,
-  lengthCapFor,
-} from "../_shared/contract.ts";
 import { loadJob } from "../_shared/jobs.ts";
-import { callStructured, QUALITY_MODEL } from "../_shared/llm.ts";
+import { createProductionLlm } from "../_shared/llm_adapter.ts";
+import { runPlan } from "./core.ts";
 import { logEvent } from "../_shared/log.ts";
 import {
   enqueueStage,
   json,
   mergeJobPayload,
-  recordModelRun,
+  recordCoreRuns,
   requestJobId,
 } from "../_shared/pipeline.ts";
-import { PLAN_PROMPT_VERSION, PLAN_SYSTEM } from "../_shared/prompts/plan.v1.ts";
-import { planJsonSchema, planOutputSchema } from "../_shared/stage_contracts.ts";
 import { serviceRoleClient } from "../_shared/supabase.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
-import { enforcePlan, nextSceneOrderKey } from "./plan.ts";
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (!authorizedWorker(request, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))) {
@@ -48,93 +40,26 @@ Deno.serve(async (request: Request): Promise<Response> => {
       throw new Error("plan_inputs");
     }
 
-    const clarity = claritySchema.parse(job.payload.clarity);
-    const adaptation = adaptationSchema.parse(volumeQuery.data.adaptation);
-    const lengthCap = lengthCapFor(clarity, adaptation);
-    const result = await callStructured<unknown>({
-      model: QUALITY_MODEL,
-      schemaName: "mumumong_plan_v1",
-      schema: planJsonSchema,
-      system: PLAN_SYSTEM,
-      input: {
-        raw_text: dreamQuery.data.raw_text,
-        recall_answers: dreamQuery.data.recall_answers,
-        elements: job.payload.elements ?? [],
-        links: job.payload.links ?? [],
-        clarity,
-        adaptation,
-        adaptation_budget: ADAPTATION_BUDGETS[adaptation],
-        length_cap: lengthCap,
-        narrative_memory: memoryQuery.data ?? {},
-        existing_scenes: scenesQuery.data ?? [],
-        genre_profile: volumeQuery.data.genre_profile,
-        genre_directive: volumeQuery.data.genre_directive,
-        is_first_dream: (scenesQuery.data ?? []).length === 0,
-        protagonist_contract: {
-          protagonist: "the user who recorded the dream",
-          preserve_agent_recipient_goal_and_sequence: true,
-        },
-      },
-      temperature: 0.3,
-      maxTokens: 1800,
-    });
-    const parsed = planOutputSchema.parse(result.value);
-    const scenes = scenesQuery.data ?? [];
-    const elementIds = Array.isArray(job.payload.elements)
-      ? job.payload.elements
-        .map((element) =>
-          element && typeof element === "object" && "id" in element
-            ? (element as { id?: unknown }).id
-            : null
-        )
-        .filter((id): id is string => typeof id === "string")
-      : [];
-    const firstDreamElements = Array.isArray(job.payload.elements)
-      ? job.payload.elements.flatMap((element) => {
-        if (!element || typeof element !== "object") return [];
-        const candidate = element as Record<string, unknown>;
-        if (typeof candidate.label !== "string") return [];
-        return [{
-          label: candidate.label,
-          type: typeof candidate.type === "string" ? candidate.type : undefined,
-          salience: typeof candidate.salience === "string" ? candidate.salience : undefined,
-        }];
-      })
-      : [];
-    const plan = enforcePlan(parsed, {
-      lengthCap,
-      cRatioMax: ADAPTATION_BUDGETS[adaptation].cRatioMax,
-      validSceneIds: new Set(scenes.map((scene) => scene.id as string)),
-      isFirstDream: scenes.length === 0,
-      firstDreamElementIds: elementIds,
-      firstDreamElements,
-      rawText: dreamQuery.data.raw_text,
-    });
-    const payload = await mergeJobPayload(client, jobId, job.payload, {
-      plan_complete: true,
-      placement: plan.placement,
-      attach_to_scene_id: plan.attach_to_scene_id,
-      beats: plan.beats,
-      target_length: plan.target_length,
-      scene_title: plan.scene_title,
-      scene_order_key: nextSceneOrderKey(scenes.map((scene) => scene.order_key as string)),
-      is_first_dream: scenes.length === 0,
-      adaptation,
-      style: volumeQuery.data.style,
-      narrative_voice: volumeQuery.data.narrative_voice,
-    });
-    await recordModelRun(client, {
+    const core = await runPlan({
+      dream: dreamQuery.data,
+      volume: volumeQuery.data,
+      memory: memoryQuery.data,
+      existingScenes: scenesQuery.data ?? [],
+      payload: job.payload,
+    }, createProductionLlm());
+    const { plan } = core;
+    const payload = await mergeJobPayload(client, jobId, job.payload, core.nextPayloadPatch);
+    await recordCoreRuns(client, {
       jobId,
       stage: "plan",
-      promptVersion: PLAN_PROMPT_VERSION,
-      result,
+      modelRuns: core.modelRuns,
       validation: { schema: true, placement: plan.placement },
     });
     await enqueueStage(client, {
       userId: job.user_id,
       dreamId: job.dream_id,
       volumeId: job.volume_id,
-      type: plan.placement === "standalone" ? "commit" : "write",
+      type: core.nextStage,
       payload,
       keySuffix: plan.placement === "standalone" ? undefined : "0",
     });
@@ -143,7 +68,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       dream_id: job.dream_id,
       stage: "plan",
       status: plan.placement,
-      ms: result.latencyMs,
+      ms: core.modelRuns[0].latencyMs,
     });
     return json({ ok: true, placement: plan.placement });
   } catch (error) {

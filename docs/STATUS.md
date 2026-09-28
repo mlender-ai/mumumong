@@ -4,7 +4,7 @@ Last updated: 2026-09-29
 
 ## Summary
 
-The repository contains a runnable Flutter implementation of the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and both deterministic mock and hosted AI engines exist. The dedicated `mumumong` Supabase project (`dtdmfjovpufyyekdumga`) has migrations 0001–0013 and E1–E7 plus the queue worker deployed. The hosted app path creates its first short volume, pushes a locally captured dream through authenticated RLS, follows the Groq job, and pulls the generated elements, scene, passages, provenance and progress back into Drift before reveal. Development builds can use a device-bound anonymous trial account while Apple provisioning is pending. Dream-original edits, dream removal/deletion, passage edit/revert/read, scene placement and link decisions use the durable Outbox and authenticated cloud mutations. Client retries use an authenticated safe upsert that cannot downgrade engine-owned completion, clarity, or safety fields.
+The repository contains a runnable Flutter implementation of the core MUMUMONG loop. Its primary screens are wired to restart-safe Drift storage, the Apple-to-Supabase authentication flow has secure session persistence and volume-aware routing, and both deterministic mock and hosted AI engines exist. The dedicated `mumumong` Supabase project (`dtdmfjovpufyyekdumga`) has migrations 0001–0014 and E1–E7 plus the queue worker deployed. The hosted app path creates its first short volume, pushes a locally captured dream through authenticated RLS, follows the Groq job, and pulls the generated elements, scene, passages, provenance and progress back into Drift before reveal. Development builds can use a device-bound anonymous trial account while Apple provisioning is pending. Dream-original edits, dream removal/deletion, passage edit/revert/read, scene placement and link decisions use the durable Outbox and authenticated cloud mutations. Client retries use an authenticated safe upsert that cannot downgrade engine-owned completion, clarity, or safety fields.
 
 ## Implemented locally
 
@@ -41,7 +41,7 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 | Persistence | Active-volume bootstrap, capture-to-reveal push/pull, dream edit/removal/deletion, passage edit/revert/read, placement and link decisions are connected |
 | Voice and STT | Native on-device implementation builds and its Flutter callback behavior is tested; the required ten-recording quality check needs a physical iPhone and human review |
 | AI pipeline | E1–E7 and the worker are deployed and a real hosted dream completed the entire pipeline. Q-series engine work takes priority; Q-07/Q-31 replace the separate semantic V5/V7 task. Durable worker recovery scheduling waits until after Q-02 |
-| Backend | The dedicated cloud project has migrations 0001–0013, RLS, locked-passage trigger, authenticated dream upsert/removal/deletion and edit/revert/read/link mutations, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. The dream upsert preserves server-owned completion, clarity, and safety fields when stale Outbox work arrives. Durable cron recovery remains open |
+| Backend | The dedicated cloud project has migrations 0001–0014, RLS, locked-passage trigger, authenticated dream upsert/removal/deletion and edit/revert/read/link mutations, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. The dream upsert preserves server-owned completion, clarity, and safety fields when stale Outbox work arrives. Durable cron recovery remains open |
 | Offline | Capture autosave/restore plus durable create/process and author-interaction delivery are implemented. The next app launch imports hosted results; background completion notification remains open |
 | Notifications | Morning/night and completion notifications are not present |
 | Completion | S14 and PDF export are not present. State transitions and UI may proceed independently; LLM completion editing waits until after Q-32. PDF layout is independent of the engine |
@@ -58,9 +58,9 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 - Apple authentication screen runtime smoke: passing on iPhone 17 Pro Simulator
 - Drift iOS runtime open/query/close smoke: passing on iPhone 17 Pro Simulator (SQLite 3.53.4)
 - `supabase db reset`: migrations 0001–0013 and seed passing
-- `supabase test db`: 144 database tests passing
+- `supabase test db`: 149 database tests passing, including 0014 engine-version schema/default/candidate tagging
 - `supabase db lint --local --schema public --level warning`: no schema errors
-- `npx deno task verify` in `supabase/functions`: 74 tests passing
+- `npx deno task verify` in `supabase/functions`: 88 tests passing, including fake-port coverage for all six Q-02 cores
 - `node tool/engine_smoke.mjs` with `supabase functions serve`: real HTTP validation/audit, worker authorization, repeated commit, remember deduplication, and transaction rollback passing; disposable smoke account removed after verification
 - Mobile visual QA at 390×844: capture through reveal, manuscript growth, Reader, source sheet, and Night Paper
 - Cloud deployment smoke: migrations 0001–0013 match remote; every engine stage accepts only the hosted service secret; browser preflight succeeds for the worker; public manuscript reads and anonymous account deletion are denied. Hosted anonymous sign-in is enabled and disposable trial accounts are automatically removed
@@ -80,9 +80,19 @@ The first milestone is complete only when a dream survives an app restart, belon
 
 ## Q-series quality work
 
-- Canonical instructions: `docs/MUMUMONG_Q_WorkOrders.md` v1.1; only §0 and Q-01 are in scope for this change.
+- Canonical instructions: `docs/MUMUMONG_Q_WorkOrders.md` v1.1; Q-01 and Q-02 are complete. Q-03 is next. No unrelated M1 work was performed alongside Q-02.
 - The `edfc13c` baseline (`write.v10`, `plan.v6`, opening expansion and polish) is frozen. No engine or prompt behavior changed in Q-01.
 - Generated manuscripts may change only through the engine. The previously manually corrected hosted scene is not evidence of automatic generation quality and must not enter quality comparisons or Q-40 editing data.
 - Q-01 tooling: JSON Schema, synthetic fixture (2 singles + 1 four-dream sequence), metadata-only schema/count/duplicate-ID validator, ignored private corpus/runs/judgments directories, and a CI tracked-data guard. Sentinel is separate from dev/holdout and contributes zero gate units; its human clarity judgment may remain unset.
 - Q-01 verification (2026-09-29): 10 evaluation-tool tests pass, including malformed-input output redaction and forced staging in each private directory in an isolated Git repository. The local sentinel is ignored and validates with zero gate units. Log/privacy guards, Dart formatting, 120 Flutter tests, 74 existing engine tests, and a web release build to a temporary output directory pass. `flutter analyze` passes on an ASCII-path copy of the unchanged Flutter sources, avoiding the known Korean-path analyzer crash. iOS runtime and database checks were not rerun for this tooling-only change.
 - Real dev/holdout collection, Q-03 runner integration, LLM evaluation, blind judgments, and Q-08 baseline measurement remain pending. The existing Flutter/Deno checks verify functionality, not literary quality.
+
+### Q-02 shared stage cores
+
+- Extract, link, plan, write, validate and remember now expose database-free `runX` cores; HTTP entrypoints load context, call the core, and persist results. The v10 write core preserves passage expansion, optional polish, request payloads, model parameters, title/provenance normalization and fallback behavior.
+- `LlmPort.structured` uses roles instead of model names. Production mapping defaults remain Groq 20b for extract/link/write_aux/remember/judge and 120b for plan/write/polish. `MODEL_<ROLE>` accepts a provider-prefixed override, but only the existing Groq adapter is implemented; additional providers are Q-04. No model overrides are configured in the hosted project.
+- `scene_loop_policy.ts` is the shared authority for regular attempts 0–2, fallback attempt 3, the existing 0.6 fallback target and strict/relaxed selection. Core results expose metadata-only per-call `modelRuns`; production preserves the legacy single aggregated write audit so the existing accounting baseline does not change.
+- Migration 0014 adds `generation_runs.engine_version`, required with default `v10`. Model and deterministic-validation audit writes also use `ENGINE_VERSION` (default `v10`). The migration and the six refactored functions are deployed. Server-side bundling requires `--import-map supabase/functions/deno.json` to retain the existing pinned dependencies.
+- Local verification: 88 Deno tests and 149 DB tests pass; local HTTP smoke verifies actual v10 audit persistence, validation-to-commit enqueueing, worker authorization, retry deduplication and rollback. The older local smoke attempted to create a second active commit job after validation already queued one; its fixture now consumes the real queued job. The hosted `tool/cloud_pipeline_smoke.mjs` is unchanged.
+- Hosted verification: the unchanged pipeline smoke completes extract → link → plan → write → validate → write → validate → commit → remember with seven passages. `tool/cloud_engine_version_smoke.mjs` separately verifies an actual Groq extract audit with `engine_version=v10`; both tests remove their disposable accounts and owned data. No existing generated manuscript was directly corrected.
+- Flutter formatting, 120 tests, web release build (temporary output), and `flutter analyze` (matching ASCII-path source copy) pass. Q-01 tooling regression tests (10) and log/privacy guards also pass. iOS runtime and real dev/holdout quality/blind evaluations were not executed in Q-02.

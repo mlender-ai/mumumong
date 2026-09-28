@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { estimatedCostKrw, type StructuredResult } from "./llm.ts";
 import { deterministicUuid } from "./uuid.ts";
+import type { ModelRun } from "./llm_port.ts";
+import { engineVersion } from "./model_config.ts";
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -85,8 +87,31 @@ export async function recordModelRun(
     ),
     prompt_version: input.promptVersion,
     is_fallback: input.isFallback ?? false,
+    engine_version: engineVersion(),
   });
   if (error) throw new Error(`generation_run:${error.code ?? "write"}`);
+}
+
+export async function recordCoreRuns(
+  client: SupabaseClient,
+  input: {
+    jobId: string;
+    stage: string;
+    modelRuns: readonly ModelRun[];
+    validation: Record<string, unknown>;
+    isFallback?: boolean;
+  },
+): Promise<void> {
+  for (const run of input.modelRuns) {
+    await recordModelRun(client, {
+      jobId: input.jobId,
+      stage: input.stage,
+      promptVersion: run.promptVersion,
+      result: { ...run, value: null },
+      validation: { ...input.validation, model_role: run.role },
+      isFallback: input.isFallback,
+    });
+  }
 }
 
 export function json(body: unknown, status = 200): Response {

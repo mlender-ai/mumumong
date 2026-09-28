@@ -1,4 +1,5 @@
 import type { WriteOutput } from "../_shared/stage_contracts.ts";
+export { fallbackTarget } from "../_shared/scene_loop_policy.ts";
 
 export const FIRST_SCENE_OPENING_CONTRACT = {
   mode: "serialized_prologue",
@@ -51,8 +52,4 @@ export function toSceneDraft(
       : output.used_entities,
     open_image: output.open_image,
   };
-}
-
-export function fallbackTarget(targetLength: number): number {
-  return Math.max(1, Math.floor(targetLength * 0.6));
 }

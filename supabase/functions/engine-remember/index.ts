@@ -1,12 +1,11 @@
 import { loadJob } from "../_shared/jobs.ts";
-import { callStructured, LIGHT_MODEL, ModelCallError } from "../_shared/llm.ts";
+import { ModelCallError } from "../_shared/llm.ts";
+import { createProductionLlm } from "../_shared/llm_adapter.ts";
+import { runRemember } from "./core.ts";
 import { logEvent } from "../_shared/log.ts";
-import { json, mergeJobPayload, recordModelRun, requestJobId } from "../_shared/pipeline.ts";
-import { REMEMBER_PROMPT_VERSION, REMEMBER_SYSTEM } from "../_shared/prompts/remember.v1.ts";
-import { rememberJsonSchema, rememberOutputSchema } from "../_shared/stage_contracts.ts";
+import { json, mergeJobPayload, recordCoreRuns, requestJobId } from "../_shared/pipeline.ts";
 import { serviceRoleClient } from "../_shared/supabase.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
-import { blendGenreProfile, normalizeMemory } from "./remember.ts";
 import { ZodError } from "zod";
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -36,46 +35,33 @@ Deno.serve(async (request: Request): Promise<Response> => {
       throw new Error("remember_inputs");
     }
 
-    const result = await callStructured<unknown>({
-      model: LIGHT_MODEL,
-      schemaName: "mumumong_remember_v1",
-      schema: rememberJsonSchema,
-      system: REMEMBER_SYSTEM,
-      input: {
-        previous: memoryQuery.data ?? {},
-        committed_scene: sceneQuery.data,
-      },
-      temperature: 0.2,
-      maxTokens: 1800,
-    });
-    const memory = normalizeMemory(rememberOutputSchema.parse(result.value));
-    const nextVersion = ((memoryQuery.data?.version as number | undefined) ?? 0) + 1;
+    const core = await runRemember({
+      committedScene: sceneQuery.data,
+      previous: memoryQuery.data,
+      previousProfile: (volumeQuery.data.genre_profile ?? {}) as Record<string, number>,
+    }, createProductionLlm());
+    const { memory, nextVersion } = core;
     const { error: memoryError } = await client.from("narrative_memory").upsert({
       volume_id: job.volume_id,
       version: nextVersion,
       story_so_far: memory.story_so_far,
       open_threads: memory.open_threads,
-      world_rules: memoryQuery.data?.world_rules ?? [],
+      world_rules: core.worldRules,
       motifs: memory.motifs,
       updated_at: new Date().toISOString(),
     });
     if (memoryError) throw new Error("memory_write");
 
-    const previousProfile = (volumeQuery.data.genre_profile ?? {}) as Record<string, number>;
     const { error: profileError } = await client.from("volumes").update({
-      genre_profile: blendGenreProfile(previousProfile, memory.genre_scores),
+      genre_profile: core.genreProfile,
     }).eq("id", job.volume_id);
     if (profileError) throw new Error("genre_write");
 
-    await mergeJobPayload(client, jobId, job.payload, {
-      remember_complete: true,
-      memory_version: nextVersion,
-    });
-    await recordModelRun(client, {
+    await mergeJobPayload(client, jobId, job.payload, core.nextPayloadPatch);
+    await recordCoreRuns(client, {
       jobId,
       stage: "remember",
-      promptVersion: REMEMBER_PROMPT_VERSION,
-      result,
+      modelRuns: core.modelRuns,
       validation: {
         story_chars: [...memory.story_so_far].length,
         threads: memory.open_threads.length,
@@ -87,7 +73,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       scene_id: sceneId,
       stage: "remember",
       count: memory.open_threads.length,
-      ms: result.latencyMs,
+      ms: core.modelRuns[0].latencyMs,
     });
     return json({ ok: true, memory_version: nextVersion });
   } catch (error) {

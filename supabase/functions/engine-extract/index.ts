@@ -1,19 +1,16 @@
 import { logEvent } from "../_shared/log.ts";
-import { callStructured, LIGHT_MODEL } from "../_shared/llm.ts";
+import { createProductionLlm } from "../_shared/llm_adapter.ts";
+import { runExtract } from "./core.ts";
 import { loadJob } from "../_shared/jobs.ts";
 import {
   enqueueStage,
   json,
   mergeJobPayload,
-  recordModelRun,
+  recordCoreRuns,
   requestJobId,
 } from "../_shared/pipeline.ts";
-import { EXTRACT_PROMPT_VERSION, EXTRACT_SYSTEM } from "../_shared/prompts/extract.v1.ts";
-import { extractJsonSchema, extractOutputSchema } from "../_shared/stage_contracts.ts";
 import { serviceRoleClient } from "../_shared/supabase.ts";
-import { deterministicUuid } from "../_shared/uuid.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
-import { normalizeExtract, postgresSpan } from "./extract.ts";
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (!authorizedWorker(request, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))) {
@@ -38,29 +35,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
   if (dreamError || !dream) return json({ error: "dream unavailable" }, 500);
 
   try {
-    const result = await callStructured<unknown>({
-      model: LIGHT_MODEL,
-      schemaName: "mumumong_extract_v1",
-      schema: extractJsonSchema,
-      system: EXTRACT_SYSTEM,
-      input: { raw_text: dream.raw_text, recall_answers: dream.recall_answers ?? {} },
-      temperature: 0,
-      maxTokens: 1600,
-    });
-    const parsed = extractOutputSchema.parse(result.value);
-    const normalized = normalizeExtract(dream.raw_text as string, parsed);
-    const rows = await Promise.all(normalized.elements.map(async (element, index) => ({
-      id: await deterministicUuid(
-        `element:${job.dream_id}:${index}:${element.source}:${element.type}:${element.label}`,
-      ),
-      dream_id: job.dream_id,
-      type: element.type,
-      label: element.label,
-      detail: element.detail,
-      salience: element.salience,
-      source: element.source,
-      span: postgresSpan(element.span),
-    })));
+    const core = await runExtract({ dreamId: job.dream_id, dream }, createProductionLlm());
+    const { normalized, rows } = core;
 
     const { error: deleteError } = await client.from("dream_elements").delete()
       .eq("dream_id", job.dream_id);
@@ -76,28 +52,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }).eq("id", job.dream_id);
     if (dreamWriteError) throw new Error("dream_write");
 
-    const elements = rows.map((row) => ({
-      id: row.id,
-      type: row.type,
-      label: row.label,
-      detail: row.detail,
-      salience: row.salience,
-      source: row.source,
-      span: row.span,
-    }));
-    const payload = await mergeJobPayload(client, jobId, job.payload, {
-      extract_complete: true,
-      elements,
-      clarity: normalized.clarity,
-      empty_slots: normalized.empty_slots,
-      sensitive_flags: normalized.sensitive_flags,
-    });
-    await recordModelRun(client, {
+    const payload = await mergeJobPayload(client, jobId, job.payload, core.nextPayloadPatch);
+    await recordCoreRuns(client, {
       jobId,
       stage: "extract",
-      promptVersion: EXTRACT_PROMPT_VERSION,
-      result,
-      validation: { schema: true, elements: elements.length },
+      modelRuns: core.modelRuns,
+      validation: { schema: true, elements: rows.length },
     });
     await enqueueStage(client, {
       userId: job.user_id,
@@ -110,10 +70,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
       job_id: jobId,
       dream_id: job.dream_id,
       stage: "extract",
-      count: elements.length,
-      ms: result.latencyMs,
+      count: rows.length,
+      ms: core.modelRuns[0].latencyMs,
     });
-    return json({ ok: true, count: elements.length, clarity: normalized.clarity });
+    return json({ ok: true, count: rows.length, clarity: normalized.clarity });
   } catch (error) {
     const code = error instanceof Error ? error.message.slice(0, 64) : "unknown";
     logEvent("engine_extract_failed", {

@@ -14,11 +14,10 @@ import {
 } from "../_shared/contract.ts";
 import { loadJob } from "../_shared/jobs.ts";
 import { enqueueStage, mergeJobPayload } from "../_shared/pipeline.ts";
-import { lockedPassageHash } from "../_shared/text.ts";
-import { auditRecord, validateSceneDraft } from "./validate.ts";
+import { runValidate, VALIDATE_PROMPT_VERSION } from "./core.ts";
+import { engineVersion } from "../_shared/model_config.ts";
+import type { LockedPassage } from "../_shared/stage_context.ts";
 import { authorizedWorker } from "../_shared/worker_auth.ts";
-
-const PROMPT_VERSION = "e5.rules.v3";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -85,7 +84,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
   const attachSceneId = typeof payload.attach_to_scene_id === "string"
     ? payload.attach_to_scene_id
     : null;
-  let lockedPassageHashes: string[] = [];
+  let lockedPassages: LockedPassage[] = [];
   if (attachSceneId) {
     const lockedQuery = await client
       .from("passages")
@@ -96,27 +95,16 @@ Deno.serve(async (request: Request): Promise<Response> => {
       logEvent("engine_validate_failed", { job_id: jobId, stage: "validate", code: "locked" });
       return json({ error: "locked passages unavailable" }, 500);
     }
-    lockedPassageHashes = await Promise.all(
-      (lockedQuery.data ?? []).map((row) => lockedPassageHash(row.text as string)),
-    );
+    lockedPassages = lockedQuery.data ?? [];
   }
 
-  const isFallback = payload.is_fallback === true;
-  const outcome = await validateSceneDraft({
-    draft: payload.draft,
-    clarity: clarity.data,
-    adaptation: adaptation.data,
+  const core = await runValidate({
+    payload,
     elements: (elementsQuery.data ?? []) as DreamElement[],
     registry: (registryQuery.data ?? []) as RegistryEntity[],
-    lockedPassageHashes,
-    minimumChars: payload.is_first_dream === true && typeof payload.target_length === "number"
-      ? Math.max(350, Math.floor(payload.target_length * 0.7))
-      : undefined,
-    minimumPassages: payload.is_first_dream === true ? 7 : undefined,
-    profile: isFallback ? "relaxed" : "strict",
+    lockedPassages,
   });
-
-  const audit = auditRecord(outcome);
+  const { outcome, audit, isFallback } = core;
 
   // `validation` holds codes and counts only: never a violation message, which
   // quotes elements and entities for the retry prompt.
@@ -127,22 +115,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
     validation: audit,
     c_ratio: outcome.cRatio,
     latency_ms: Date.now() - started,
-    prompt_version: PROMPT_VERSION,
+    prompt_version: VALIDATE_PROMPT_VERSION,
     is_fallback: isFallback,
+    engine_version: engineVersion(),
   });
   if (runError) {
     // A missing audit row must not fail a validation that already ran.
     logEvent("engine_validate_audit_failed", { job_id: jobId, stage: "validate" });
   }
 
-  const currentWriteAttempt = typeof payload.write_attempt === "number" ? payload.write_attempt : 0;
   let next: string | null = null;
-  let terminal = false;
-  if (outcome.action === "accept") {
-    const nextPayload = await mergeJobPayload(client, jobId, payload, {
-      validation_complete: true,
-      validation_audit: audit,
-    });
+  const terminal = core.next.terminal;
+  if (core.next.stage === "commit") {
+    const nextPayload = await mergeJobPayload(client, jobId, payload, core.nextPayloadPatch);
     next = await enqueueStage(client, {
       userId: job.user_id,
       dreamId: job.dream_id,
@@ -150,28 +135,16 @@ Deno.serve(async (request: Request): Promise<Response> => {
       type: "commit",
       payload: nextPayload,
     });
-  } else if (isFallback || outcome.action === "discard") {
-    terminal = true;
+  } else if (terminal) {
     await client.from("dreams").update({ status: "failed" }).eq("id", job.dream_id);
   } else {
-    const fallback = currentWriteAttempt >= 2;
-    const nextAttempt = fallback ? 3 : currentWriteAttempt + 1;
-    const nextPayload = {
-      ...payload,
-      write_attempt: nextAttempt,
-      is_fallback: fallback,
-      validation_feedback: outcome.violations.map((violation) => ({
-        code: violation.code,
-        message: violation.message,
-      })),
-    };
     next = await enqueueStage(client, {
       userId: job.user_id,
       dreamId: job.dream_id,
       volumeId: job.volume_id,
       type: "write",
-      payload: nextPayload,
-      keySuffix: String(nextAttempt),
+      payload: { ...payload, ...core.nextPayloadPatch },
+      keySuffix: String(core.next.writeAttempt),
     });
   }
 
