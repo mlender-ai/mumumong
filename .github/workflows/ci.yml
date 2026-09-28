@@ -49,6 +49,10 @@ jobs:
         run: deno task verify
         working-directory: supabase/functions
 
+      - name: Verify evaluation corpus tooling (synthetic fixtures only)
+        run: deno task verify
+        working-directory: tool/eval
+
   flutter:
     name: Flutter checks
     runs-on: ubuntu-latest
@@ -72,6 +76,9 @@ jobs:
 
       - name: Log safety check
         run: bash tool/check_log_safety.sh
+
+      - name: Evaluation privacy check
+        run: bash tool/check_eval_privacy.sh
 
       - name: Analyze
         run: flutter analyze

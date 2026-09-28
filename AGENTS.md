@@ -10,7 +10,8 @@ Read these before changing product behavior or visual language:
 2. `docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md`
 3. `docs/MUMUMONG_M1_Report.md`
 4. `docs/MUMUMONG_M1_WorkOrders.md`
-5. `docs/STATUS.md`
+5. `docs/MUMUMONG_Q_WorkOrders.md` — for Q-series work, read §0 and only the assigned Q-WO
+6. `docs/STATUS.md`
 
 When documents conflict, preserve the seven-step product loop and the non-negotiable rules below, then record the unresolved conflict instead of guessing.
 
@@ -30,6 +31,8 @@ Do not add a feature unless it makes one of these steps simpler or more compelli
 - Generation length and `C` ratio obey the selected adaptation budget.
 - Do not interpret dreams or provide fortune-telling or psychological meaning.
 - Do not log dream text or generated manuscript text. Logs contain IDs and metadata only.
+- 평가 데이터(`eval/corpus/`, `eval/runs/`, `eval/judgments/`)는 절대 커밋·출력하지 않는다. 커밋 가능한 fixture는 새로 지어낸 가짜 꿈만 사용한다.
+- Generated manuscripts change only through the engine; never correct them by writing directly to the database.
 - Sky blue always means something newly created and settles back to ink.
 - Dots communicate product state. Do not use them as decorative texture.
 - Cover clarity never exceeds `0.9`.
@@ -40,6 +43,12 @@ Do not add a feature unless it makes one of these steps simpler or more compelli
 The repository is a local interaction prototype. Voice recognition, persistence, Supabase, AI generation, push notifications, completion, and PDF export are not implemented unless `docs/STATUS.md` says otherwise.
 
 Never describe simulated behavior as production integration.
+
+## Q-series priority and frozen baseline
+
+- Engine work (`supabase/functions/engine-*`, `_shared/prompts`, `_shared/llm*`) follows the Q-series before remaining M1 work. Do not run unrelated work alongside Q-02.
+- Freeze the `edfc13c` baseline: `write.v10` in `_shared/prompts/write.v1.ts`, `plan.v6` in `_shared/prompts/plan.v1.ts`, and `engine-write/opening_expansion.ts` / `opening_polish.ts`. Do not add or change their rules throughout the Q-series. Candidate quality changes require measurement and blind judgment and must coexist with the frozen baseline.
+- Q-07/Q-31 replace the remaining M1 semantic V5/V7 enhancement. Manuscript completion may implement state transitions and UI; LLM editing waits until after Q-32.
 
 ## Development workflow
 

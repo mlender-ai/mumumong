@@ -1,0 +1,7 @@
+{
+  "imports": { "ajv": "npm:ajv@8.20.0" },
+  "fmt": { "lineWidth": 100 },
+  "tasks": {
+    "verify": "deno fmt --check && deno lint && deno check validate_corpus.ts validate_corpus_test.ts && deno test --allow-read --allow-write --allow-run --allow-env && deno run --allow-read validate_corpus.ts ../../eval/fixtures/sample.jsonl"
+  }
+}

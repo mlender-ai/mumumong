@@ -37,6 +37,11 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Private evaluation inputs, generated manuscripts, and human judgments
+/eval/corpus/
+/eval/runs/
+/eval/judgments/
+
 # Symbolication related
 app.*.symbols
 

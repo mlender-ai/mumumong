@@ -1,6 +1,6 @@
 # MUMUMONG Implementation Status
 
-Last updated: 2026-09-27
+Last updated: 2026-09-29
 
 ## Summary
 
@@ -27,7 +27,7 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 | Local persistence | Implemented | Drift schema v1 mirrors manuscript data and adds drafts, outbox, reader positions, and sync state; mock mode seeds the prototype while hosted mode starts from the authenticated cloud volume |
 | Drift prerequisites | Implemented | `drift_flutter` native bootstrap plus lock-matched `sqlite3.wasm` and `drift_worker.js` |
 | Mock engine boundary | Implemented | `ENGINE=mock` and `MOCK_CASE` select deterministic success, retry, fallback, or failure; commits are idempotent and persist through both memory and Drift stores without network or LLM calls |
-| E5 Validate rules | Deployed and cloud-smoked | Deterministic V1–V7 checks, including required/existing source elements. V5/V7 model-based meaning and safety remain open. Hosted secret-key and local legacy-key worker authentication are both covered; public keys are denied |
+| E5 Validate rules | Deployed and cloud-smoked | Deterministic V1–V7 checks, including required/existing source elements. Q-07/Q-31 own further fidelity judgment; there is no separate M1 semantic V5/V7 enhancement task. Hosted secret-key and local legacy-key worker authentication are both covered; public keys are denied |
 | E6 Commit assembly | Deployed and cloud-smoked | Real `commit_scene` RPC, retry deduplication, remember enqueue, rollback on invalid provenance, and worker-only access are verified locally; an authorized hosted call reaches database lookup while public callers are denied |
 | E1–E4 + E7 model stages | Deployed and cloud-smoked | Groq `openai/gpt-oss-20b` handles extract/link/remember and first-opening passage expansion; `openai/gpt-oss-120b` handles plan/write and full-scene polish. First dreams keep the recorder as protagonist, preserve agent/recipient/goal/causal order, use a source-image title, and are deterministically normalized to prologue scenes. Their opening contract requires a concrete hook, immediate want, anomaly, protagonist choice, and unresolved consequence across at least seven passages and 70% of the planned length; short drafts are expanded before a whole-scene coherence pass. This abstracts public serialized-fiction pacing without copying a work's prose |
 | WO-14 worker | Deployed | Atomic per-user/service job claiming, browser-safe authenticated invocation, self-invocation, bounded retry scheduling, metadata-only diagnostics, and public-key denial are implemented. A durable cron recovery schedule is still pending |
@@ -40,11 +40,11 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 |---|---|
 | Persistence | Active-volume bootstrap, capture-to-reveal push/pull, dream edit/removal/deletion, passage edit/revert/read, placement and link decisions are connected |
 | Voice and STT | Native on-device implementation builds and its Flutter callback behavior is tested; the required ten-recording quality check needs a physical iPhone and human review |
-| AI pipeline | E1–E7 and the worker are deployed and a real hosted dream completed the entire pipeline. Durable cron recovery and model-assisted semantic V5/V7 checks remain open |
+| AI pipeline | E1–E7 and the worker are deployed and a real hosted dream completed the entire pipeline. Q-series engine work takes priority; Q-07/Q-31 replace the separate semantic V5/V7 task. Durable worker recovery scheduling waits until after Q-02 |
 | Backend | The dedicated cloud project has migrations 0001–0013, RLS, locked-passage trigger, authenticated dream upsert/removal/deletion and edit/revert/read/link mutations, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. The dream upsert preserves server-owned completion, clarity, and safety fields when stale Outbox work arrives. Durable cron recovery remains open |
 | Offline | Capture autosave/restore plus durable create/process and author-interaction delivery are implemented. The next app launch imports hosted results; background completion notification remains open |
 | Notifications | Morning/night and completion notifications are not present |
-| Completion | S14 and PDF export are not present |
+| Completion | S14 and PDF export are not present. State transitions and UI may proceed independently; LLM completion editing waits until after Q-32. PDF layout is independent of the engine |
 | Privacy controls | App lock, JSON export, and deletion are present. Groq is selected, but the onboarding provider notice, retention-language review, and server-enforced consent gate remain open |
 
 ## Verified baseline
@@ -72,8 +72,17 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 
 Connect the durable local implementation to the now-live backend:
 
-1. Add durable worker recovery scheduling and the server-enforced AI consent gate
+1. Follow Q-series engine work first; durable worker recovery scheduling waits until after Q-02. The server-enforced AI consent gate and provider/consent-version data can proceed independently, except during Q-02
 2. Configure Apple Sign In in the Supabase project and verify a real Apple account end to end
 3. Run the ten-recording Korean STT quality check on a physical iPhone
 
 The first milestone is complete only when a dream survives an app restart, belongs to the authenticated user, cannot be read by another user, and can enter a retryable processing job without its text appearing in logs.
+
+## Q-series quality work
+
+- Canonical instructions: `docs/MUMUMONG_Q_WorkOrders.md` v1.1; only §0 and Q-01 are in scope for this change.
+- The `edfc13c` baseline (`write.v10`, `plan.v6`, opening expansion and polish) is frozen. No engine or prompt behavior changed in Q-01.
+- Generated manuscripts may change only through the engine. The previously manually corrected hosted scene is not evidence of automatic generation quality and must not enter quality comparisons or Q-40 editing data.
+- Q-01 tooling: JSON Schema, synthetic fixture (2 singles + 1 four-dream sequence), metadata-only schema/count/duplicate-ID validator, ignored private corpus/runs/judgments directories, and a CI tracked-data guard. Sentinel is separate from dev/holdout and contributes zero gate units; its human clarity judgment may remain unset.
+- Q-01 verification (2026-09-29): 10 evaluation-tool tests pass, including malformed-input output redaction and forced staging in each private directory in an isolated Git repository. The local sentinel is ignored and validates with zero gate units. Log/privacy guards, Dart formatting, 120 Flutter tests, 74 existing engine tests, and a web release build to a temporary output directory pass. `flutter analyze` passes on an ASCII-path copy of the unchanged Flutter sources, avoiding the known Korean-path analyzer crash. iOS runtime and database checks were not rerun for this tooling-only change.
+- Real dev/holdout collection, Q-03 runner integration, LLM evaluation, blind judgments, and Q-08 baseline measurement remain pending. The existing Flutter/Deno checks verify functionality, not literary quality.

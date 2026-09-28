@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MUMUMONG private evaluation record",
+  "oneOf": [
+    { "$ref": "#/definitions/single" },
+    { "$ref": "#/definitions/sequence" },
+    { "$ref": "#/definitions/sentinel" }
+  ],
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9]+$" },
+    "clarity": { "enum": ["fragment", "partial", "vivid"] },
+    "recall": {
+      "type": "object",
+      "properties": {
+        "object": { "type": "string" },
+        "company": { "type": "string" },
+        "place": { "type": "string" },
+        "feeling": { "type": "string" },
+        "light": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "settings": { "type": ["object", "null"] },
+    "dream": {
+      "type": "object",
+      "required": ["raw_text", "expected_clarity"],
+      "properties": {
+        "raw_text": { "type": "string", "pattern": "\\S" },
+        "recall_answers": { "$ref": "#/definitions/recall" },
+        "expected_clarity": { "$ref": "#/definitions/clarity" }
+      },
+      "additionalProperties": false
+    },
+    "single": {
+      "type": "object",
+      "required": ["id", "set", "kind", "raw_text", "expected_clarity", "settings"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "set": { "enum": ["dev", "holdout"] },
+        "kind": { "const": "single" },
+        "raw_text": { "type": "string", "pattern": "\\S" },
+        "recall_answers": { "$ref": "#/definitions/recall" },
+        "expected_clarity": { "$ref": "#/definitions/clarity" },
+        "settings": { "$ref": "#/definitions/settings" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "sequence": {
+      "type": "object",
+      "required": ["id", "set", "kind", "dreams", "settings"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "set": { "enum": ["dev", "holdout"] },
+        "kind": { "const": "sequence" },
+        "dreams": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/dream" },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "settings": { "$ref": "#/definitions/settings" }
+      },
+      "additionalProperties": false
+    },
+    "sentinel": {
+      "description": "Overfitting monitor only; never a gate input. Null clarity awaits human judgment.",
+      "type": "object",
+      "required": ["id", "set", "kind", "raw_text", "expected_clarity", "settings"],
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "set": { "const": "sentinel" },
+        "kind": { "const": "single" },
+        "raw_text": { "type": "string", "pattern": "\\S" },
+        "recall_answers": { "$ref": "#/definitions/recall" },
+        "expected_clarity": { "enum": ["fragment", "partial", "vivid", null] },
+        "settings": { "$ref": "#/definitions/settings" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

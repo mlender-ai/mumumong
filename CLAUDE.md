@@ -11,6 +11,7 @@ Claude Code 전용 가이드. **저장소 규칙의 원본은 `AGENTS.md`다. �
 1. `AGENTS.md` — 비타협 규칙, 제품 루프, 워크플로
 2. `docs/STATUS.md` — **지금 무엇이 실제로 구현됐는지.** 항상 여기가 진실이다
 3. `docs/MUMUMONG_M1_WorkOrders.md` — 지시받은 WO 번호 항목만
+   Q-시리즈 작업은 `docs/MUMUMONG_Q_WorkOrders.md`의 §0과 지시받은 Q-WO 항목만 읽는다.
 4. 필요할 때만: `docs/MUMUMONG_M1_Report.md` (기술 결정 근거), `docs/MUMUMONG_PRODUCT_PDR_v0.1.md`, `docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md`
 
 `git log --oneline | head -15`로 직전 작업 흐름을 확인해라.
@@ -52,6 +53,7 @@ docker info >/dev/null 2>&1 || echo "NO DOCKER"
 `AGENTS.md`의 규칙 중 실수가 잦았던 것들.
 
 - **로그에 꿈 원문·생성 본문을 절대 넣지 마라.** `AppLog.event(name, {ids})`만 쓴다. `print`/`debugPrint` 직접 호출 금지. `tool/check_log_safety.sh`가 CI에서 막는다
+- **평가 데이터(`eval/corpus/`, `eval/runs/`, `eval/judgments/`)는 절대 커밋·출력하지 않는다.** fixture는 새로 지어낸 가짜 꿈만 사용한다. 생성 원고를 DB 직접 쓰기로 교정하지 않는다.
 - **D 문단은 실제로 존재하는 element id를 참조해야 한다.** 개수만 채우는 더미 UUID를 만들지 마라 (과거에 이 사고가 있었다)
 - **U 문단은 어떤 경로로도 덮어쓰지 마라.** DB 트리거가 막지만 앱 코드에서도 지킨다
 - **`progress_mu`는 `progress_events` 합계의 캐시다.** 저장할 때 클램프하지 마라. 클램프는 표시 계층에서만
