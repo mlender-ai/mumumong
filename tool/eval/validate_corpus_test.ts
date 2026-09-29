@@ -180,7 +180,7 @@ Deno.test("CLI enforces reserved set filenames and safely handles unreadable pat
   }
 });
 
-Deno.test("privacy guard blocks forced staging in all three private directories", async () => {
+Deno.test("privacy guard blocks forced staging in all five private evaluation directories", async () => {
   const dir = await Deno.makeTempDir({ prefix: "mumumong-eval-git-" });
   const git = async (args: string[]) => {
     const result = await new Deno.Command("git", { args, cwd: dir }).output();
@@ -192,9 +192,9 @@ Deno.test("privacy guard blocks forced staging in all three private directories"
     await git(["init", "--quiet"]);
     await Deno.writeTextFile(
       `${dir}/.gitignore`,
-      "/eval/corpus/\n/eval/runs/\n/eval/judgments/\n",
+      "/eval/corpus/\n/eval/runs/\n/eval/judgments/\n/eval/reference/\n/eval/pro/\n",
     );
-    for (const directory of ["corpus", "runs", "judgments"]) {
+    for (const directory of ["corpus", "runs", "judgments", "reference", "pro"]) {
       await Deno.mkdir(`${dir}/eval/${directory}`, { recursive: true });
       const relative = `eval/${directory}/privacy-probe.jsonl`;
       await Deno.writeTextFile(`${dir}/${relative}`, "SYNTHETIC_PRIVATE_MARKER\n");

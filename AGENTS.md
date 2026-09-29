@@ -31,7 +31,7 @@ Do not add a feature unless it makes one of these steps simpler or more compelli
 - Generation length and `C` ratio obey the selected adaptation budget.
 - Do not interpret dreams or provide fortune-telling or psychological meaning.
 - Do not log dream text or generated manuscript text. Logs contain IDs and metadata only.
-- 평가 데이터(`eval/corpus/`, `eval/runs/`, `eval/judgments/`)는 절대 커밋·출력하지 않는다. 커밋 가능한 fixture는 새로 지어낸 가짜 꿈만 사용한다.
+- 평가 데이터(`eval/corpus/`, `eval/runs/`, `eval/judgments/`, `eval/reference/`, `eval/pro/`)는 절대 커밋·출력하지 않는다. 커밋 가능한 fixture는 새로 지어낸 가짜 꿈만 사용한다.
 - Generated manuscripts change only through the engine; never correct them by writing directly to the database.
 - Sky blue always means something newly created and settles back to ink.
 - Dots communicate product state. Do not use them as decorative texture.

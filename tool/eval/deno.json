@@ -6,6 +6,6 @@
   },
   "fmt": { "lineWidth": 100 },
   "tasks": {
-    "verify": "deno fmt --check && deno lint && deno check *.ts && deno test --allow-read --allow-write --allow-run --allow-env && deno run --allow-read validate_corpus.ts ../../eval/fixtures/sample.jsonl"
+    "verify": "deno fmt --check && deno lint && deno check *.ts && deno test --allow-read --allow-write --allow-run --allow-env --allow-net=127.0.0.1 && deno run --allow-read validate_corpus.ts ../../eval/fixtures/sample.jsonl"
   }
 }

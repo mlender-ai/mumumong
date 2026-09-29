@@ -41,6 +41,8 @@ migrate_working_dir/
 /eval/corpus/
 /eval/runs/
 /eval/judgments/
+/eval/reference/
+/eval/pro/
 
 # Symbolication related
 app.*.symbols

@@ -1,4 +1,4 @@
-# MUMUMONG evaluation corpus and offline runner (Q-01 / Q-03 / Q-04)
+# MUMUMONG evaluation corpus and offline runner (Q-01 / Q-03 / Q-04 / Q-05)
 
 `corpus.schema.json`은 JSONL의 한 레코드를 검증하는 JSON Schema다.
 레포는 public이므로 실제 꿈, 생성 원고, 판정 데이터는 아래 비공개 디렉터리에만 둔다.
@@ -12,6 +12,8 @@ eval/
   corpus/                  # 비공개: dev.jsonl, holdout.jsonl, sentinel.jsonl
   runs/                    # 비공개: 생성 결과
   judgments/               # 비공개: 사람 판정
+  reference/               # 비공개: 레퍼런스 작품과 라벨링 입력
+  pro/                     # 비공개: 작가 재작성본
 ```
 
 `fixtures/sample.jsonl`은 Q-01 테스트용으로 새로 지어낸 가짜 꿈이다.
@@ -81,6 +83,7 @@ JSON 파서 오류 원문, 스키마 오류 경로를 출력하지 않는다. �
 
 루트 `.gitignore`가 corpus / runs / judgments 전체를 제외하고,
 CI가 Git index의 추적 파일을 검사한다. `git add -f`로 넣어도 CI가 실패한다.
+Q-05의 reference / pro 입력도 동일하게 차단한다.
 위 폴더의 내용을 외부 경로에 복사해 커밋하거나 fixture로 옮기지 않는다.
 CI는 지어낸 fixture와 유출 방지 테스트만 실행한다.
 Q-01 자체는 API 호출이나 품질 평가를 포함하지 않는다.
@@ -148,3 +151,12 @@ entity_mentions/progress_events·MU·보관함 상태·장면 이동·사용자 
 모든 케이스는 새 볼륨이며 U 편집/잠금 문단이 없고 fragment_attach도 새 평가 장면으로
 추가한다. 실사용자의 대기 중인 연결 질문을 응답하지 않는다(운영처럼 auto 연결만 사용).
 DB 정합성/실제 앱 동작/사람 판정의 대체가 아니라, 같은 생성 코어의 품질 비교용 경로다.
+
+## Q-05 블라인드 판정
+
+`deno run -A tool/eval/judge_demo.ts`로 키 없이 가짜 데이터 데모를 연다.
+실제 비교는 `judge.ts --a eval/runs/<기준선> --b eval/runs/<후보>`로 실행한다.
+저장 후 `report.ts eval/judgments/<기준선>__<후보>.json [--gate G1|G2|G3]`를 실행한다.
+서버는 127.0.0.1에만 바인딩하며 원고/원문은 화면 외 로그에 출력하지 않는다.
+fixture/sentinel은 품질 게이트에 통과하지 않는다. 누락된 측정도 통과로 간주하지 않는다.
+입력 형식, 추가 모드, 판정 재개, 품질 메트릭 계약은 `docs/Q05_BLIND_JUDGING.md`를 따른다.
