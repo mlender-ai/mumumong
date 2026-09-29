@@ -526,9 +526,10 @@ function eligible(gate: "G1" | "G2" | "G3"): Judgment {
   const cases = holdout ? 7 : 21, dreams = holdout ? 10 : 30;
   const stats = {
     engine_version: "v10" as const,
-    models: { write: "synthetic_baseline", plan: "synthetic_plan" },
+    models: { ...config.models, judge: "openai:gpt-4.1-2025-04-14" },
     settings_sha256: "synthetic_settings",
     prompt_versions: { ...PROMPT_VERSIONS },
+    source_sha256: "0".repeat(64),
     cases,
     failures: 0,
     dream_count: dreams,
@@ -546,7 +547,9 @@ function eligible(gate: "G1" | "G2" | "G3"): Judgment {
       engine_version: gate === "G1" ? "v10" as const : "v11" as const,
       reference_proximity: 7,
     };
-  if (gate === "G1") B.models.write = "synthetic_candidate";
+  if (gate === "G1") {
+    B.models.write = B.models.write_aux = B.models.polish = "anthropic:claude-sonnet-5";
+  }
   return {
     version: 1,
     mode: "ab",

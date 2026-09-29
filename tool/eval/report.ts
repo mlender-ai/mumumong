@@ -7,6 +7,7 @@ import {
 } from "./judgment.ts";
 import { EvalError, PROMPT_VERSIONS } from "./config.ts";
 import { ROOT } from "./judge_inputs.ts";
+import { q10ModelsMatch } from "./bakeoff_contract.ts";
 
 // Exact one-sided binomial tail P(X >= wins), p=1/2; ties are excluded.
 // Log-space summation avoids factorial overflow, not a normal approximation.
@@ -134,16 +135,18 @@ export function buildReport(judgment: Judgment, gate?: Gate) {
   check("SETTINGS_FIXED", A.settings_sha256 === B.settings_sha256);
   if (gate === "G1") {
     check(
+      "SOURCE_FIXED",
+      !A.source_sha256 || !B.source_sha256 ? null : A.source_sha256 === B.source_sha256,
+    );
+    check(
       "V10_PROMPTS_FIXED",
       A.engine_version === "v10" && B.engine_version === "v10" &&
         ordered(A.prompt_versions) === ordered(PROMPT_VERSIONS) &&
         ordered(B.prompt_versions) === ordered(PROMPT_VERSIONS),
     );
-    const withoutWrite = (models: Record<string, string | null>) =>
-      Object.fromEntries(Object.entries(models).filter(([role]) => role !== "write"));
     check(
-      "ONLY_WRITER_MODEL_VARIES",
-      ordered(withoutWrite(A.models)) === ordered(withoutWrite(B.models)),
+      "ONLY_PROSE_MODEL_GROUP_VARIES",
+      q10ModelsMatch(A.models, B.models),
     );
   } else {
     check(
@@ -158,7 +161,7 @@ export function buildReport(judgment: Judgment, gate?: Gate) {
     "FIDELITY",
     A.fidelity_rate === null || B.fidelity_rate === null
       ? null
-      : B.fidelity_rate + (gate === "G1" ? 0.03 : 0) >= A.fidelity_rate,
+      : B.fidelity_rate + (gate === "G1" ? 0.03 + 1e-12 : 0) >= A.fidelity_rate,
     B.fidelity_rate,
   );
   if (gate === "G1") {

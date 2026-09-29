@@ -1,4 +1,4 @@
-# MUMUMONG evaluation corpus and offline runner (Q-01 / Q-03 / Q-04 / Q-05)
+# MUMUMONG evaluation corpus and offline runner (Q-01–Q-10 tooling)
 
 `corpus.schema.json`은 JSONL의 한 레코드를 검증하는 JSON Schema다.
 레포는 public이므로 실제 꿈, 생성 원고, 판정 데이터는 아래 비공개 디렉터리에만 둔다.
@@ -20,6 +20,10 @@ eval/
 사용자가 전달한 꿈이나 실제 꿈을 변형해 만들지 않았다.
 single 2개와 4개 꿈이 이어지는 sequence 1개, 총 6개 가짜 꿈을 포함한다.
 fixture 결과는 문장 품질의 기준선이나 게이트 점수가 아니다.
+
+Q-10 설정 생성·전송 없는 사전 점검·자동 선별의 실행 절차와 미검증 범위는
+`docs/quality/Q10_BAKEOFF_PREPARATION.md`에 있다. 자동 선별 생존은 G1 승자 선정이 아니다.
+실제 dev·로컬 키·Q-07 사람 검수·Q-08 기준선이 준비되기 전에는 모델 교체를 하지 않는다.
 
 ## 레코드 규격
 

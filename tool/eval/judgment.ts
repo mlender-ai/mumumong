@@ -41,6 +41,7 @@ export const runStatsSchema = z.object({
   models: z.record(z.string().nullable()),
   settings_sha256: z.string(),
   prompt_versions: z.record(z.string()),
+  source_sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   cases: z.number().int().positive(),
   failures: z.number().int().nonnegative(),
   dream_count: z.number().int().nonnegative(),

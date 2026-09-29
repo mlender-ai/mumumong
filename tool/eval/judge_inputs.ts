@@ -23,6 +23,7 @@ const manifestSchema = z.object({
     set: z.enum(["dev", "fixtures", "sentinel", "holdout"]),
     corpus_sha256: hash,
     fixture_llm: z.boolean(),
+    source_sha256: hash.optional(),
   }),
 });
 const dreamSchema = z.object({
@@ -159,6 +160,9 @@ async function stats(
     models: run.manifest.models,
     settings_sha256,
     prompt_versions: run.manifest.prompt_versions,
+    ...(run.manifest.identity.source_sha256
+      ? { source_sha256: run.manifest.identity.source_sha256 }
+      : {}),
     cases: results.length,
     failures: results.filter((r) => r.status === "failed").length,
     dream_count: dreams.length,
