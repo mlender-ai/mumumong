@@ -1,5 +1,13 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import baselineJson from "../../eval/configs/baseline_v10_measured.json" with { type: "json" };
+import gpt54Json from "../../eval/configs/bakeoff_gpt54.json" with { type: "json" };
+import sonnet5Json from "../../eval/configs/bakeoff_sonnet5.json" with { type: "json" };
+import {
+  adapterFor,
+  estimatedCostKrw,
+  priceFor,
+  resolveModel,
+} from "../../supabase/functions/_shared/llm/registry.ts";
 import {
   automaticScreen,
   candidateReadiness,
@@ -7,7 +15,12 @@ import {
   prepareCandidates,
   screenCandidate,
 } from "./bakeoff.ts";
-import { baselineModels, candidateConfig, q10ModelsMatch } from "./bakeoff_contract.ts";
+import {
+  baselineModels,
+  candidateConfig,
+  fidelityEvidence,
+  q10ModelsMatch,
+} from "./bakeoff_contract.ts";
 import { configSchema, type CorpusCase, digest, EvalError, PROMPT_VERSIONS } from "./config.ts";
 import { FIDELITY_PROMPT_VERSION } from "../../supabase/functions/_shared/fidelity_judge.ts";
 import { FixtureLlm } from "./fixture_llm.ts";
@@ -25,6 +38,7 @@ import {
 const base = configSchema.parse(baselineJson);
 const writer = "anthropic:claude-sonnet-5";
 const candidate = candidateConfig(base, "example", writer);
+const gpt54 = configSchema.parse(gpt54Json);
 const marker = "SYNTHETIC_PRIVATE_ERROR_MARKER";
 const stats = (): RunStats => ({
   engine_version: "v10",
@@ -51,6 +65,100 @@ async function setup() {
   await Deno.writeTextFile(new URL("eval/configs/base.json", root), JSON.stringify(base));
   return { root, cleanup: () => Deno.remove(root, { recursive: true }) };
 }
+
+Deno.test("Q10 checked-in candidates span two providers and pin GPT-5.4 price and snapshot", () => {
+  const configs = [gpt54, configSchema.parse(sonnet5Json)];
+  assertEquals(new Set(configs.map((c) => resolveModel(c.models.write).provider)).size, 2);
+  for (const config of configs) {
+    assert(q10ModelsMatch(base.models, config.models));
+    assertEquals(config.settings, base.settings);
+    assertEquals(config.engine_version, base.engine_version);
+  }
+  assertEquals(gpt54.models.write, "openai:gpt-5.4-2026-03-05");
+  assertEquals(resolveModel("openai:gpt-5.4").id, "gpt-5.4-2026-03-05");
+  assertEquals(priceFor(gpt54.models.write), { input: 2.5, output: 15 });
+  assertEquals(estimatedCostKrw(gpt54.models.write, 1000, 1000), 24.5);
+  assertEquals(gpt54.models.judge, base.models.judge);
+  assertEquals(q10ModelsMatch(base.models, { ...gpt54.models, judge: "openai:gpt-5.4" }), false);
+});
+
+Deno.test("fidelity distinguishes shared provider, cross-provider and unknown identity without fabricating rates", () => {
+  assertEquals(fidelityEvidence(gpt54.models, 0.95), {
+    rate: 0.95,
+    measured: true,
+    same_provider: true,
+    label: "참고용",
+  });
+  assertEquals(fidelityEvidence(candidate.models, 0.95).label, "교차 공급사");
+  assertEquals(
+    fidelityEvidence({ ...candidate.models, polish: gpt54.models.polish }, 0.95).label,
+    "참고용",
+  );
+  assertEquals(fidelityEvidence({ ...gpt54.models, write: "openai:gpt-5.4" }, null), {
+    rate: null,
+    measured: false,
+    same_provider: true,
+    label: "참고용",
+  });
+  assertEquals(fidelityEvidence({ ...gpt54.models, judge: null }, 0.95).label, "미검증");
+  const A = stats(), B = { ...stats(), models: gpt54.models };
+  const screen = automaticScreen(A, B);
+  assertEquals(screen.fidelity.B.label, "참고용");
+  assertEquals(
+    screen.checks.find((c) => c.code === "FIDELITY_DROP_MAX_5PP")?.evidence_label,
+    "참고용",
+  );
+  assertEquals(screen.result, "SURVIVES_AUTOMATIC_SCREEN");
+  B.fidelity_rate = null;
+  assertEquals(automaticScreen(A, B).result, "INCOMPLETE");
+});
+
+Deno.test("GPT-5.4 candidate uses unchanged OpenAI structured and text payloads (stub only)", async () => {
+  const requests: Record<string, unknown>[] = [];
+  const model = resolveModel(gpt54.models.write);
+  const adapter = adapterFor(model, {
+    fetcher: (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      requests.push(body);
+      return Promise.resolve(
+        new Response(JSON.stringify({
+          choices: [{ message: { content: body.response_format ? '{"ok":true}' : "synthetic" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 4 },
+        })),
+      );
+    },
+  });
+  const request = {
+    model: model.id,
+    apiKey: "sk-proj-synthetic-key",
+    system: "Synthetic test only.",
+    input: {},
+    temperature: 0.75,
+    maxTokens: 128,
+  };
+  const result = await adapter.structured<{ ok: boolean }>({
+    ...request,
+    schemaName: "synthetic",
+    schema: {
+      type: "object",
+      properties: { ok: { type: "boolean" } },
+      required: ["ok"],
+      additionalProperties: false,
+    },
+  });
+  assertEquals(result.value, { ok: true });
+  assertEquals(
+    (await adapter.text({ ...request, user: "Synthetic test only." })).text,
+    "synthetic",
+  );
+  for (const body of requests) {
+    assertEquals(body.model, "gpt-5.4-2026-03-05");
+    assertEquals(body.temperature, 0.75);
+    assertEquals(body.max_completion_tokens, 128);
+    assertEquals(body.store, false);
+    assertEquals(body.reasoning_effort, undefined);
+  }
+});
 
 Deno.test("Q10 changes all three prose roles, keeps fixed roles/judge and canonicalizes aliases", () => {
   assert(baselineModels(base.models));
@@ -255,6 +363,19 @@ Deno.test("G1 accepts whole prose-group substitutions, rejects drift and uses st
   assertEquals(
     gate().checks.find((c) => c.code === "ONLY_PROSE_MODEL_GROUP_VARIES")!.status,
     "fail",
+  );
+  B.models = gpt54.models;
+  const sharedProviderReport = buildReport(judgment, "G1");
+  assertEquals((sharedProviderReport.fidelity as { B: { label: string } }).B.label, "참고용");
+  assertEquals(
+    (sharedProviderReport.gate as { checks: { code: string; evidence_label?: string }[] })
+      .checks.find((c) => c.code === "FIDELITY")?.evidence_label,
+    "참고용",
+  );
+  assertEquals(gate().result, "PASS");
+  assertEquals(
+    (buildReport(judgment).fidelity as { B: { label: string } }).B.label,
+    "참고용",
   );
   B.models = candidate.models;
   B.source_sha256 = "1".repeat(64);

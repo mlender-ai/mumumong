@@ -7,7 +7,7 @@ import {
 } from "./judgment.ts";
 import { EvalError, PROMPT_VERSIONS } from "./config.ts";
 import { ROOT } from "./judge_inputs.ts";
-import { q10ModelsMatch } from "./bakeoff_contract.ts";
+import { fidelityEvidence, q10ModelsMatch } from "./bakeoff_contract.ts";
 
 // Exact one-sided binomial tail P(X >= wins), p=1/2; ties are excluded.
 // Log-space summation avoids factorial overflow, not a normal approximation.
@@ -99,6 +99,14 @@ export function buildReport(judgment: Judgment, gate?: Gate) {
     by_clarity: breakdown("clarity"),
     by_kind: breakdown("kind"),
     gate_eligible: judgment.gate_eligible,
+    ...(judgment.stats
+      ? {
+        fidelity: {
+          A: fidelityEvidence(judgment.stats.A.models, judgment.stats.A.fidelity_rate),
+          B: fidelityEvidence(judgment.stats.B.models, judgment.stats.B.fidelity_rate),
+        },
+      }
+      : {}),
   };
   if (judgment.mode === "pro") {
     report.comparison = "A=engine,B=professional";
@@ -109,13 +117,20 @@ export function buildReport(judgment: Judgment, gate?: Gate) {
   if (!gate) return report;
   if (judgment.mode !== "ab" || !judgment.stats) throw new EvalError("GATE_REQUIRES_AB");
   const A = judgment.stats.A, B = judgment.stats.B;
-  const checks: { code: string; status: "pass" | "fail" | "unverified"; value?: number | null }[] =
-    [];
+  const checks: {
+    code: string;
+    status: "pass" | "fail" | "unverified";
+    value?: number | null;
+    evidence_label?: string;
+  }[] = [];
   const check = (code: string, pass: boolean | null, value?: number | null) =>
     checks.push({
       code,
       status: pass === null ? "unverified" : pass ? "pass" : "fail",
       ...(value !== undefined ? { value } : {}),
+      ...(code === "FIDELITY"
+        ? { evidence_label: fidelityEvidence(B.models, B.fidelity_rate).label }
+        : {}),
     });
   check(
     "ELIGIBLE_CORPUS",

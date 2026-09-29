@@ -58,6 +58,17 @@ export const MODELS: readonly ModelDefinition[] = [
   },
   {
     provider: "openai",
+    id: "gpt-5.4-2026-03-05",
+    aliases: ["gpt-5.4"],
+    usdPerMillion: { input: 2.5, output: 15 },
+    // Default reasoning effort is none: compatible with the unchanged temperature payload.
+    // Standard short-context rates; >272K inputs have a separate provider surcharge.
+    features: { structured: "json_schema", text: true, temperature: true },
+    verifiedAt: "2026-09-29",
+    source: "https://developers.openai.com/api/docs/models/gpt-5.4",
+  },
+  {
+    provider: "openai",
     id: "gpt-4.1-2025-04-14",
     aliases: ["gpt-4.1"],
     usdPerMillion: { input: 2, output: 8 },

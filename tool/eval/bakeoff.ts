@@ -6,6 +6,7 @@ import {
   baselineModels,
   candidateConfig,
   canonicalModel,
+  fidelityEvidence,
   q10ModelsMatch,
 } from "./bakeoff_contract.ts";
 import { configSchema, digest, EvalError, PROMPT_VERSIONS } from "./config.ts";
@@ -18,7 +19,12 @@ import { validateCorpusTexts } from "./validate_corpus.ts";
 
 const equal = (a: Record<string, unknown>, b: Record<string, unknown>) =>
   JSON.stringify(Object.entries(a).sort()) === JSON.stringify(Object.entries(b).sort());
-type Check = { code: string; status: "pass" | "fail" | "unverified"; value?: number | null };
+type Check = {
+  code: string;
+  status: "pass" | "fail" | "unverified";
+  value?: number | null;
+  evidence_label?: string;
+};
 
 // Thresholds are Q-10's automatic first screen, NOT G1 or a model-quality decision.
 export function automaticScreen(A: RunStats, B: RunStats) {
@@ -26,11 +32,17 @@ export function automaticScreen(A: RunStats, B: RunStats) {
   runStatsSchema.parse(B);
   if (A.failures > A.cases || B.failures > B.cases) throw new EvalError("COUNTS_INVALID");
   const checks: Check[] = [];
+  const fidelity = {
+    A: fidelityEvidence(A.models, A.fidelity_rate),
+    B: fidelityEvidence(B.models, B.fidelity_rate),
+  };
   const check = (code: string, passed: boolean | null, value?: number | null) =>
     checks.push({
       code,
       status: passed === null ? "unverified" : passed ? "pass" : "fail",
       ...(value !== undefined ? { value } : {}),
+      ...(code === "BASELINE_FIDELITY" ? { evidence_label: fidelity.A.label } : {}),
+      ...(code === "FIDELITY_DROP_MAX_5PP" ? { evidence_label: fidelity.B.label } : {}),
     });
   check("BASELINE_FIDELITY", A.fidelity_rate !== null ? true : null, A.fidelity_rate);
   check("PIPELINE_FAILURE_RATE", B.failures / B.cases <= 0.05, B.failures / B.cases);
@@ -46,6 +58,7 @@ export function automaticScreen(A: RunStats, B: RunStats) {
       ? "INCOMPLETE"
       : "SURVIVES_AUTOMATIC_SCREEN",
     checks,
+    fidelity,
     human_judgment_required: true,
     winner_selected: false,
   };

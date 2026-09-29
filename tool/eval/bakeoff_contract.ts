@@ -5,6 +5,25 @@ import { EvalError, type RunConfig } from "./config.ts";
 export const WRITER_ROLES = ["write", "write_aux", "polish"] as const;
 const FIXED_ROLES = ["extract", "link", "plan", "remember", "judge"] as const;
 
+// Model separation prevents self-judging; provider separation is a distinct reporting caveat.
+// This annotation does not change the frozen Q-series gate thresholds.
+export function fidelityEvidence(models: Record<string, string | null>, rate: number | null) {
+  let sameProvider: boolean | null = null;
+  try {
+    const judge = resolveModel(models.judge!).provider;
+    const writers = WRITER_ROLES.map((role) => resolveModel(models[role]!).provider);
+    sameProvider = writers.includes(judge);
+  } catch {
+    // Unknown or missing identities must not claim independent evidence.
+  }
+  return {
+    rate,
+    measured: rate !== null,
+    same_provider: sameProvider,
+    label: sameProvider === true ? "참고용" : sameProvider === false ? "교차 공급사" : "미검증",
+  };
+}
+
 export function canonicalModel(name: string): string {
   try {
     const model = resolveModel(name);
