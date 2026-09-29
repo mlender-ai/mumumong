@@ -38,7 +38,7 @@ export const configSchema = z.object({
     write_aux: model,
     polish: model,
     remember: model,
-    judge: z.null(),
+    judge: model.nullable(),
   }).strict(),
   settings: settingsSchema,
 }).strict();

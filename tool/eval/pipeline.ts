@@ -23,6 +23,16 @@ import { runValidate } from "../../supabase/functions/engine-validate/core.ts";
 import { runRemember } from "../../supabase/functions/engine-remember/core.ts";
 import { buildCommitPayload } from "../../supabase/functions/engine-commit/commit.ts";
 import {
+  lintProse,
+  metricDistribution,
+  type ProseMetrics,
+} from "../../supabase/functions/_shared/prose_lint.ts";
+import {
+  FIDELITY_PROMPT_VERSION,
+  type FidelityFinding,
+  judgeFidelity,
+} from "../../supabase/functions/_shared/fidelity_judge.ts";
+import {
   type CorpusCase,
   EvalError,
   failureCode,
@@ -55,6 +65,14 @@ export interface DreamResult {
   cost_krw: number;
   cost_complete: boolean;
   latency_ms: number;
+  metrics?: ProseMetrics;
+  fidelity?: { status: "success"; pass: boolean; finding: FidelityFinding } | {
+    status: "failed";
+    code: string;
+  };
+  measurement_cost_krw?: number;
+  measurement_cost_complete?: boolean;
+  measurement_latency_ms?: number;
 }
 export interface CaseResult {
   id: string;
@@ -67,6 +85,7 @@ export interface CaseResult {
   fallback: boolean;
   cost_krw: number;
   latency_ms: number;
+  metrics?: ProseMetrics;
 }
 
 // Record successful optional calls too, even when a later core/parse fails.
@@ -84,7 +103,7 @@ function measuredLlm(llm: StructuredLlmPort, calls: DreamResult["model_calls"]):
           tokensOut: result.tokensOut,
           latencyMs: result.latencyMs,
           promptVersion: request.role === "judge"
-            ? "not_implemented"
+            ? FIDELITY_PROMPT_VERSION
             : PROMPT_VERSIONS[request.role],
           status: "success",
         });
@@ -97,7 +116,7 @@ function measuredLlm(llm: StructuredLlmPort, calls: DreamResult["model_calls"]):
           tokensOut: 0,
           latencyMs: performance.now() - start,
           promptVersion: request.role === "judge"
-            ? "not_implemented"
+            ? FIDELITY_PROMPT_VERSION
             : PROMPT_VERSIONS[request.role],
           status: "failed",
         });
@@ -111,6 +130,7 @@ export async function evaluateCase(
   record: CorpusCase,
   config: RunConfig,
   llm: StructuredLlmPort,
+  measurements: { lint?: boolean; fidelity?: boolean } = {},
 ): Promise<CaseResult> {
   const start = performance.now();
   const state: VolumeState = {
@@ -132,6 +152,16 @@ export async function evaluateCase(
       fallback: dreams.some((dream) => dream.fallback),
       cost_krw: dreams.reduce((sum, dream) => sum + dream.cost_krw, 0),
       latency_ms: performance.now() - start,
+      ...(measurements.lint && dreams.some((d) => d.scene)
+        ? {
+          metrics: lintProse(
+            dreams.flatMap((d) =>
+              (d.scene?.passages ?? []).map((p) => (p as { text: string }).text)
+            ),
+            state.volume.narrative_voice as "first_person_past" | "third_person_past",
+          ),
+        }
+        : {}),
     };
   };
   try {
@@ -355,15 +385,57 @@ export async function evaluateCase(
       result.failed_stage = stage;
       result.code = failureCode(error);
     }
-    result.cost_krw = result.model_calls.reduce(
+    result.latency_ms = performance.now() - started;
+    if (result.status === "success" && result.scene) {
+      const passages = result.scene.passages as {
+        origin: "D" | "C" | "U";
+        text: string;
+        source_element_ids?: string[];
+      }[];
+      const voice = state.volume.narrative_voice as "first_person_past" | "third_person_past";
+      if (measurements.lint) result.metrics = lintProse(passages.map((p) => p.text), voice);
+      if (measurements.fidelity) {
+        const measured = performance.now();
+        try {
+          if (!config.models.judge) throw new EvalError("FIDELITY_MODEL_REQUIRED");
+          const extraction = result.stages.find((s) => s.stage === "extract")!.output as Awaited<
+            ReturnType<typeof runExtract>
+          >;
+          const judged = await judgeFidelity(
+            {
+              raw_text: input.raw_text,
+              recall_answers: input.recall_answers ?? null,
+              elements: extraction.rows,
+              passages,
+              narrative_voice: voice,
+            },
+            port,
+            { writer: config.models.write, judge: config.models.judge },
+          );
+          result.fidelity = { status: "success", pass: judged.pass, finding: judged.finding };
+        } catch {
+          result.fidelity = { status: "failed", code: "FIDELITY_MEASUREMENT_FAILED" };
+        }
+        const calls = result.model_calls.filter((c) => c.role === "judge");
+        result.measurement_cost_krw = calls.reduce(
+          (sum, call) => sum + estimatedCostKrw(call.model, call.tokensIn, call.tokensOut),
+          0,
+        );
+        result.measurement_cost_complete = calls.length > 0 &&
+          calls.every((c) =>
+            c.status === "success" && (c.model === "fixture" || priceFor(c.model) !== undefined)
+          );
+        result.measurement_latency_ms = performance.now() - measured;
+      }
+    }
+    result.cost_krw = result.model_calls.filter((c) => c.role !== "judge").reduce(
       (sum, call) => sum + estimatedCostKrw(call.model, call.tokensIn, call.tokensOut),
       0,
     );
-    result.cost_complete = result.model_calls.every((call) =>
+    result.cost_complete = result.model_calls.filter((c) => c.role !== "judge").every((call) =>
       call.status === "success" &&
       (call.model === "fixture" || priceFor(call.model) !== undefined)
     );
-    result.latency_ms = performance.now() - started;
     dreams.push(result);
     // A failed sequence stops: later dreams must not use a broken history.
     if (result.status === "failed") break;
@@ -385,6 +457,21 @@ export function summarize(results: CaseResult[], gateEligible = true) {
   const latencies = dreams.map((dream) => dream.latency_ms).sort((a, b) => a - b);
   const quantile = (p: number) => latencies[Math.max(0, Math.ceil(latencies.length * p) - 1)] ?? 0;
   const costs = dreams.map((dream) => dream.cost_krw);
+  const judged = dreams.filter((d) => d.fidelity?.status === "success");
+  const fidelityViolations: Record<string, number> = {};
+  for (const dream of judged) {
+    if (dream.fidelity?.status !== "success") continue;
+    const f = dream.fidelity.finding;
+    const add = (key: string, n = 1) => {
+      fidelityViolations[key] = (fidelityViolations[key] ?? 0) + n;
+    };
+    if (!f.protagonist_is_recorder) add("protagonist");
+    add("missing_high", f.missing_high_elements.length);
+    for (const p of f.paragraphs) {
+      for (const c of p.contradictions) add(c.type);
+      if (p.origin === "D") add("invented_concrete", p.invented_concrete.length);
+    }
+  }
   return {
     success: results.filter((result) => result.status === "success").length,
     failed: results.filter((result) => result.status === "failed").length,
@@ -401,5 +488,20 @@ export function summarize(results: CaseResult[], gateEligible = true) {
       complete: dreams.every((dream) => dream.cost_complete),
     },
     latency_ms: { p50: quantile(0.5), p95: quantile(0.95) },
+    prose_metrics: metricDistribution(dreams.flatMap((d) => d.metrics ? [d.metrics] : [])),
+    fidelity: {
+      measured: judged.length,
+      failed: dreams.filter((d) => d.fidelity?.status === "failed").length,
+      passed: judged.filter((d) => d.fidelity?.status === "success" && d.fidelity.pass).length,
+      pass_rate: judged.length
+        ? judged.filter((d) => d.fidelity?.status === "success" && d.fidelity.pass).length /
+          judged.length
+        : null,
+      calibrated: false,
+      violations: fidelityViolations,
+      cost_krw: dreams.reduce((n, d) => n + (d.measurement_cost_krw ?? 0), 0),
+      cost_complete: judged.length > 0 &&
+        dreams.filter((d) => d.fidelity).every((d) => d.measurement_cost_complete),
+    },
   };
 }

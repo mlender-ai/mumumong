@@ -12,6 +12,11 @@ import {
 import { FixtureLlm } from "./fixture_llm.ts";
 import { type CaseResult, evaluateCase, summarize } from "./pipeline.ts";
 import { validateCorpusTexts } from "./validate_corpus.ts";
+import {
+  differentJudge,
+  FIDELITY_PROMPT_VERSION,
+} from "../../supabase/functions/_shared/fidelity_judge.ts";
+import { writeMeasurementArtifacts } from "./measurements.ts";
 
 const ROOT = new URL("../../", import.meta.url);
 export interface Options {
@@ -20,6 +25,8 @@ export interface Options {
   cases?: string[];
   concurrency: number;
   resume: boolean;
+  lint?: boolean;
+  fidelity?: boolean;
 }
 
 export function parseArgs(args: string[]): Options {
@@ -36,8 +43,13 @@ export function parseArgs(args: string[]): Options {
       options.resume = true;
       continue;
     }
-    if (flag === "--fidelity" || flag === "--lint") {
-      throw new EvalError("MEASUREMENT_NOT_IMPLEMENTED");
+    if (flag === "--fidelity") {
+      options.fidelity = true;
+      continue;
+    }
+    if (flag === "--lint") {
+      options.lint = true;
+      continue;
     }
     if (!["--config", "--set", "--cases", "--concurrency"].includes(flag)) {
       throw new EvalError("USAGE");
@@ -130,6 +142,16 @@ export async function runEvaluation(options: Options, root = ROOT, now = new Dat
   } catch {
     throw new EvalError("CONFIG_INVALID");
   }
+  if (options.fidelity) {
+    if (!config.models.judge) throw new EvalError("FIDELITY_MODEL_REQUIRED");
+    try {
+      for (const writer of [config.models.write, config.models.polish, config.models.write_aux]) {
+        differentJudge(writer, config.models.judge);
+      }
+    } catch {
+      throw new EvalError("FIDELITY_REQUIRES_DIFFERENT_MODEL");
+    }
+  }
   const corpusPath = options.set === "fixtures"
     ? "eval/fixtures/sample.jsonl"
     : `eval/corpus/${options.set}.jsonl`;
@@ -165,6 +187,11 @@ export async function runEvaluation(options: Options, root = ROOT, now = new Dat
     source_sha256: await sourceFingerprint(),
     prompt_versions: PROMPT_VERSIONS,
     fixture_llm: options.set === "fixtures",
+    measurements: {
+      lint: !!options.lint,
+      fidelity: !!options.fidelity,
+      fidelity_version: options.fidelity ? FIDELITY_PROMPT_VERSION : null,
+    },
   };
   const runsRoot = new URL("eval/runs/", root);
   await Deno.mkdir(runsRoot, { recursive: true, mode: 0o700 });
@@ -262,7 +289,7 @@ export async function runEvaluation(options: Options, root = ROOT, now = new Dat
       Array.from({ length: Math.min(options.concurrency, pending.length) }, async () => {
         while (cursor < pending.length) {
           const record = pending[cursor++];
-          const result = await evaluateCase(record, config, llm);
+          const result = await evaluateCase(record, config, llm, options);
           await atomicWrite(new URL(`${record.id}.json`, casesRoot), JSON.stringify(result));
           results.set(record.id, result);
           await save();
@@ -271,7 +298,11 @@ export async function runEvaluation(options: Options, root = ROOT, now = new Dat
       }),
     );
     await save();
+    const measurement = options.lint || options.fidelity
+      ? await writeMeasurementArtifacts(directory, records, ordered(), config, root, options.set)
+      : null;
     const summary = summarize(ordered(), !["fixtures", "sentinel"].includes(options.set));
+    if (measurement) summary.fidelity.calibrated = measurement.calibrated;
     logEvent("eval_success", { count: summary.success });
     logEvent("eval_failed", { count: summary.failed });
     logEvent("eval_skipped", { count: skipped });
@@ -284,7 +315,7 @@ export async function runEvaluation(options: Options, root = ROOT, now = new Dat
 export async function main(args: string[]): Promise<number> {
   try {
     const result = await runEvaluation(parseArgs(args));
-    return result.summary.failed ? 1 : 0;
+    return result.summary.failed || result.summary.fidelity.failed ? 1 : 0;
   } catch (error) {
     logEvent("eval_failed", { status: "failed", code: failureCode(error) });
     return 1;

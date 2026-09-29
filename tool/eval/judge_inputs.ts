@@ -48,6 +48,8 @@ const qualitySchema = z.object({
   fidelity: z.object({ passed: z.number().int().nonnegative(), total: z.number().int().positive() })
     .strict().optional(),
   reference_proximity: z.number().int().min(0).max(10).optional(),
+  fidelity_calibration: z.object({ judge_model: z.string(), certificate_sha256: hash }).strict()
+    .optional(),
 }).strict();
 
 export interface DisplayItem {
@@ -58,6 +60,7 @@ export interface DisplayItem {
   text?: string;
   paragraphs?: string[];
   labels?: string[];
+  reference_form?: { opening_paragraphs: number; synthetic: boolean };
 }
 export interface Prepared {
   judgment: Judgment;
@@ -107,7 +110,11 @@ async function loadRun(path: string, root: URL) {
   }
 }
 
-function stats(run: Awaited<ReturnType<typeof loadRun>>, results: Result[]): Promise<RunStats> {
+async function stats(
+  run: Awaited<ReturnType<typeof loadRun>>,
+  results: Result[],
+  root: URL,
+): Promise<RunStats> {
   const dreams = results.flatMap((result) => result.dreams);
   const latencies = dreams.map((d) => d.latency_ms).sort((a, b) => a - b);
   let errors = 0, checked = 0, compliant = 0, finalCount = 0;
@@ -140,6 +147,13 @@ function stats(run: Awaited<ReturnType<typeof loadRun>>, results: Result[]): Pro
   const full = run.quality &&
     JSON.stringify([...run.quality.case_ids].sort()) ===
       JSON.stringify(results.map((r) => r.id).sort());
+  const proof = run.quality?.fidelity_calibration;
+  const currentProof = full && proof && run.manifest.models.judge
+    ? await (await import("./measurements.ts")).calibrationProof(run.manifest.models.judge, root)
+    : null;
+  const verifiedFidelity = proof && currentProof &&
+    proof.judge_model === currentProof.judge_model &&
+    proof.certificate_sha256 === currentProof.certificate_sha256;
   return digest(JSON.stringify(run.manifest.settings)).then((settings_sha256) => ({
     engine_version: run.manifest.engine_version,
     models: run.manifest.models,
@@ -161,7 +175,7 @@ function stats(run: Awaited<ReturnType<typeof loadRun>>, results: Result[]): Pro
     v2_compliance: finalCount > 0 && checked === dreams.filter((d) => d.scene).length
       ? compliant / finalCount
       : null,
-    fidelity_rate: full && run.quality?.fidelity
+    fidelity_rate: full && verifiedFidelity && run.quality?.fidelity
       ? run.quality.fidelity.passed / run.quality.fidelity.total
       : null,
     reference_proximity: full ? run.quality?.reference_proximity ?? null : null,
@@ -248,8 +262,8 @@ export async function prepareAB(a: string, b: string, root = ROOT): Promise<Prep
       gate_eligible: set === "dev" && !A.manifest.identity.fixture_llm &&
         !B.manifest.identity.fixture_llm,
       stats: {
-        A: await stats(A, common),
-        B: await stats(B, B.results.filter((r) => common.some((s) => s.id === r.id))),
+        A: await stats(A, common, root),
+        B: await stats(B, B.results.filter((r) => common.some((s) => s.id === r.id)), root),
       },
       items,
     },

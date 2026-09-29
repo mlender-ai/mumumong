@@ -239,7 +239,7 @@ Deno.test("failed sequence stops before later dreams consume broken state", asyn
   assertEquals(result.dreams.length, 1);
 });
 
-Deno.test("CLI validates flags, locks holdout before reads, rejects unavailable measurement flags", () => {
+Deno.test("CLI validates flags and locks holdout before reads", () => {
   for (
     const args of [
       [],
@@ -247,13 +247,13 @@ Deno.test("CLI validates flags, locks holdout before reads, rejects unavailable 
       ["--set", "fixtures", "--concurrency", "0"],
       ["--set", "fixtures", "--cases", "../escape"],
       ["--set", "fixtures", "--cases", "f01,f01"],
-      ["--set", "fixtures", "--lint"],
     ]
   ) {
     assertThrows(() => parseArgs(args), EvalError);
   }
   const error = assertThrows(() => parseArgs(["--set", "holdout"]), EvalError);
   assertEquals(error.message, "HOLDOUT_LOCKED_UNTIL_Q32");
+  assertEquals(parseArgs(["--set", "fixtures", "--lint", "--fidelity"]).fidelity, true);
 });
 
 Deno.test("config cannot contain credentials, unknown settings or future engine versions", () => {

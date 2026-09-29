@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { digest, EvalError } from "./config.ts";
+import { referenceLabelSchema } from "./reference_contract.ts";
 
 export const WIN_REASONS = ["natural", "faithful", "engaging"] as const;
 export const LOSS_PROBLEMS = ["ai_translation", "fact_error", "dragging", "too_short"] as const;
@@ -24,6 +25,7 @@ export const voteSchema = z.object({
 export type Vote = z.infer<typeof voteSchema>;
 const auditVote = z.object({
   choice: z.enum(["agree", "disagree", "keep", "reject"]),
+  reference_labels: referenceLabelSchema.optional(),
   annotations: z.array(
     z.object({
       paragraph: z.number().int().nonnegative(),

@@ -1,0 +1,15 @@
+{
+  "label": "baseline_v10_measured",
+  "engine_version": "v10",
+  "models": {
+    "extract": "groq:openai/gpt-oss-20b",
+    "link": "groq:openai/gpt-oss-20b",
+    "plan": "groq:openai/gpt-oss-120b",
+    "write": "groq:openai/gpt-oss-120b",
+    "write_aux": "groq:openai/gpt-oss-20b",
+    "polish": "groq:openai/gpt-oss-120b",
+    "remember": "groq:openai/gpt-oss-20b",
+    "judge": "openai:gpt-4.1-2025-04-14"
+  },
+  "settings": { "style": "plain", "adaptation": "balanced", "narrative_voice": "first_person_past" }
+}

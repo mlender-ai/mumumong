@@ -2,6 +2,7 @@ import { z } from "zod";
 import { digest, EvalError } from "./config.ts";
 import { type DisplayItem, loadRun, type Prepared, ROOT } from "./judge_inputs.ts";
 import { type JudgmentItem, privatePath, sceneSchema, seed } from "./judgment.ts";
+import { parseWorks, referenceParagraphs } from "./reference_contract.ts";
 
 const identifier = z.string().regex(/^[A-Za-z0-9_-]{1,80}$/);
 const candidateSchema = z.object({ id: identifier, text: z.string().min(1) }).strict();
@@ -50,7 +51,13 @@ export async function prepareAux(
   let fingerprint = await digest(text);
   try {
     if (mode === "fidelity-audit") {
-      const audits = z.object({ items: z.array(auditSchema).min(15) }).strict().parse(
+      const audits = z.object({
+        items: z.array(auditSchema).min(15),
+        version: z.literal(1).optional(),
+        results_sha256: z.string().optional(),
+        judge_model: z.string().optional(),
+        prompt_version: z.string().optional(),
+      }).strict().parse(
         JSON.parse(text),
       ).items.slice(0, 15);
       items = audits.map((row) => {
@@ -69,16 +76,27 @@ export async function prepareAux(
         return { id: row.id, kind: "candidate", clarity: "unclassified", vote: null, audit: null };
       });
     } else if (mode === "annotate") {
-      const rows = text.trim().split(/\r?\n/).map((line) =>
-        referenceSchema.parse(JSON.parse(line))
-      );
+      const values = text.trim().split(/\r?\n/).map((line) => JSON.parse(line));
+      const isWorks = values.every((row) => typeof row.opening === "string");
+      const rows = isWorks
+        ? parseWorks(text).map((row) => ({
+          id: row.id,
+          paragraphs: [...referenceParagraphs(row.opening), ...referenceParagraphs(row.ending)],
+          labels: [] as string[],
+          reference_form: {
+            opening_paragraphs: referenceParagraphs(row.opening).length,
+            synthetic: row.synthetic,
+          },
+        }))
+        : values.map((row) => ({ ...referenceSchema.parse(row), reference_form: undefined }));
       items = rows.map((row) => {
         display.set(row.id, {
           id: row.id,
           originals: [],
-          text: row.title,
+          text: "title" in row ? row.title : undefined,
           paragraphs: row.paragraphs,
           labels: row.labels ?? ["동작", "감각", "대사", "설명", "첫 문장 훅", "장면 끝 당김"],
+          reference_form: row.reference_form,
         });
         return { id: row.id, kind: "reference", clarity: "unclassified", vote: null, audit: null };
       });

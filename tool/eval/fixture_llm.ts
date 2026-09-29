@@ -101,6 +101,20 @@ export class FixtureLlm implements LlmPort {
           motifs: [],
         };
         break;
+      case "judge": {
+        const passages = input.passages as { origin: string }[];
+        value = {
+          protagonist_is_recorder: true,
+          paragraphs: passages.map((p, index) => ({
+            index,
+            origin: p.origin,
+            contradictions: [],
+            invented_concrete: [],
+          })),
+          missing_high_elements: [],
+        };
+        break;
+      }
       default:
         throw new EvalError("FIXTURE_ROLE_UNSUPPORTED");
     }

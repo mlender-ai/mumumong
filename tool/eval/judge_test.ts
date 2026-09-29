@@ -274,7 +274,7 @@ Deno.test("quality evidence is bound to exact result hash and case IDs; absent m
     await Deno.writeTextFile(file, JSON.stringify(quality));
     const p = await prepare(t.root);
     assertEquals(p.judgment.stats!.A.fidelity_rate, null);
-    assertEquals(p.judgment.stats!.B.fidelity_rate, 2 / 3);
+    assertEquals(p.judgment.stats!.B.fidelity_rate, null); // Q07: no human calibration proof.
     assertEquals(p.judgment.stats!.B.reference_proximity, 7);
     await Deno.writeTextFile(file, JSON.stringify({ ...quality, results_sha256: "0".repeat(64) }));
     await assertRejects(() => prepare(t.root), EvalError, "QUALITY_METRICS_INVALID");
@@ -493,13 +493,15 @@ Deno.test("adding later quality measurements refreshes gate metadata without dis
         results_sha256: await digest(text),
         case_ids: t.results.map((r) => r.id),
         fidelity: { passed: 3, total: 3 },
+        reference_proximity: 6,
       }),
     );
     const refreshed = await JudgeStore.open(await prepare(t.root), t.root);
     try {
       assertEquals(refreshed.judgment.seed, savedSeed);
       assertEquals(refreshed.judgment.items[0].vote!.winner, "tie");
-      assertEquals(refreshed.judgment.stats!.B.fidelity_rate, 1);
+      assertEquals(refreshed.judgment.stats!.B.fidelity_rate, null);
+      assertEquals(refreshed.judgment.stats!.B.reference_proximity, 6);
       assertEquals(refreshed.judgment.revision, 2);
     } finally {
       await refreshed.close();

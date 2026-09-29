@@ -160,3 +160,13 @@ DB 정합성/실제 앱 동작/사람 판정의 대체가 아니라, 같은 생�
 서버는 127.0.0.1에만 바인딩하며 원고/원문은 화면 외 로그에 출력하지 않는다.
 fixture/sentinel은 품질 게이트에 통과하지 않는다. 누락된 측정도 통과로 간주하지 않는다.
 입력 형식, 추가 모드, 판정 재개, 품질 메트릭 계약은 `docs/Q05_BLIND_JUDGING.md`를 따른다.
+
+## Q-06–Q-09 측정 묶음
+
+`baseline_v10_measured.json --set fixtures --lint --fidelity`로 키 없이 측정 연결을 검증할 수 있다.
+실제 dev에서는 config의 공급자 키와 사용자 코퍼스가 필요하다. 원래 `baseline_v10.json`은 바꾸지 않았다.
+충실도는 실제 15건 검수에서 12건 이상 동의하기 전까지 게이트 수치로 사용하지 않는다.
+`measurements.ts calibrate/refresh`, `baseline_report.ts`, `reference_profile.ts analyze/score`가 이를 연결한다.
+레퍼런스는 사용자가 직접 수집/라벨링하며 크롤러나 LLM 업로드를 사용하지 않는다.
+`reference_demo.ts`는 새로 지어낸 예시를 8788에서 보여주는 화면 검증용이며 실제 프로파일이 아니다.
+전체 명령과 미검증 경계: `docs/quality/Q06_Q09_IMPLEMENTATION.md`.

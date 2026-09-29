@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { EvalError } from "./config.ts";
+import { referenceLabelSchema } from "./reference_contract.ts";
 import { type Prepared, ROOT } from "./judge_inputs.ts";
 import {
   atomicSave,
@@ -27,6 +28,7 @@ export const submissionSchema = z.object({
       note: z.string().max(240),
     }).strict(),
   ).max(1000).optional(),
+  reference_labels: referenceLabelSchema.optional(),
 }).strict();
 export type Submission = z.infer<typeof submissionSchema>;
 
@@ -131,7 +133,10 @@ export class JudgeStore {
     const item = position >= 0 && position < items.length ? items[position] : undefined;
     const common = {
       mode: this.judgment.mode,
-      demo: this.judgment.set === "fixtures",
+      demo: this.judgment.set === "fixtures" ||
+        [...this.prepared.display.values()].some((display) =>
+          display.reference_form?.synthetic === true
+        ),
       revision: this.judgment.revision,
       total: items.length,
       completed: items.filter((item) => item.vote !== null || item.audit !== null).length,
@@ -173,6 +178,8 @@ export class JudgeStore {
       reasons: item.vote?.reasons ?? [],
       problems: item.vote?.problems ?? [],
       annotations: item.audit?.annotations ?? [],
+      reference_form: display.reference_form,
+      reference_labels: item.audit?.reference_labels ?? null,
     };
   }
   submit(value: unknown): Promise<void> {
@@ -219,6 +226,13 @@ export class JudgeStore {
         if (snapshot.mode === "annotate") {
           const display = this.prepared.display.get(item.id)!;
           if (
+            display.reference_form &&
+            (!input.reference_labels ||
+              input.reference_labels.first_event_para > display.reference_form.opening_paragraphs ||
+              new Set(input.reference_labels.reveal_by_2000).size !==
+                input.reference_labels.reveal_by_2000.length)
+          ) throw new EvalError("SUBMISSION_INVALID");
+          if (
             !input.annotations || new Set(input.annotations.map((row) =>
                 row.paragraph
               )).size !== input.annotations.length ||
@@ -231,6 +245,9 @@ export class JudgeStore {
         item.audit = {
           choice: input.choice as AuditVote["choice"],
           ...(snapshot.mode === "annotate" ? { annotations: input.annotations } : {}),
+          ...(snapshot.mode === "annotate" && input.reference_labels
+            ? { reference_labels: input.reference_labels }
+            : {}),
         };
       }
       snapshot.revision++;
