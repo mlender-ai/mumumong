@@ -118,6 +118,52 @@ export const planOutputSchema = z.object({
 });
 export type PlanOutput = z.infer<typeof planOutputSchema>;
 
+// Q-20/Q-21 preparation only. The v10 planOutputSchema and production route
+// remain unchanged until measured v11 work is approved.
+const planV7BeatBase = {
+  id: z.string().regex(/^b[1-9]\d*$/u),
+  fact: z.string().trim().min(1),
+  actor: z.string().trim().min(1).nullable(),
+  action: z.string().trim().min(1),
+  target: z.string().trim().min(1).nullable(),
+  recipient: z.string().trim().min(1).nullable(),
+  purpose: z.string().trim().min(1).nullable(),
+  status: z.enum(["attempted", "interrupted", "ongoing", "completed"]).nullable(),
+};
+
+export const planV7BeatSchema = z.discriminatedUnion("kind", [
+  z.object({
+    ...planV7BeatBase,
+    kind: z.literal("D"),
+    element_ids: z.array(z.string().uuid()).min(1),
+  }),
+  z.object({
+    ...planV7BeatBase,
+    kind: z.literal("C"),
+    element_ids: z.array(z.string().uuid()),
+  }),
+]);
+export type PlanV7Beat = z.infer<typeof planV7BeatSchema>;
+
+export const planV7Schema = z.object({
+  placement: z.enum(PLACEMENT_KINDS),
+  attach_to_scene_id: z.string().uuid().nullable(),
+  scene_title: z.string().trim().min(2).max(12),
+  target_length: z.number().int().positive(),
+  beats: z.array(planV7BeatSchema),
+  open_image: z.string().trim().min(1),
+  hook_beat: z.string().regex(/^b[1-9]\d*$/u).nullable(),
+  opening_type: z.enum(["dialogue", "action", "situation", "sense", "inner_voice"]),
+  ending_type: z.enum(["new_presence", "new_info", "brink", "choice", "line", "image"]),
+  new_entities: z.array(z.object({
+    role_name: z.string().trim().min(1),
+    type: z.string().trim().min(1),
+    from_element: z.string().uuid().nullable(),
+  })),
+  used_entities: z.array(z.string().uuid()),
+});
+export type PlanV7 = z.infer<typeof planV7Schema>;
+
 export const planJsonSchema: Record<string, unknown> = {
   type: "object",
   properties: {
