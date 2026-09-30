@@ -357,6 +357,14 @@ update public.volumes
 select is(public.recompute_progress('d1111111-1111-4111-8111-111111111111'), 4.00::numeric, 'recompute_progress returns the event sum');
 select is((select progress_mu from public.volumes where id = 'd1111111-1111-4111-8111-111111111111'), 4.00::numeric, 'recompute_progress repairs cached progress');
 
+-- Existing queue-behavior fixtures are a deliberately consenting test account.
+insert into public.profiles (user_id, consent_version, consented_at, age_confirmed)
+values ('11111111-1111-4111-8111-111111111111', 1, now(), true)
+on conflict (user_id) do update
+  set consent_version = excluded.consent_version,
+      consented_at = excluded.consented_at,
+      age_confirmed = true;
+
 insert into public.jobs (
   id,
   user_id,

@@ -52,7 +52,6 @@ class MumumongApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(outboxWorkerProvider);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '무무몽',
@@ -100,6 +99,9 @@ class _MumumongShellState extends ConsumerState<MumumongShell> {
 
   @override
   Widget build(BuildContext context) {
+    // AuthGate only mounts the manuscript after current AI consent is confirmed.
+    // Starting delivery before that would race the onboarding consent screen.
+    ref.watch(outboxWorkerProvider);
     final pages = <Widget>[
       HomeScreen(onCapture: _openCapture),
       ArchiveScreen(onCapture: _openCapture),

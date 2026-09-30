@@ -1,6 +1,6 @@
 # MUMUMONG Implementation Status
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 
 ## Summary
 
@@ -33,6 +33,8 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 | WO-14 worker | Deployed | Atomic per-user/service job claiming, browser-safe authenticated invocation, self-invocation, bounded retry scheduling, metadata-only diagnostics, and public-key denial are implemented. A durable cron recovery schedule is still pending |
 | Offline retry core | Authoring path wired | Dream creation/processing, dream-original edit/removal/deletion, passage edit/revert/read, scene placement and link-decision mutations enter the durable FIFO in the same Drift transactions and are delivered to Supabase on connectivity/foreground wakeups |
 | Privacy settings | Implemented locally and partially deployed | JSON export includes dreams, drafts, manuscript and provenance but excludes credentials/job payloads; app lock uses Face ID/device passcode and Keychain with default OFF; account deletion requires typed confirmation, calls an authenticated Edge Function for server deletion, then clears local tables and signs out |
+| AI processing consent | Implemented locally; not deployed | Three-page onboarding, age and AI-processing checkboxes, provider/version disclosure read from server policy, and signed-in re-consent gate are implemented. Migration 0015 adds versioned policy/profile storage, consent RPC and job insertion/claim gates; it passed transactional local database tests but is not on the hosted project. The auto-disposed outbox worker runs only while the authenticated gate mounts the manuscript. `AUTH=local` development mode bypasses this UI and must not be used as a production configuration |
+| Completed-volume PDF composition | Foundation only | Pure PDF composer accepts an already-completed immutable manuscript snapshot; 128×188 mm cover, chapter starts on right-hand pages, author note and first-line-only dream appendix are tested. No completion state transition, snapshot assembly, export button or sharing flow is connected. Bundled Pretendard CFF OTF cannot be embedded by the chosen PDF library, so PDF metadata temporarily uses MaruBuri TTF |
 
 ## Simulated or not connected
 
@@ -44,21 +46,22 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 | Backend | The dedicated cloud project has migrations 0001–0014, RLS, locked-passage trigger, authenticated dream upsert/removal/deletion and edit/revert/read/link mutations, available-at job claiming, zombie reaping, E1–E7, the worker, authenticated account deletion, and app-equivalent capture push/pull. The dream upsert preserves server-owned completion, clarity, and safety fields when stale Outbox work arrives. Durable cron recovery remains open |
 | Offline | Capture autosave/restore plus durable create/process and author-interaction delivery are implemented. The next app launch imports hosted results; background completion notification remains open |
 | Notifications | Morning/night and completion notifications are not present |
-| Completion | S14 and PDF export are not present. State transitions and UI may proceed independently; LLM completion editing waits until after Q-32. PDF layout is independent of the engine |
-| Privacy controls | App lock, JSON export, and deletion are present. Groq is selected, but the onboarding provider notice, retention-language review, and server-enforced consent gate remain open |
+| Completion | S14 completion state/UI and user-facing PDF export are not present. PDF composition is locally implemented but not wired to a completed-volume snapshot or sharing action. LLM completion editing waits until after Q-32 |
+| Privacy controls | App lock, JSON export, and deletion are present. Provider/version disclosure and age/AI consent screens are implemented locally. Migration 0015's server-enforced gate and the coordinated hosted-app rollout remain unverified and undeployed; existing hosted users still use the pre-consent flow |
 
 ## Verified baseline
 
 - `dart analyze lib test integration_test`: no issues
-- `flutter test`: 120 tests passing, including S02 creation/recovery, anonymous trial routing/retry, fresh terminal engine retries, dream-original edits, stable Outbox enqueue, authenticated push/pull and author-interaction mapping, engine result import, standalone archive handling, Reader edit/revert, Unicode source highlights, export redaction, local wipe and app lock
+- `flutter test`: 132 tests passing in the 2026-09-30 batch, including the historical app coverage plus consent UI/parser cases and six PDF composition cases
 - `flutter test integration_test`: 5 iOS integration scenarios passing: four capture-to-reveal engine cases plus native SQLite autosave/reopen/restore/discard. The restart check reopens storage and recreates the screen; it does not simulate an OS kill inside the 500ms debounce window
 - `flutter build web --release`: passing
 - Hosted web runtime smoke: Drift opens with the lock-matched wasm/worker assets, anonymous trial sign-in reaches S02, creates the first short volume, and opens S04 capture
 - `flutter build ios --simulator --no-codesign`: passing
+- 2026-09-30 consent/PDF batch: `dart format --output=none --set-exit-if-changed lib test`, `dart analyze lib test integration_test`, 132 Flutter tests, web release build to a temporary output directory and iOS simulator build all pass. Root `flutter analyze` still exits before source diagnostics because the analysis server misparses the Korean repository path; this command is not counted as passing. Hosted consent/UI runtime and PDF export through the app were not tested
 - Apple authentication screen runtime smoke: passing on iPhone 17 Pro Simulator
 - Drift iOS runtime open/query/close smoke: passing on iPhone 17 Pro Simulator (SQLite 3.53.4)
 - `supabase db reset`: migrations 0001–0013 and seed passing
-- `supabase test db`: 149 database tests passing, including 0014 engine-version schema/default/candidate tagging
+- `supabase test db`: historical 149 database tests passing through migration 0014. On 2026-09-30, migration 0015 and all database test files were run transactionally against the existing local database and rolled back: 165 tests passed, including 16 consent tests; this was not a `supabase db reset` or hosted deployment
 - `supabase db lint --local --schema public --level warning`: no schema errors
 - `npx deno task verify` in `supabase/functions`: 132 tests passing as of the Q-10 candidate revision, including shared-core, multi-provider adapter, prose-lint and fidelity coverage
 - `npx deno test -A tool/eval`: 89 tests passing as of the Q-10 candidate revision; these are functional/stub tests, not real literary-quality measurements
@@ -73,7 +76,7 @@ The repository contains a runnable Flutter implementation of the core MUMUMONG l
 
 The durable local implementation is already connected to the hosted backend. Prioritize measured quality and remaining production readiness:
 
-1. Complete real Q-04/Q-07–Q-10 inputs, provider calls, baseline measurements and blind judgments before any model switch. Q-02 is complete; remaining durable worker recovery scheduling must follow Q-series engine priority. The server-enforced AI consent gate and provider/consent-version data remain separate readiness work
+1. Complete real Q-04/Q-07–Q-10 inputs, provider calls, baseline measurements and blind judgments before any model switch. Q-02 is complete; remaining durable worker recovery scheduling must follow Q-series engine priority. Roll out consent migration 0015 together with a matching app release and hosted end-to-end check; deploying the gate alone would block existing clients
 2. Configure Apple Sign In in the Supabase project and verify a real Apple account end to end
 3. Run the ten-recording Korean STT quality check on a physical iPhone
 

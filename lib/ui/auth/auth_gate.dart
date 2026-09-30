@@ -1,20 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/design/design_system.dart';
 import '../../data/auth/auth_controller.dart';
 import '../../core/env/env.dart';
 import '../../domain/model/enums.dart';
 import '../../di/providers.dart';
+import 'authenticated_consent_gate.dart';
+import 'onboarding_screen.dart';
 
-class AuthGate extends ConsumerWidget {
+class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key, required this.manuscript});
 
   final Widget manuscript;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends ConsumerState<AuthGate> {
+  int? _pendingOnboardingVersion;
+
+  void _signInWithApple(int version) {
+    _pendingOnboardingVersion = version;
+    ref.read(authControllerProvider).signInWithApple();
+  }
+
+  void _signInAnonymously(int version) {
+    _pendingOnboardingVersion = version;
+    ref.read(authControllerProvider).signInAnonymously();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final controller = ref.watch(authControllerProvider);
     final state = controller.state;
 
@@ -23,70 +41,29 @@ class AuthGate extends ConsumerWidget {
         meta: 'ACCOUNT',
         title: '원고를 여는 중',
       ),
-      AuthenticationPhase.signedOut => _SignInScreen(
-        onApplePressed: controller.signInWithApple,
+      AuthenticationPhase.signedOut => OnboardingScreen(
+        onApplePressed: _signInWithApple,
         onTrialPressed: AppEnv.environment == AppEnvironment.dev
-            ? controller.signInAnonymously
+            ? _signInAnonymously
             : null,
       ),
-      AuthenticationPhase.signingIn => const _SignInScreen(isBusy: true),
+      AuthenticationPhase.signingIn => const _QuietStatusScreen(
+        meta: 'ACCOUNT',
+        title: '계정을 확인하는 중',
+      ),
       AuthenticationPhase.failure => _AuthenticationFailureScreen(
         failure: state.failure ?? AuthenticationFailure.unknown,
         onRetry: controller.retry,
       ),
-      AuthenticationPhase.signedIn =>
-        state.destination == AuthenticationDestination.manuscript
+      AuthenticationPhase.signedIn => AuthenticatedConsentGate(
+        pendingOnboardingVersion: _pendingOnboardingVersion,
+        child: state.destination == AuthenticationDestination.manuscript
             ? AppEnv.engine == EngineMode.remote
-                  ? _CloudBootstrapGate(child: manuscript)
-                  : manuscript
+                  ? _CloudBootstrapGate(child: widget.manuscript)
+                  : widget.manuscript
             : VolumeSetupScreen(onComplete: controller.completeVolumeSetup),
-    };
-  }
-}
-
-class _SignInScreen extends StatelessWidget {
-  const _SignInScreen({
-    this.isBusy = false,
-    this.onApplePressed,
-    this.onTrialPressed,
-  });
-
-  final bool isBusy;
-  final VoidCallback? onApplePressed;
-  final VoidCallback? onTrialPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return _AccountPage(
-      meta: 'MUMUMONG',
-      title: '꿈을 쓰면,\n원고가 자랍니다.',
-      body: '나의 꿈을 기록하고\n하나의 소설로 이어가세요.',
-      footer: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SignInWithAppleButton(
-            text: isBusy ? 'Apple ID 확인 중' : 'Apple로 계속하기',
-            height: 52,
-            borderRadius: BorderRadius.zero,
-            onPressed: isBusy ? null : onApplePressed,
-          ),
-          if (onTrialPressed != null) ...[
-            const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: isBusy ? null : onTrialPressed,
-              child: const Text('체험 계정으로 시작'),
-            ),
-            const SizedBox(height: 10),
-            const MetaText(
-              '체험 원고는 이 기기의 로그인 세션에만 연결됩니다.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-          const SizedBox(height: 14),
-          const MetaText('이름과 이메일은 저장하지 않습니다.', textAlign: TextAlign.center),
-        ],
       ),
-    );
+    };
   }
 }
 
@@ -250,10 +227,6 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
       footer: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const MetaText(
-            '꿈 내용은 원고 생성을 위해 Groq API로 전송됩니다. 시작하면 AI 처리에 동의합니다.',
-            textAlign: TextAlign.center,
-          ),
           if (_failed) ...[
             const SizedBox(height: 10),
             const Text(

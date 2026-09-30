@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/design/design_system.dart';
+import '../../core/env/env.dart';
 import '../../data/local/data_export.dart';
 import '../../data/local/local_data_control.dart';
 import '../../di/providers.dart';
+import '../auth/ai_consent.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -17,6 +19,22 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _exporting = false;
   bool _deleting = false;
+  late Future<AiConsentPolicy> _policy;
+
+  @override
+  void initState() {
+    super.initState();
+    _policy = _loadPolicy();
+  }
+
+  Future<AiConsentPolicy> _loadPolicy() async =>
+      ref.read(aiConsentRepositoryProvider).loadPolicy();
+
+  void _retryPolicy() {
+    setState(() {
+      _policy = _loadPolicy();
+    });
+  }
 
   Future<void> _export() async {
     final confirmed = await showDialog<bool>(
@@ -149,7 +167,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 32),
           const Text('기록의 소유자는 나'),
           const SizedBox(height: 12),
-          const Text('꿈과 원고는 현재 이 기기에 저장돼요. 앱을 삭제하기 전에 기록을 내보내 주세요.'),
+          Text(
+            AppEnv.engine == EngineMode.remote
+                ? '꿈과 원고는 이 기기와 로그인한 계정에 저장돼요. 기록을 따로 보관하려면 내보내기를 사용해 주세요.'
+                : '현재 체험 원고는 이 기기에 저장돼요. 앱을 삭제하기 전에 기록을 내보내 주세요.',
+          ),
           const SizedBox(height: 16),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -187,9 +209,44 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const Divider(),
           const SizedBox(height: 24),
-          const Text('현재 체험 버전'),
+          const Text('AI 처리 고지'),
           const SizedBox(height: 12),
-          const Text('장면 생성은 아직 테스트 엔진이에요. 실제 AI 생성이나 기기 간 동기화가 연결된 버전은 아니에요.'),
+          FutureBuilder<AiConsentPolicy>(
+            future: _policy,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      snapshot.hasError ? '현재 고지를 불러오지 못했어요.' : '현재 고지를 불러오는 중',
+                    ),
+                    if (snapshot.hasError)
+                      TextButton(
+                        onPressed: _retryPolicy,
+                        child: const Text('다시 시도'),
+                      ),
+                  ],
+                );
+              }
+              final policy = snapshot.requireData;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(policy.message),
+                  const SizedBox(height: 12),
+                  for (final provider in policy.providers) ...[
+                    Text(provider.name),
+                    SelectableText('이용 약관: ${provider.termsUrl}'),
+                    if (provider.dataUrl case final dataUrl?)
+                      SelectableText('데이터 처리 안내: $dataUrl'),
+                    const SizedBox(height: 8),
+                  ],
+                  MetaText('고지 버전 ${policy.version}'),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 24),
           const Text('음성 기록'),
           const SizedBox(height: 12),

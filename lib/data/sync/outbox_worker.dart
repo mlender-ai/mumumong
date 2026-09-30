@@ -77,6 +77,7 @@ class OutboxWorker with WidgetsBindingObserver {
     _online = !(await Connectivity().checkConnectivity()).contains(
       ConnectivityResult.none,
     );
+    if (_disposed) return;
     _timer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => unawaited(_safeDrain()),

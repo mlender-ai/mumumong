@@ -56,7 +56,7 @@ final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
   );
 });
 
-final outboxWorkerProvider = Provider<OutboxWorker?>((ref) {
+final outboxWorkerProvider = Provider.autoDispose<OutboxWorker?>((ref) {
   if (AppEnv.engine != EngineMode.remote) return null;
   final sync = ref.watch(cloudSyncServiceProvider);
   final gateway = ref.watch(remoteEngineGatewayProvider);
