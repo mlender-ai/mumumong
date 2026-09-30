@@ -108,7 +108,9 @@ deno run -A tool/eval/run.ts --config eval/configs/baseline_v10.json --set senti
 dev / sentinel은 설정에서 선택한 등록 공급자(Groq / Anthropic / OpenAI)를 실제 호출한다.
 로컬 환경에 해당 공급자 키를 설정하되 명령 출력·설정·레포에
 복사하지 않는다. 엔진 모델 역할은 설정에서 읽으며 운영의 `MODEL_*` 값에 영향받지 않는다.
-Q-03은 v10만 지원한다. `--fidelity` / `--lint`는 아직 미구현 오류를 반환한다.
+Q-03 러너는 현재 v10만 지원한다. Q-06/Q-07이 추가한 `--lint` / `--fidelity`는
+`baseline_v10_measured.json`으로 실행할 수 있다. 충실도는 실제 15건 사람 검수 전에는
+게이트 판정 근거가 아니다.
 `--set holdout`은 코퍼스를 읽기 전에 차단된다. Q-32의 1회 게이트에서만 해제할 예정이다.
 fixture 원고는 단순 반복 텍스트이며 문장 품질 측정에 사용할 수 없다.
 
@@ -174,3 +176,18 @@ fixture/sentinel은 품질 게이트에 통과하지 않는다. 누락된 측정
 레퍼런스는 사용자가 직접 수집/라벨링하며 크롤러나 LLM 업로드를 사용하지 않는다.
 `reference_demo.ts`는 새로 지어낸 예시를 8788에서 보여주는 화면 검증용이며 실제 프로파일이 아니다.
 전체 명령과 미검증 경계: `docs/quality/Q06_Q09_IMPLEMENTATION.md`.
+
+## Q-25 프롬프트 유출 사전 검사
+
+`tool/eval/check_prompt_leak.ts`는 로컬의 dev 꿈·리콜 답변과 레퍼런스
+`works.jsonl`을 프롬프트·문체 파일과 대조한다. NFC·공백 접기를 적용해
+8글자 이상 일치하면 실패하고 프롬프트 파일명·줄 번호만 출력한다.
+holdout과 sentinel은 열지 않으며, 꿈·레퍼런스 원문이나 일치 구절을 출력하지 않는다.
+두 비공개 입력 중 하나가 없거나 유효하지 않으면 성공으로 간주하지 않는다.
+
+```bash
+npx deno run --allow-read=eval/corpus/dev.jsonl,eval/reference/works.jsonl,supabase/functions/_shared/prompts,supabase/functions/_shared/style tool/eval/check_prompt_leak.ts
+```
+
+이 검사는 Q-25 튜닝 라운드의 선행 안전장치만 준비한 것이다. 실제 라운드·G2는
+Q-08/Q-09 실측과 Q-10 모델 판정 이후에 진행한다.
