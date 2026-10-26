@@ -38,10 +38,10 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                   description: dreamsAsync.hasValue
                       ? '기록된 꿈 ${dreamsAsync.requireValue.length}'
                       : null,
-                  trailing: IconButton(
-                    tooltip: '꿈 기록하기',
+                  trailing: MongIconButton(
+                    icon: Icons.add_rounded,
+                    semanticLabel: '꿈 기록하기',
                     onPressed: widget.onCapture,
-                    icon: const Icon(Icons.add_rounded),
                   ),
                 ),
               ),
@@ -155,16 +155,16 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
           title: const Text('기록을 불러오지 못했어요'),
           content: const Text('저장한 꿈은 지우지 않았어요. 다시 불러와 주세요.'),
           actions: [
-            TextButton(
+            MongButton.ghost(
+              label: '닫기',
               onPressed: () => Navigator.pop(context),
-              child: const Text('닫기'),
             ),
-            TextButton(
+            MongButton.ghost(
+              label: '다시 불러오기',
               onPressed: () {
                 Navigator.pop(context);
                 unawaited(_showDream(dream));
               },
-              child: const Text('다시 불러오기'),
             ),
           ],
         ),
@@ -221,8 +221,8 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    TextButton(
-                      child: const Text('원문 수정'),
+                    MongButton.ghost(
+                      label: '원문 수정',
                       onPressed: () async {
                         final edited = await _editDreamText(
                           dream,
@@ -249,14 +249,11 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                 const MetaText('파생 장면'),
                 const SizedBox(height: 12),
                 if (derivedScene != null)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(derivedScene.title ?? '제목 없는 장면'),
-                    subtitle: Text(
-                      'SCENE ${scenes.indexOf(derivedScene) + 1}     '
-                      '${_statusLabel(dream.status)}',
-                    ),
-                    trailing: const Icon(Icons.arrow_forward, size: 18),
+                  MongListRow(
+                    title: derivedScene.title ?? '제목 없는 장면',
+                    subtitle:
+                        'SCENE ${scenes.indexOf(derivedScene) + 1}     '
+                        '${_statusLabel(dream.status)}',
                     onTap: () {
                       openReader = true;
                       Navigator.pop(context);
@@ -305,8 +302,8 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                   ),
                 const SizedBox(height: 4),
                 Center(
-                  child: TextButton(
-                    child: const Text('꿈 삭제'),
+                  child: MongButton.ghost(
+                    label: '꿈 삭제',
                     onPressed: () async {
                       final mode = await _confirmDeleteDream(
                         hasDerivedScene: derivedScene != null,
@@ -371,11 +368,12 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
               ),
             ),
             actions: [
-              TextButton(
+              MongButton.ghost(
+                label: '취소',
                 onPressed: saving ? null : () => Navigator.pop(context),
-                child: const Text('취소'),
               ),
-              TextButton(
+              MongButton.ghost(
+                label: saving ? '저장 중' : '저장',
                 onPressed: saving
                     ? null
                     : () async {
@@ -399,7 +397,6 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                           }
                         }
                       },
-                child: Text(saving ? '저장 중' : '저장'),
               ),
             ],
           ),
@@ -425,14 +422,14 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
           title: const Text('꿈을 삭제할까요?'),
           content: const Text('삭제한 꿈은 되돌릴 수 없어요.'),
           actions: [
-            TextButton(
+            MongButton.ghost(
+              label: '취소',
               onPressed: () => Navigator.pop(context),
-              child: const Text('취소'),
             ),
-            TextButton(
+            MongButton.ghost(
+              label: '꿈 삭제',
               onPressed: () =>
                   Navigator.pop(context, DeleteMode.deleteDerivedContent),
-              child: const Text('꿈 삭제'),
             ),
           ],
         ),
@@ -541,10 +538,13 @@ class _ArchiveRow extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(left: 12, top: 12),
+                  padding: const EdgeInsets.only(
+                    left: MongSpace.sm,
+                    top: MongSpace.sm,
+                  ),
                   child: Icon(
-                    Icons.arrow_forward,
-                    size: 17,
+                    Icons.chevron_right_rounded,
+                    size: 20,
                     color: context.metaInk,
                   ),
                 ),

@@ -195,6 +195,13 @@ void main() {
           status: SettingsSyncStatus.conflict,
         ),
       );
+      // The editor is a lazy list; the status copy sits under three option
+      // groups, so bring it into view before asserting.
+      await tester.scrollUntilVisible(
+        find.textContaining('어느 설정을 사용할지'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.textContaining('어느 설정을 사용할지'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.textContaining('서버의 설정:'),
@@ -259,7 +266,7 @@ void main() {
         await expectLater(
           find.byKey(const Key('settings-capture')),
           matchesGoldenFile(
-            '../../docs/ux-review/2026-10-23-p4-settings/${night ? 'night' : 'day'}-${size.width.toInt()}-${size.height.toInt()}-${scale == 1 ? 'normal' : 'large'}-generation-settings.png',
+            '../../docs/ux-review/2026-10-26-visual-recovery/goldens/${night ? 'night' : 'day'}-${size.width.toInt()}-${size.height.toInt()}-${scale == 1 ? 'normal' : 'large'}-generation-settings.png',
           ),
         );
         await tester.ensureVisible(find.text('소설 속 인물 시점'));

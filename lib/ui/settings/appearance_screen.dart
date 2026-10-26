@@ -72,12 +72,10 @@ class AppearanceScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           Text(
             '한 장면이 나의 문장으로 남았다.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontSize: 18 * preferences.readerScale,
-            ),
+            style: manuscriptStyle(context, scale: preferences.readerScale),
           ),
           const SizedBox(height: 32),
-          SwitchListTile.adaptive(
+          MongSwitchRow(
             contentPadding: EdgeInsets.zero,
             title: const Text('문단 옆 출처 표시'),
             subtitle: const Text('꿈 · 연결 · 내가 씀'),

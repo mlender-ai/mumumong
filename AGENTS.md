@@ -6,6 +6,7 @@
 
 Read these before changing product behavior or visual language:
 
+0. `DESIGN.md` — **single source of truth for all UI** (tokens, surfaces, components, dot/motion system, Do/Don't, visual QA). Read it before any UI work. New styles go into `DESIGN.md` and a shared component first, never into a screen. Where it conflicts with the older design documents below, `DESIGN.md` §13 decisions (2026-10-26) win.
 1. `docs/MUMUMONG_PRODUCT_PDR_v0.1.md`
 2. `docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md`
 3. `docs/MUMUMONG_VISUAL_DIRECTION_v0.4.md` — current visual direction; supersedes v0.1/v0.3 on presentation
@@ -44,6 +45,7 @@ Do not add a feature unless it makes one of these steps simpler or more compelli
 - Use focused blue/lilac light that fades into a clean canvas. Keep text, input and primary actions sharp; do not fill every screen with uniform blur.
 - The 2026-10-14 user direction permits a small pixel/ASCII memory object or state transition. Do not restore full-screen dot/halftone grids or overlap decoration with manuscript text.
 - Use one visually primary action per screen, soft rounded controls and selective glass. Supporting navigation remains accessible. Orbs represent actual processing/network waits; typing and transcription must stay responsive and visually still. Avoid card dashboards.
+- UI code uses only `DESIGN.md` tokens and `lib/core/design` components. No screen-local `Color(...)`, `Duration(...)`, `TextStyle(fontSize: ...)`, raw `TextButton`/`Switch` or hand-built button/panel widgets. Dots live only where `DESIGN.md` §8 allows and never move while the user types.
 
 ## Current implementation boundary
 

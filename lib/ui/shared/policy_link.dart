@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/design/design_system.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final policyLinkOpenerProvider = Provider<Future<bool> Function(Uri)>(
@@ -35,7 +37,8 @@ class PolicyLink extends ConsumerWidget {
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        TextButton(
+        MongButton.ghost(
+          label: '$label 열기',
           onPressed: () async {
             try {
               if ((uri.scheme == 'https' || uri.scheme == 'http') &&
@@ -54,7 +57,6 @@ class PolicyLink extends ConsumerWidget {
               );
             }
           },
-          child: Text('$label 열기'),
         ),
         IconButton(
           tooltip: '$label 주소 복사',

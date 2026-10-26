@@ -9,6 +9,7 @@ Claude Code 전용 가이드. **저장소 규칙의 원본은 `AGENTS.md`다. �
 ## 시작할 때 읽을 것 (순서)
 
 1. `AGENTS.md` — 비타협 규칙, 제품 루프, 워크플로
+1-1. `DESIGN.md` — **UI 작업 전 필독.** 토큰·Surface·컴포넌트·도트/모션·Do/Don't의 단일 정본
 2. `docs/STATUS.md` — **지금 무엇이 실제로 구현됐는지.** 항상 여기가 진실이다
 3. `docs/MUMUMONG_M1_WorkOrders.md` — 지시받은 WO 번호 항목만
    Q-시리즈 작업은 `docs/MUMUMONG_Q_WorkOrders.md`의 §0과 지시받은 Q-WO 항목만 읽는다.
@@ -75,7 +76,7 @@ supabase/  migrations 0001~0007 · tests · functions
 
 - **화면은 `MumumongRepository` 인터페이스만 본다.** Drift·Supabase를 직접 호출하지 마라
 - 저장소 구현을 추가·수정하면 `test/contract/repository_contract.dart`가 **memory와 Drift 양쪽에서** 통과해야 한다
-- `lib/core/design/design_system.dart`의 토큰은 비주얼 시스템 문서와 1:1이다. **값을 바꾸지 마라**
+- `lib/core/design/design_system.dart`의 토큰은 **`DESIGN.md`와 1:1**이다. 값을 바꾸려면 `DESIGN.md`를 먼저 고치고 같은 변경에서 코드를 맞춘다. 화면 파일에 색·시간·글자 크기·버튼을 직접 만들지 마라 (`DESIGN.md` §12)
 
 ---
 

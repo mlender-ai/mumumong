@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design_system.dart';
+import '../../core/design/dot_cover.dart';
 import '../../core/design/dream_atmosphere.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
@@ -140,15 +141,16 @@ class _HomeContentState extends State<_HomeContent>
     WidgetsBinding.instance.addObserver(this);
     _latestEventId = widget.latestProgressEvent?.id;
     _pendingEventId = _latestEventId;
+    // One controller for the whole growth recipe (DESIGN.md §9): the number
+    // counts up during the first `gather` span, the cover keeps arriving
+    // until `growth` completes. Plays once per fresh progress event.
     _growthController =
-        AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 900),
-        )..addStatusListener((status) {
-          if (status == AnimationStatus.completed && mounted) {
-            setState(() => _animateGrowth = false);
-          }
-        });
+        AnimationController(vsync: this, duration: MongMotion.growth)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed && mounted) {
+              setState(() => _animateGrowth = false);
+            }
+          });
   }
 
   @override
@@ -229,6 +231,13 @@ class _HomeContentState extends State<_HomeContent>
     );
     final empty = widget.volume.progressMu == 0;
     final hasSavedDream = widget.pending.isNotEmpty;
+    final growthDelta =
+        _progressPercent(widget.latestProgressEvent, widget.volume.targetMu) /
+        100;
+    final coverSpec = homeCoverSpec(widget.volume.id, progress);
+    final previousCover = _animateGrowth && !reduceMotion
+        ? homeCoverSpec(widget.volume.id, progress - growthDelta)
+        : null;
     final title =
         widget.volume.title ??
         (empty
@@ -251,11 +260,14 @@ class _HomeContentState extends State<_HomeContent>
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final topInset = MediaQuery.paddingOf(context).top;
+                // Large type needs the copy and actions above the GNB at
+                // rest; the cover gives up height before the actions do.
+                final largeType =
+                    MediaQuery.textScalerOf(context).scale(16) > 20;
                 final heroHeight =
-                    ((constraints.maxHeight + bottomInset) * .54).clamp(
-                      340.0,
-                      440.0,
-                    ) +
+                    ((constraints.maxHeight + bottomInset) *
+                            (largeType ? .40 : .54))
+                        .clamp(largeType ? 240.0 : 340.0, 440.0) +
                     topInset;
 
                 return SingleChildScrollView(
@@ -276,22 +288,30 @@ class _HomeContentState extends State<_HomeContent>
                                   child: DreamAtmosphere(
                                     animate: _canPresent,
                                     night: context.isNight,
-                                    memoryObject: true,
+                                  ),
+                                ),
+                                // DESIGN.md §8: the cover is the volume's dot
+                                // field; density/clarity follow real progress.
+                                Positioned.fill(
+                                  child: Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      MongSpace.lg,
+                                      topInset + MongSpace.xxl + MongSpace.md,
+                                      MongSpace.lg,
+                                      MongSpace.xxl,
+                                    ),
+                                    child: DotCover(
+                                      key: const ValueKey('home-cover'),
+                                      spec: coverSpec,
+                                      previous: previousCover,
+                                      transition: _growthController,
+                                    ),
                                   ),
                                 ),
                                 Positioned(
                                   top: topInset + 22,
                                   left: 22,
-                                  child: Text(
-                                    'MUMUMONG',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelLarge
-                                        ?.copyWith(
-                                          letterSpacing: 2.4,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                  ),
+                                  child: const MongWordmark(),
                                 ),
                                 Positioned(
                                   top: topInset + 24,
@@ -337,16 +357,24 @@ class _HomeContentState extends State<_HomeContent>
                                         widget.latestProgressEvent,
                                         widget.volume.targetMu,
                                       );
+                                      // Count-up spans the `gather` portion
+                                      // of the growth controller.
+                                      final countUp = MongMotion.enter
+                                          .transform(
+                                            (_growthController.value /
+                                                    (MongMotion
+                                                            .gather
+                                                            .inMilliseconds /
+                                                        MongMotion
+                                                            .growth
+                                                            .inMilliseconds))
+                                                .clamp(0.0, 1.0),
+                                          );
                                       final shown =
                                           _animateGrowth && !reduceMotion
                                           ? (completed -
                                                     delta +
-                                                    delta *
-                                                        Curves.easeOut
-                                                            .transform(
-                                                              _growthController
-                                                                  .value,
-                                                            ))
+                                                    delta * countUp)
                                                 .round()
                                           : completed;
                                       return Text(
@@ -370,6 +398,20 @@ class _HomeContentState extends State<_HomeContent>
                                         : '기억나는 장면 하나로 시작해요.'
                                   : '$volumeLabel  ·  원고 진행',
                             ),
+                            // Today's change and why, from the real event.
+                            if (!empty && widget.latestProgressEvent != null)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: MongSpace.xxs,
+                                ),
+                                child: MetaText(
+                                  progressReasonLabel(
+                                    widget.latestProgressEvent!,
+                                    widget.volume.targetMu,
+                                  ),
+                                  color: context.accentInk,
+                                ),
+                              ),
                             const OfflineNotice(),
                             const SizedBox(height: MongSpace.xl),
                             MongActionGroup(
@@ -404,20 +446,20 @@ class _HomeContentState extends State<_HomeContent>
                                 if (widget.volume.status ==
                                         VolumeStatus.completable &&
                                     widget.newScene == null)
-                                  TextButton(
+                                  MongButton.ghost(
+                                    label: '계속 쌓기',
                                     onPressed: widget.onCapture,
-                                    child: const Text('계속 쌓기'),
                                   ),
                                 if (widget.newScene != null &&
                                     widget.onReadScene != null)
-                                  TextButton(
+                                  MongButton.ghost(
+                                    label: '꿈 기록하기',
                                     onPressed: widget.onCapture,
-                                    child: const Text('꿈 기록하기'),
                                   )
                                 else if (widget.onRead != null)
-                                  TextButton(
+                                  MongButton.ghost(
+                                    label: '이어 읽기',
                                     onPressed: widget.onRead,
-                                    child: const Text('이어 읽기'),
                                   ),
                               ],
                             ),
@@ -425,14 +467,10 @@ class _HomeContentState extends State<_HomeContent>
                                 widget.onArchive != null) ...[
                               const SizedBox(height: MongSpace.lg),
                               Center(
-                                child: TextButton(
+                                child: MongButton.ghost(
+                                  label:
+                                      '보관함에서 확인 · ${_pendingSummary(widget.pending)}',
                                   onPressed: widget.onArchive,
-                                  child: Text(
-                                    '보관함에서 확인 · ${_pendingSummary(widget.pending)}',
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: context.secondaryInk),
-                                  ),
                                 ),
                               ),
                             ],
@@ -464,6 +502,28 @@ class _HomeMessage extends StatelessWidget {
 int _progressPercent(ProgressEvent? event, double targetMu) {
   if (event == null || targetMu <= 0) return 0;
   return (event.deltaMu / targetMu * 100).round();
+}
+
+/// "+4% · 새 장면 · 보강 2" from the event's recorded reasons only. Never
+/// invents a cause; unknown reason types are skipped.
+@visibleForTesting
+String progressReasonLabel(ProgressEvent event, double targetMu) {
+  final percent = _progressPercent(event, targetMu);
+  final parts = <String>['${percent >= 0 ? '+' : ''}$percent%'];
+  for (final reason in event.reasons) {
+    final n = reason['n'];
+    final count = n is num ? n.toInt() : 1;
+    final label = switch (reason['type']) {
+      'new_scene' => '새 장면',
+      'recall' => '보강 $count',
+      'link_decision' => '연결 결정',
+      'dream_removed' => '기록 제외',
+      'user_passage' => '내 문장',
+      _ => null,
+    };
+    if (label != null) parts.add(label);
+  }
+  return parts.join('  ·  ');
 }
 
 String _pendingSummary(List<Dream> dreams) => [

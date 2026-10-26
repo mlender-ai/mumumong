@@ -172,94 +172,10 @@ class _MumumongShellState extends ConsumerState<MumumongShell> {
     return Scaffold(
       extendBody: true,
       body: IndexedStack(index: _tab, children: pages),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: ColoredBox(
-          color: context.canvas,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: context.canvas,
-                borderRadius: BorderRadius.circular(31),
-                border: Border.all(color: context.hairline),
-                boxShadow: [
-                  BoxShadow(
-                    color: MongColor.ink.withValues(alpha: .055),
-                    blurRadius: 18,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                height: 62,
-                child: Row(
-                  children: [
-                    _BottomTab(
-                      label: '원고',
-                      selected: _tab == 0,
-                      onTap: () => setState(() => _tab = 0),
-                    ),
-                    _BottomTab(
-                      label: '보관함',
-                      selected: _tab == 1,
-                      onTap: () => setState(() => _tab = 1),
-                    ),
-                    _BottomTab(
-                      label: '설정',
-                      selected: _tab == 2,
-                      onTap: () => setState(() => _tab = 2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BottomTab extends StatelessWidget {
-  const _BottomTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Semantics(
-        selected: selected,
-        button: true,
-        child: InkWell(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: MongMotion.base,
-            curve: MongMotion.enter,
-            margin: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: selected ? context.subtle : Colors.transparent,
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Center(
-              child: AnimatedDefaultTextStyle(
-                duration: MongMotion.micro,
-                style: Theme.of(context).textTheme.labelLarge!.copyWith(
-                  color: selected ? context.primaryInk : context.metaInk,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                ),
-                child: Text(label),
-              ),
-            ),
-          ),
-        ),
+      bottomNavigationBar: MongBottomNav(
+        labels: const ['원고', '보관함', '설정'],
+        selectedIndex: _tab,
+        onSelect: (index) => setState(() => _tab = index),
       ),
     );
   }

@@ -283,10 +283,10 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
                           onPressed: _start,
                         ),
                         secondary: [
-                          TextButton(
+                          MongButton.ghost(
+                            label: _details ? '이야기 설정 접기' : '이야기 설정',
                             onPressed: () =>
                                 setState(() => _details = !_details),
-                            child: Text(_details ? '이야기 설정 접기' : '이야기 설정'),
                           ),
                         ],
                       ),

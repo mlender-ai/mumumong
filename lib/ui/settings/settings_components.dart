@@ -117,58 +117,12 @@ class SettingsNavigationRow extends StatelessWidget {
   final bool destructive;
 
   @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(MongRadius.field),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: MongSpace.md),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: destructive
-                            ? const Color(0xFF9B514B)
-                            : context.primaryInk,
-                      ),
-                    ),
-                    const SizedBox(height: MongSpace.xxs),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: destructive
-                            ? const Color(0xFF9B514B)
-                            : context.secondaryInk,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '›',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: destructive
-                      ? const Color(0xFFB66F68)
-                      : context.metaInk,
-                  height: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => MongListRow(
+    title: title,
+    subtitle: subtitle,
+    onTap: onTap,
+    destructive: destructive,
+  );
 }
 
 class SettingsDetailFrame extends StatelessWidget {
@@ -195,30 +149,15 @@ class SettingsDetailFrame extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 24, 12),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: '설정으로 돌아가기',
-                        onPressed: onBack,
-                        icon: Text(
-                          '‹',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        constraints: const BoxConstraints.tightFor(
-                          width: 48,
-                          height: 48,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ),
-                    ],
+                MongContextBar(
+                  leading: MongIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    semanticLabel: '설정으로 돌아가기',
+                    onPressed: onBack,
+                  ),
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
                 ),
                 if (description != null)

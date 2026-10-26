@@ -193,7 +193,8 @@ class _GenerationSettingsScreenState
                   ),
                 ),
               if (conflict)
-                TextButton(
+                MongButton.ghost(
+                  label: '서버 설정 사용',
                   onPressed: _saving
                       ? null
                       : () => _run(
@@ -202,7 +203,6 @@ class _GenerationSettingsScreenState
                             keepLocal: false,
                           ),
                         ),
-                  child: const Text('서버 설정 사용'),
                 ),
             ],
           ),

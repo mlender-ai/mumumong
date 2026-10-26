@@ -72,7 +72,7 @@ void main() {
           await expectLater(
             find.byKey(const Key('shell-capture')),
             matchesGoldenFile(
-              '../../docs/ux-review/${name == 'settings' ? '2026-10-23-release' : '2026-10-23-shell'}/$tag-shell-$name.png',
+              '../../docs/ux-review/2026-10-26-visual-recovery/goldens/$tag-shell-$name.png',
             ),
           );
         }

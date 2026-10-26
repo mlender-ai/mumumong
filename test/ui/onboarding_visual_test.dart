@@ -55,7 +55,9 @@ void main() {
     await tester.pumpAndSettle();
     await expectLater(
       find.byKey(const Key('visual-capture')),
-      matchesGoldenFile('../../docs/ux-review/2026-10-23-spacing/entry.png'),
+      matchesGoldenFile(
+        '../../docs/ux-review/2026-10-26-visual-recovery/goldens/entry.png',
+      ),
     );
 
     await tester.tap(find.text('Apple로 시작하기'));
@@ -63,7 +65,7 @@ void main() {
     await expectLater(
       find.byKey(const Key('visual-capture')),
       matchesGoldenFile(
-        '../../docs/ux-review/2026-10-26-start-flow/consent.png',
+        '../../docs/ux-review/2026-10-26-visual-recovery/goldens/consent.png',
       ),
     );
   });

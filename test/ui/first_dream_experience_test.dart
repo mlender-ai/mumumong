@@ -16,7 +16,7 @@ import 'package:mumumong/ui/reader/reader_screen.dart';
 import '../support/ui_preference_store.dart';
 
 const _dream = '가상 테스트: 작은 종이배가 유리 숲 위로 날아갔다. 나는 길가에서 바라봤다.';
-const _goldens = '../../docs/ux-review/2026-10-23-spacing';
+const _goldens = '../../docs/ux-review/2026-10-26-visual-recovery/goldens';
 
 void main() {
   Future<T> snapshot<T extends Object>(

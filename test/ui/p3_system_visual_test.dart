@@ -75,12 +75,7 @@ void main() {
           await expectLater(
             find.byKey(const Key('p3-screen')),
             matchesGoldenFile(
-              '${switch (name) {
-                'setup' => '../../docs/ux-review/2026-10-26-start-flow',
-                'archive' => '../../docs/ux-review/2026-10-23-shell',
-                'settings' => '../../docs/ux-review/2026-10-23-release',
-                _ => '../../docs/ux-review/2026-10-19-design',
-              }}/$tag-$name.png',
+              '../../docs/ux-review/2026-10-26-visual-recovery/goldens/$tag-$name.png',
             ),
           );
         }

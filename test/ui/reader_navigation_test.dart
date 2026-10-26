@@ -60,9 +60,9 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 20));
       });
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.widgetWithText(ListTile, '장면$i'));
+      await tester.ensureVisible(find.widgetWithText(MongListRow, '장면$i'));
       await tester.runAsync(() async {
-        await tester.tap(find.widgetWithText(ListTile, '장면$i'));
+        await tester.tap(find.widgetWithText(MongListRow, '장면$i'));
         await Future<void>.delayed(const Duration(milliseconds: 20));
       });
       await tester.pumpAndSettle();

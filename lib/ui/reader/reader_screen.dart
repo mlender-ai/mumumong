@@ -346,20 +346,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                     Wrap(
                       spacing: 8,
                       children: [
-                        TextButton(
+                        MongButton.ghost(
+                          label: '취소',
                           onPressed: saving
                               ? null
                               : () => Navigator.pop(context),
-                          child: const Text('취소'),
                         ),
                         if (passage.originalText != null)
-                          TextButton(
+                          MongButton.ghost(
+                            label: '원래 문장으로',
                             onPressed: saving ? null : () => save(revert: true),
-                            child: const Text('원래 문장으로'),
                           ),
-                        TextButton(
+                        MongButton.ghost(
+                          label: saving ? '저장 중' : '저장',
                           onPressed: saving ? null : save,
-                          child: Text(saving ? '저장 중' : '저장'),
                         ),
                       ],
                     ),
@@ -376,10 +376,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     controller.dispose();
   }
 
-  Color get _paper => _night ? MongColor.nightPaper : MongColor.paper;
+  // DESIGN.md §11: Reader is Paper. Night uses the warm reader paper tokens,
+  // not the app's blue-black canvas.
+  Color get _paper => _night ? MongColor.readerNightPaper : MongColor.paper;
   Color get _ink => _night ? MongColor.nightInk : MongColor.ink;
-  Color get _meta => _night ? MongColor.nightMeta : MongColor.ink3;
-  Color get _line => _night ? MongColor.ink2 : MongColor.line;
+  Color get _meta => _night ? MongColor.readerNightMeta : MongColor.ink3;
+  Color get _line => _night ? MongColor.readerNightLine : MongColor.line;
 
   void _setSystemStyle() {
     SystemChrome.setSystemUIOverlayStyle(
@@ -401,7 +403,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: night ? Brightness.light : Brightness.dark,
         systemNavigationBarColor: night
-            ? const Color(0xFF050C18)
+            ? MongColor.nightCanvas
             : MongColor.paper,
         systemNavigationBarIconBrightness: night
             ? Brightness.light
@@ -615,77 +617,68 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           child: SafeArea(
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 16, 10),
+                MongContextBar(
+                  leading: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(Icons.arrow_back_rounded, size: 22, color: _ink),
+                    tooltip: '닫기',
+                  ),
+                  trailing: PopupMenuButton<String>(
+                    color: _night ? MongColor.nightShade : MongColor.paperPure,
+                    surfaceTintColor: Colors.transparent,
+                    tooltip: '읽기 설정',
+                    icon: Icon(Icons.more_horiz, color: _ink),
+                    onSelected: (value) {
+                      if (value == 'origin') {
+                        _saveAppearance(origins: !_showOrigins);
+                      }
+                      if (value == 'night') {
+                        _saveAppearance(night: !_night);
+                      }
+                      if (value == 'appearance') {
+                        Navigator.of(context)
+                            .push(quietPageRoute(const AppearanceScreen()))
+                            .then((_) {
+                              if (mounted) {
+                                setState(() => _nightOverride = null);
+                              }
+                            });
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'origin',
+                        child: Text(_showOrigins ? '출처 표시 끄기' : '출처 표시 켜기'),
+                      ),
+                      PopupMenuItem(
+                        value: 'night',
+                        child: Text(_night ? '낮의 종이로 읽기' : '밤의 종이로 읽기'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'appearance',
+                        child: Text('화면과 글자 크기'),
+                      ),
+                    ],
+                  ),
                   child: Row(
                     children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: Icon(Icons.arrow_back, size: 20, color: _ink),
-                        tooltip: '닫기',
+                      MetaText(
+                        'VOL.${volume.volNo.toString().padLeft(2, '0')}',
+                        color: _meta,
                       ),
-                      const SizedBox(width: 2),
+                      const SizedBox(width: MongSpace.md),
                       Expanded(
-                        child: Row(
-                          children: [
-                            MetaText(
-                              'VOL.${volume.volNo.toString().padLeft(2, '0')}',
-                              color: _meta,
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                volume.title ?? '이름 없는 원고',
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(
-                                  context,
-                                ).textTheme.labelSmall?.copyWith(color: _meta),
-                              ),
-                            ),
-                            MetaText(
-                              'p.${(volume.progressMu * .7).round()}',
-                              color: _meta,
-                            ),
-                          ],
+                        child: Text(
+                          volume.title ?? '이름 없는 원고',
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelSmall?.copyWith(color: _meta),
                         ),
                       ),
-                      PopupMenuButton<String>(
-                        color: _night
-                            ? MongColor.nightShade
-                            : MongColor.paperPure,
-                        surfaceTintColor: Colors.transparent,
-                        icon: Icon(Icons.more_horiz, color: _ink),
-                        onSelected: (value) {
-                          if (value == 'origin') {
-                            _saveAppearance(origins: !_showOrigins);
-                          }
-                          if (value == 'night') {
-                            _saveAppearance(night: !_night);
-                          }
-                          if (value == 'appearance') {
-                            Navigator.of(context)
-                                .push(quietPageRoute(const AppearanceScreen()))
-                                .then((_) {
-                                  if (mounted) {
-                                    setState(() => _nightOverride = null);
-                                  }
-                                });
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: 'origin',
-                            child: Text(_showOrigins ? '출처 표시 끄기' : '출처 표시 켜기'),
-                          ),
-                          PopupMenuItem(
-                            value: 'night',
-                            child: Text(_night ? '낮의 종이로 읽기' : '밤의 종이로 읽기'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'appearance',
-                            child: Text('화면과 글자 크기'),
-                          ),
-                        ],
+                      MetaText(
+                        'p.${(volume.progressMu * .7).round()}',
+                        color: _meta,
                       ),
                     ],
                   ),
@@ -693,26 +686,42 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                 Divider(color: _line),
                 const OfflineNotice(),
                 if (scenes.length > 1)
+                  // A quiet scene selector instead of a Material dropdown:
+                  // one row that opens a choice sheet (DESIGN.md §7.6).
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: DropdownButton<String>(
-                      value: scene.id,
-                      isExpanded: true,
-                      dropdownColor: _paper,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: _meta),
-                      items: [
-                        for (var i = 0; i < scenes.length; i++)
-                          DropdownMenuItem(
-                            value: scenes[i].id,
-                            child: Text(
-                              '${i + 1}. ${scenes[i].title ?? '제목 없는 장면'}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: MongSpace.sm,
+                    ),
+                    child: Semantics(
+                      button: true,
+                      label: '장면 선택',
+                      child: InkWell(
+                        onTap: () => _pickScene(scenes, scene.id),
+                        borderRadius: BorderRadius.circular(MongRadius.field),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: MongSpace.sm,
+                            vertical: MongSpace.sm,
                           ),
-                      ],
-                      onChanged: _selectScene,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${scenes.indexWhere((s) => s.id == scene.id) + 1}. ${scene.title ?? '제목 없는 장면'}',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(color: _meta),
+                                ),
+                              ),
+                              Icon(
+                                Icons.expand_more_rounded,
+                                size: 20,
+                                color: _meta,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 Expanded(
@@ -744,14 +753,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
                         ) ...[
                           if (index == passages.length - 1 &&
                               passages.length > 1) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: MongSpace.xs),
                             Center(
                               child: Text(
                                 '·',
-                                style: TextStyle(fontSize: 22, color: _meta),
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(color: _meta),
                               ),
                             ),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: MongSpace.panel),
                           ],
                           ReaderPassage(
                             key: _passageKeys[passages[index].id],
@@ -797,6 +807,42 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
     );
   }
 
+  Future<void> _pickScene(List<Scene> scenes, String currentId) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: _night ? MongColor.nightShade : MongColor.paperPure,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(
+            MongSpace.modal,
+            MongSpace.md,
+            MongSpace.modal,
+            MongSpace.lg,
+          ),
+          children: [
+            const MongSheetHandle(),
+            const SizedBox(height: MongSpace.lg),
+            Text(
+              '장면 고르기',
+              style: Theme.of(
+                sheetContext,
+              ).textTheme.headlineSmall?.copyWith(color: _ink),
+            ),
+            const SizedBox(height: MongSpace.md),
+            for (var i = 0; i < scenes.length; i++)
+              MongListRow(
+                title: '${i + 1}. ${scenes[i].title ?? '제목 없는 장면'}',
+                subtitle: scenes[i].id == currentId ? '지금 읽는 장면' : null,
+                onTap: () => Navigator.pop(sheetContext, scenes[i].id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && picked != currentId) _selectScene(picked);
+  }
+
   Widget _firstSceneAfterword(List<Passage> passages) {
     final source = passages
         .where(
@@ -836,9 +882,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
             ),
             secondary: [
               if (source != null)
-                TextButton(
+                MongButton.ghost(
+                  label: '꿈 원문 다시 보기',
                   onPressed: () => _showSource(source),
-                  child: const Text('꿈 원문 다시 보기'),
                 ),
             ],
           ),
@@ -879,13 +925,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
           title: const Text('원래 문장으로 돌아갈까요?'),
           content: SingleChildScrollView(child: Text(passage.originalText!)),
           actions: [
-            TextButton(
+            MongButton.ghost(
+              label: '취소',
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소'),
             ),
-            TextButton(
+            MongButton.ghost(
+              label: '원래 문장으로',
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('원래 문장으로'),
             ),
           ],
         ),
@@ -969,9 +1015,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen>
       spans.add(
         TextSpan(
           text: text.substring(range.$1, range.$2),
-          style: const TextStyle(
-            backgroundColor: MongColor.sky100,
-            color: MongColor.ink,
+          style: TextStyle(
+            backgroundColor: _night
+                ? MongColor.nightAccentSoft
+                : MongColor.sky100,
+            color: _ink,
           ),
         ),
       );
@@ -1025,28 +1073,40 @@ class ReaderPassage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AnimatedContainer(
-              duration: MongMotion.base,
+              duration: MongMotion.of(context, MongMotion.base),
               width: showOrigin ? 25 : 0,
               padding: const EdgeInsets.only(top: 5),
               child: showOrigin
-                  ? Text(_mark, style: TextStyle(fontSize: 10, color: meta))
+                  ? Text(
+                      _mark,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontSize: 10,
+                        color: meta,
+                      ),
+                    )
                   : null,
             ),
             Expanded(
               child: Text(
                 text,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: ink,
-                  fontSize: 18 * fontScale,
-                ),
+                style: manuscriptStyle(
+                  context,
+                  scale: fontScale,
+                ).copyWith(color: ink),
               ),
             ),
+            // The paragraph menu stays reachable (44 px) but visually quiet
+            // so it never competes with the reading line (DESIGN.md §11).
             if (onMenu != null)
               SizedBox(
-                width: 44,
+                width: MongSize.touch,
                 child: PopupMenuButton<String>(
                   tooltip: '문단 메뉴',
-                  icon: Icon(Icons.more_horiz, color: meta, size: 18),
+                  icon: Icon(
+                    Icons.more_horiz,
+                    color: meta.withValues(alpha: .55),
+                    size: 16,
+                  ),
                   onSelected: onMenu,
                   itemBuilder: (context) => [
                     const PopupMenuItem(value: 'source', child: Text('출처 보기')),

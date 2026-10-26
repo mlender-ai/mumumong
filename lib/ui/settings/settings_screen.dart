@@ -63,13 +63,13 @@ class _RecordManagementScreenState
           '꿈 원문, 작성 중인 초안, 원고와 출처 정보가 JSON 파일에 포함돼요. 공유할 곳은 다음 화면에서 직접 선택해 주세요.',
         ),
         actions: [
-          TextButton(
+          MongButton.ghost(
+            label: '취소',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
           ),
-          TextButton(
+          MongButton.ghost(
+            label: '내보내기',
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('내보내기'),
           ),
         ],
       ),
@@ -122,14 +122,14 @@ class _RecordManagementScreenState
           ],
         ),
         actions: [
-          TextButton(
+          MongButton.ghost(
+            label: '취소',
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
           ),
-          TextButton(
+          MongButton.ghost(
+            label: '영구 삭제',
             onPressed: () =>
                 Navigator.pop(context, controller.text.trim() == '삭제'),
-            child: const Text('영구 삭제'),
           ),
         ],
       ),
@@ -217,7 +217,7 @@ class _AppLockSettingsScreen extends ConsumerWidget {
             body: 'Face ID 또는 기기 암호로 앱을 열 수 있어요. 인증 정보는 기기 밖으로 전송되지 않아요.',
           ),
           const SizedBox(height: 20),
-          SwitchListTile.adaptive(
+          MongSwitchRow(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(MongRadius.field),
@@ -278,13 +278,13 @@ class _AiProcessingSettingsScreenState
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Text('현재 고지를 불러오지 못했어요.'),
-                      TextButton(
+                      MongButton.ghost(
+                        label: '다시 시도',
                         onPressed: () => setState(() {
                           _policy = ref
                               .read(aiConsentRepositoryProvider)
                               .loadPolicy();
                         }),
-                        child: const Text('다시 시도'),
                       ),
                     ],
                   )
@@ -363,10 +363,9 @@ class _SettingsInfo extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           body,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: context.secondaryInk,
-            height: 1.55,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: context.secondaryInk),
         ),
       ],
     ),

@@ -103,7 +103,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       builder: (context, snapshot) {
         final policy = snapshot.data;
         return Scaffold(
-          backgroundColor: night ? const Color(0xFF050C18) : MongColor.paper,
+          backgroundColor: context.canvas,
           body: Stack(
             children: [
               Positioned(
@@ -144,15 +144,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             runSpacing: MongSpace.xs,
                             children: [
-                              Text(
-                                'MUMUMONG',
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: ink,
-                                      letterSpacing: 1.8,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                              ),
+                              // DESIGN.md §13-I: the wordmark settles once
+                              // on the first page, over the atmosphere.
+                              MongWordmark(animate: _page == 0, color: ink),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -240,11 +234,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         if (widget.onConsentPressed == null &&
             !webTrial &&
             widget.onTrialPressed != null)
-          TextButton(
+          MongButton.ghost(
+            label: '체험 계정으로 시작',
             onPressed: enabled
                 ? () => widget.onTrialPressed!(policy.version)
                 : null,
-            child: const Text('체험 계정으로 시작'),
           ),
       ],
     );
@@ -281,20 +275,17 @@ class DreamEntryContent extends StatelessWidget {
               Text(
                 '꿈이 자라,\n이야기가 되는 곳.',
                 textAlign: TextAlign.left,
-                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  color: night ? MongColor.nightInk : MongColor.ink,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: -1,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.displayLarge?.copyWith(color: context.primaryInk),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: MongSpace.md),
               Text(
                 '막 깨어난 장면을 남겨 보세요.\n당신의 꿈에서 이야기가 시작됩니다.',
                 textAlign: TextAlign.left,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: night ? MongColor.nightMeta : MongColor.ink2,
-                  height: 1.6,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: context.secondaryInk),
               ),
               const SizedBox(height: MongSpace.xl),
               MongActionGroup(
@@ -306,22 +297,20 @@ class DreamEntryContent extends StatelessWidget {
                   onPressed: onContinue,
                 ),
                 secondary: [
-                  TextButton(
+                  MongButton.ghost(
+                    label: onMotionPreview == null ? '가상 꿈 미리 보기' : 'Orb 모션 보기',
                     onPressed:
                         onMotionPreview ??
                         () => Navigator.of(
                           context,
                         ).push(quietPageRoute(const _SampleStoryScreen())),
-                    child: Text(
-                      onMotionPreview == null ? '가상 꿈 미리 보기' : 'Orb 모션 보기',
-                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               MetaText(
                 caption ?? '시작 전에 AI 처리 고지와 동의를 확인합니다.',
-                color: night ? MongColor.nightMeta : MongColor.ink3,
+                color: context.metaInk,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
@@ -516,10 +505,14 @@ class _ConsentLoadingPage extends StatelessWidget {
       );
     }
     return Center(
-      child: GlassSurface(
-        radius: 28,
-        opacity: .32,
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+      child: MongSurface(
+        shadow: false,
+        padding: const EdgeInsets.fromLTRB(
+          MongSpace.lg,
+          MongSpace.panel,
+          MongSpace.lg,
+          MongSpace.lg,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

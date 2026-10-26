@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/design/design_system.dart';
+import '../../core/design/dot_cover.dart';
 import '../../core/design/dream_atmosphere.dart';
 import '../../core/log/app_log.dart';
 import '../../data/export/completed_volume_pdf.dart';
@@ -52,9 +53,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           .when(
             loading: () => const Center(child: Text('책을 불러오는 중이에요.')),
             error: (_, _) => Center(
-              child: TextButton(
+              child: MongButton.ghost(
+                label: '다시 불러오기',
                 onPressed: () => ref.invalidate(completedBooksProvider),
-                child: const Text('다시 불러오기'),
               ),
             ),
             data: (list) => ListView(
@@ -93,9 +94,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ),
                   ),
                 ],
-                TextButton(
+                MongButton.ghost(
+                  label: '서버에서 다시 확인',
                   onPressed: _loading ? null : _refresh,
-                  child: const Text('서버에서 다시 확인'),
                 ),
               ],
             ),
@@ -275,9 +276,7 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
             label: '계속 쌓기',
             onPressed: () => Navigator.pop(context),
           ),
-          secondary: [
-            TextButton(onPressed: _load, child: const Text('상태 다시 확인')),
-          ],
+          secondary: [MongButton.ghost(label: '상태 다시 확인', onPressed: _load)],
         ),
       );
     } else {
@@ -356,13 +355,13 @@ class _CompletionScreenState extends ConsumerState<CompletionScreen> {
                           }),
             ),
             secondary: [
-              TextButton(
+              MongButton.ghost(
+                label: _review ? '제목과 작가의 말 수정' : '계속 쌓기',
                 onPressed: _saving
                     ? null
                     : () => _review
                           ? setState(() => _review = false)
                           : Navigator.pop(context),
-                child: Text(_review ? '제목과 작가의 말 수정' : '계속 쌓기'),
               ),
             ],
           ),
@@ -466,26 +465,36 @@ class _CompletedBookScreenState extends ConsumerState<CompletedBookScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
         children: [
+          // DESIGN.md §8: even the finished cover keeps dropout and blur.
           SizedBox(
             height: 220,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: DreamAtmosphere(
-                night: context.isNight,
-                memoryObject: true,
+              borderRadius: BorderRadius.circular(MongRadius.panel),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: DreamAtmosphere(night: context.isNight),
+                  ),
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.all(MongSpace.lg),
+                      child: DotCover(spec: homeCoverSpec(book.volumeId, 1)),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: MongSpace.xl),
           MongActionGroup(
-            primary: EditorialButton(
+            primary: MongButton(
               label: _exporting ? 'PDF 준비 중' : 'PDF 저장·공유',
               onPressed: _exporting ? null : _export,
             ),
             secondary: [
-              TextButton(
+              MongButton.ghost(
+                label: _starting ? '다음 권 여는 중' : '다음 권 시작',
                 onPressed: _starting ? null : _next,
-                child: Text(_starting ? '다음 권 여는 중' : '다음 권 시작'),
               ),
             ],
           ),
@@ -505,12 +514,7 @@ class _CompletedBookScreenState extends ConsumerState<CompletedBookScreen> {
             for (final raw in scene['passages'] as List) ...[
               Text(
                 (raw as Map)['text'] as String,
-                style: TextStyle(
-                  fontFamily: 'MaruBuri',
-                  fontSize: 18 * prefs.readerScale,
-                  height: 1.75,
-                  color: context.primaryInk,
-                ),
+                style: manuscriptStyle(context, scale: prefs.readerScale),
               ),
               if (prefs.showOrigins)
                 MetaText(switch (raw['origin']) {

@@ -113,7 +113,7 @@ class DreamAtmospherePainter extends CustomPainter {
     if (size.isEmpty) return;
     final t = phase * 2 * math.pi;
     final amount = strength.clamp(0.0, 1.0);
-    final ink = night ? const Color(0xFF050C18) : MongColor.paper;
+    final ink = night ? MongColor.nightCanvas : MongColor.paper;
     canvas.drawRect(Offset.zero & size, Paint()..color = ink);
     void light(
       double x,
@@ -144,12 +144,13 @@ class DreamAtmospherePainter extends CustomPainter {
       canvas.restore();
     }
 
+    // DESIGN.md §3: four lights only, blue family, no violet.
     light(
       .66 + .1 * math.sin(t),
       .17 + .06 * math.cos(t),
       .82,
       .65,
-      const Color(0xFF72CBF2),
+      MongColor.lightSky,
       night ? .64 : .95,
     );
     light(
@@ -157,15 +158,15 @@ class DreamAtmospherePainter extends CustomPainter {
       .24 + .06 * math.sin(t),
       .54,
       .53,
-      const Color(0xFF5666CD),
-      night ? .86 : .88,
+      MongColor.lightSoft,
+      night ? .86 : .82,
     );
     light(
       .38 + .12 * math.sin(t + 1),
       .20 + .07 * math.cos(t + 1),
       .51,
       .50,
-      const Color(0xFF288FD4),
+      MongColor.lightDeep,
       night ? .90 : .72,
     );
     light(
@@ -173,7 +174,7 @@ class DreamAtmospherePainter extends CustomPainter {
       .48,
       .54,
       .51,
-      const Color(0xFFE7F7FF),
+      MongColor.lightHaze,
       night ? .12 : .96,
     );
     if (memoryObject) {
@@ -247,10 +248,16 @@ class DreamAtmospherePainter extends CustomPainter {
       old.stillPhase != stillPhase;
 }
 
-/// A small, one-shot stamp after local save succeeds. Never used while typing.
+/// A small, one-shot memory fragment (DESIGN.md §8). After a local save the
+/// seven cells gather from around the box; on reveal they can arrive from
+/// [from] (local px, e.g. where the Orb was) and settle from sky to ink.
+/// Never used while typing.
 class MemoryStamp extends StatefulWidget {
-  const MemoryStamp({super.key, this.size = 32});
+  const MemoryStamp({super.key, this.size = 32, this.from});
   final double size;
+
+  /// Optional origin offset the cells travel from, relative to the box.
+  final Offset? from;
   @override
   State<MemoryStamp> createState() => _MemoryStampState();
 }
@@ -283,11 +290,11 @@ class _MemoryStampState extends State<MemoryStamp>
       child: SizedBox.square(
         dimension: widget.size,
         child: CustomPaint(
-          painter: _MemoryStampPainter(
-            _settle,
-            Theme.of(context).brightness == Brightness.dark
-                ? MongColor.nightSky
-                : MongColor.sky700,
+          painter: MemoryStampPainter(
+            settle: _settle,
+            arriveColor: MongColor.sky500,
+            settleColor: context.accentInk,
+            from: widget.from,
           ),
         ),
       ),
@@ -295,24 +302,43 @@ class _MemoryStampState extends State<MemoryStamp>
   );
 }
 
-class _MemoryStampPainter extends CustomPainter {
-  _MemoryStampPainter(this.settle, this.color) : super(repaint: settle);
+@visibleForTesting
+class MemoryStampPainter extends CustomPainter {
+  MemoryStampPainter({
+    required this.settle,
+    required this.arriveColor,
+    required this.settleColor,
+    this.from,
+  }) : super(repaint: settle);
   final Animation<double> settle;
-  final Color color;
+  final Color arriveColor;
+  final Color settleColor;
+  final Offset? from;
+
+  static const cells = [(0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (2, 2), (3, 1)];
+
+  /// Where cell [i] is at [progress] for a box of [size].
+  @visibleForTesting
+  Offset cellAt(int i, double progress, Size size) {
+    final target = Offset(
+      (cells[i].$1 + .5) * size.width / 4,
+      (cells[i].$2 + .5) * size.height / 3,
+    );
+    final scatter = Offset(
+      size.width * (.1 + (i * .31) % .8),
+      size.height * (.08 + (i * .43) % .85),
+    );
+    final origin = from == null ? scatter : scatter + from!;
+    return Offset.lerp(origin, target, progress)!;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    final progress = Curves.easeOutCubic.transform(settle.value);
-    const cells = [(0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (2, 2), (3, 1)];
+    final progress = MongMotion.enter.transform(settle.value);
+    // Arrive in sky, settle into ink (DESIGN.md §8).
+    final color = Color.lerp(arriveColor, settleColor, progress)!;
     for (var i = 0; i < cells.length; i++) {
-      final target = Offset(
-        (cells[i].$1 + .5) * size.width / 4,
-        (cells[i].$2 + .5) * size.height / 3,
-      );
-      final origin = Offset(
-        size.width * (.1 + (i * .31) % .8),
-        size.height * (.08 + (i * .43) % .85),
-      );
-      final point = Offset.lerp(origin, target, progress)!;
+      final point = cellAt(i, progress, size);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromCenter(
@@ -328,8 +354,11 @@ class _MemoryStampPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MemoryStampPainter old) =>
-      old.settle != settle || old.color != color;
+  bool shouldRepaint(covariant MemoryStampPainter old) =>
+      old.settle != settle ||
+      old.arriveColor != arriveColor ||
+      old.settleColor != settleColor ||
+      old.from != from;
 }
 
 /// Same geometry and semantic roles in the persisted application night theme.
@@ -337,21 +366,31 @@ ThemeData dreamNightTheme() {
   final base = mumumongTheme();
   return base.copyWith(
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: const Color(0xFF050C18),
+    scaffoldBackgroundColor: MongColor.nightCanvas,
     colorScheme: const ColorScheme.dark(
       primary: MongColor.nightInk,
-      surface: Color(0xFF050C18),
+      secondary: MongColor.nightSky,
+      surface: MongColor.nightCanvas,
       onSurface: MongColor.nightInk,
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: const WidgetStatePropertyAll(MongColor.nightInk),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? MongColor.nightSky
+            : MongColor.nightLine,
+      ),
+      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
     ),
     textTheme: base.textTheme.apply(
       bodyColor: MongColor.nightInk,
       displayColor: MongColor.nightInk,
     ),
     iconTheme: base.iconTheme.copyWith(color: MongColor.nightInk),
-    dividerColor: const Color(0xFF314055),
-    dividerTheme: base.dividerTheme.copyWith(color: const Color(0xFF314055)),
+    dividerColor: MongColor.nightLine,
+    dividerTheme: base.dividerTheme.copyWith(color: MongColor.nightLine),
     appBarTheme: base.appBarTheme.copyWith(
-      backgroundColor: const Color(0xFF050C18),
+      backgroundColor: MongColor.nightCanvas,
       foregroundColor: MongColor.nightInk,
       surfaceTintColor: Colors.transparent,
     ),
@@ -361,10 +400,10 @@ ThemeData dreamNightTheme() {
       selectionHandleColor: MongColor.nightSky,
     ),
     bottomSheetTheme: base.bottomSheetTheme.copyWith(
-      backgroundColor: const Color(0xFF111C2B),
+      backgroundColor: MongColor.nightRaised,
     ),
     dialogTheme: base.dialogTheme.copyWith(
-      backgroundColor: const Color(0xFF111C2B),
+      backgroundColor: MongColor.nightRaised,
       titleTextStyle: base.textTheme.titleMedium?.copyWith(
         color: MongColor.nightInk,
       ),
@@ -386,25 +425,25 @@ ThemeData dreamNightTheme() {
       ),
     ),
     inputDecorationTheme: base.inputDecorationTheme.copyWith(
-      fillColor: const Color(0xFF152131),
+      fillColor: MongColor.nightSubtle,
       hintStyle: base.textTheme.bodyMedium?.copyWith(
-        color: const Color(0xFFA5B2C1),
+        color: MongColor.nightMeta,
       ),
       labelStyle: base.textTheme.bodyMedium?.copyWith(
-        color: const Color(0xFFA5B2C1),
+        color: MongColor.nightMeta,
       ),
     ),
     checkboxTheme: base.checkboxTheme.copyWith(
       fillColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
             ? MongColor.nightInk
-            : const Color(0xFF152131),
+            : MongColor.nightSubtle,
       ),
-      checkColor: const WidgetStatePropertyAll(Color(0xFF050C18)),
+      checkColor: const WidgetStatePropertyAll(MongColor.nightCanvas),
       side: const BorderSide(color: MongColor.nightMeta),
     ),
     popupMenuTheme: base.popupMenuTheme.copyWith(
-      color: const Color(0xFF111C2B),
+      color: MongColor.nightRaised,
       textStyle: base.textTheme.bodyMedium?.copyWith(color: MongColor.nightInk),
     ),
     iconButtonTheme: IconButtonThemeData(

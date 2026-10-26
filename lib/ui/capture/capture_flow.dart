@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/design/design_system.dart';
 import '../../core/design/dream_atmosphere.dart';
+import '../../core/design/hero_motion.dart';
 import '../../core/design/thinking_orb.dart';
 import '../../core/log/app_log.dart';
 import '../../data/engine/engine_client.dart';
@@ -44,7 +45,6 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
   String _lastDraftText = '';
   CaptureStep _step = CaptureStep.capture;
   bool _recording = false;
-  bool _recordButtonPressed = false;
   int _speechSession = 0;
   late final SpeechInput _speech;
   StreamSubscription<SpeechUpdate>? _speechSubscription;
@@ -162,13 +162,13 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
               title: const Text('쓰던 꿈이 남아 있어요'),
               content: const Text('남겨 둔 기억을 이어서 적을까요?'),
               actions: [
-                TextButton(
+                MongButton.ghost(
+                  label: '새로 쓰기',
                   onPressed: () => Navigator.pop(context, false),
-                  child: const Text('새로 쓰기'),
                 ),
-                TextButton(
+                MongButton.ghost(
+                  label: '이어서 쓰기',
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('이어서 쓰기'),
                 ),
               ],
             ),
@@ -763,9 +763,9 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
                                 _step == CaptureStep.capture ||
                                 (_step == CaptureStep.reveal && !_freshReveal)
                             ? Duration.zero
-                            : const Duration(milliseconds: 360),
+                            : MongMotion.page,
                         switchInCurve: MongMotion.enter,
-                        switchOutCurve: Curves.easeOut,
+                        switchOutCurve: MongMotion.form,
                         transitionBuilder: (child, animation) => FadeTransition(
                           opacity: animation,
                           child: SlideTransition(
@@ -870,34 +870,34 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(height: 1.65),
+                  // DESIGN.md §7.4 MongInput: paper fill, hairline edge;
+                  // recording tints the field and never animates it.
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: night
-                        ? const Color(0xFF0B1525)
-                        : const Color(0xFFF8FCFE),
+                    fillColor: _recording
+                        ? (night ? MongColor.nightSubtle : MongColor.sky50)
+                        : context.raised,
                     hintText: kIsWeb
                         ? '기억나는 순서대로 적어보세요…'
                         : '기억나는 순서대로 말하거나 적어보세요…',
-                    hintStyle: TextStyle(
-                      color: night ? MongColor.nightMeta : MongColor.ink3,
-                    ),
+                    hintStyle: TextStyle(color: context.secondaryInk),
                     contentPadding: const EdgeInsets.all(MongSpace.lg),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(
+                      borderRadius: const BorderRadius.all(
                         Radius.circular(MongRadius.field),
                       ),
                       borderSide: BorderSide(
-                        color: night
-                            ? const Color(0xFF24344B)
-                            : MongColor.paperShade,
+                        color: _recording ? MongColor.sky400 : context.hairline,
+                        width: _recording ? 1.5 : 1,
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.all(
+                      borderRadius: const BorderRadius.all(
                         Radius.circular(MongRadius.field),
                       ),
                       borderSide: BorderSide(
-                        color: night ? MongColor.nightSky : MongColor.sky300,
+                        color: _recording ? MongColor.sky400 : context.accent,
+                        width: 1.5,
                       ),
                     ),
                   ),
@@ -930,59 +930,25 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
               key: const ValueKey('capture-actions'),
               children: [
                 if (kIsWeb && !keyboardOpen) ...[
-                  IconButton.outlined(
-                    tooltip: '음성 입력 안내 · iPhone 앱 전용 녹음',
+                  MongIconButton(
+                    icon: Icons.mic_none,
+                    semanticLabel: '음성 입력 안내 · iPhone 앱 전용 녹음',
+                    variant: MongIconButtonVariant.glass,
                     onPressed: () => Navigator.of(
                       context,
                     ).push(quietPageRoute(const WebVoiceGuide())),
-                    icon: const Icon(Icons.mic_none),
-                    constraints: const BoxConstraints.tightFor(
-                      width: 52,
-                      height: 52,
-                    ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: MongSpace.sm),
                 ],
                 if (!kIsWeb && (!keyboardOpen || _recording)) ...[
-                  Semantics(
-                    button: true,
-                    label: _recording ? '녹음 멈추기' : '녹음 시작',
-                    child: InkWell(
-                      onHighlightChanged: (pressed) {
-                        if (_recordButtonPressed == pressed) return;
-                        setState(() => _recordButtonPressed = pressed);
-                      },
-                      onTap: _toggleRecording,
-                      customBorder: const CircleBorder(),
-                      child: AnimatedScale(
-                        scale: _recordButtonPressed ? .94 : 1,
-                        duration: MongMotion.micro,
-                        curve: MongMotion.enter,
-                        child: Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _recording
-                                ? MongColor.dreamBlueDeep
-                                : night
-                                ? const Color(0xFF0B1525)
-                                : Colors.white,
-                            border: Border.all(color: MongColor.sky300),
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            _recording ? Icons.stop_rounded : Icons.mic_none,
-                            size: 24,
-                            color: _recording || night
-                                ? Colors.white
-                                : MongColor.ink,
-                          ),
-                        ),
-                      ),
-                    ),
+                  MongIconButton(
+                    icon: _recording ? Icons.stop_rounded : Icons.mic_none,
+                    semanticLabel: _recording ? '녹음 멈추기' : '녹음 시작',
+                    variant: MongIconButtonVariant.recording,
+                    active: _recording,
+                    onPressed: _toggleRecording,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: MongSpace.sm),
                 ],
                 Expanded(
                   key: const ValueKey('capture-save-action'),
@@ -1067,9 +1033,9 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
           ),
           const SizedBox(height: 4),
           Center(
-            child: TextButton(
+            child: MongButton.ghost(
+              label: '전체 건너뛰기',
               onPressed: _savingRecall ? null : () => _finishRecall(skip: true),
-              child: const Text('전체 건너뛰기'),
             ),
           ),
         ],
@@ -1105,18 +1071,18 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
       ],
     ),
     actions: MongActionGroup(
-      primary: GlassActionButton(
+      primary: MongButton(
         label: '장면 만들기',
         onPressed: () => _startProcessing(skip: _answers.isEmpty),
       ),
       secondary: [
-        TextButton(
+        MongButton.ghost(
+          label: '기억 더 보강하기',
           onPressed: () => setState(() => _step = CaptureStep.recall),
-          child: const Text('기억 더 보강하기'),
         ),
-        TextButton(
+        MongButton.ghost(
+          label: '나중에 만들기',
           onPressed: () => Navigator.pop(context),
-          child: const Text('나중에 만들기'),
         ),
       ],
     ),
@@ -1168,9 +1134,9 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
             const Text('꿈은 보관함에 저장되어 있어요.'),
             const SizedBox(height: 28),
             if (!trialLimit)
-              EditorialButton(label: '다시 시도', onPressed: _startProcessing),
-            TextButton(
-              child: const Text('보관함에서 나중에 보기'),
+              MongButton(label: '다시 시도', onPressed: _startProcessing),
+            MongButton.ghost(
+              label: '보관함에서 나중에 보기',
               onPressed: () => Navigator.pop(context),
             ),
           ],
@@ -1185,54 +1151,42 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    MongColor.sky500.withValues(alpha: .12),
-                    MongColor.sky500.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-              child: SizedBox.square(
-                dimension: 120,
-                child: Center(
-                  child: ThinkingOrb(
-                    state: switch (_processingStage) {
-                      0 => DreamOrbState.gathering,
-                      1 => DreamOrbState.connecting,
-                      2 => DreamOrbState.composing,
-                      _ => DreamOrbState.checking,
-                    },
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? MongColor.nightSky
-                        : MongColor.orbInk,
-                  ),
-                ),
+            // DESIGN.md §7.9/§8: the Orb keeps one shape; the memory dots
+            // around it settle as the real job stage advances.
+            ProcessingHalo(
+              stage: _processingStage,
+              child: ThinkingOrb(
+                state: switch (_processingStage) {
+                  0 => DreamOrbState.gathering,
+                  1 => DreamOrbState.connecting,
+                  2 => DreamOrbState.composing,
+                  _ => DreamOrbState.checking,
+                },
+                color: context.isNight ? MongColor.nightSky : MongColor.orbInk,
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: MongSpace.md),
             Text(
               _connectionInterrupted ? '연결을 확인하고 있어요' : '소설을 만들고 있어요',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             if (_connectionInterrupted) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: MongSpace.sm),
               const Text('생성 결과를 다시 확인해요. 새로 만들지 않아요.'),
-              TextButton(
+              MongButton.ghost(
+                label: '상태 다시 확인',
                 onPressed: _reconnectProcessing,
-                child: const Text('상태 다시 확인'),
               ),
               if (_submissionUncertain)
-                TextButton(
+                MongButton.ghost(
+                  label: '접수 다시 확인',
                   onPressed: _confirmSubmission,
-                  child: const Text('접수 다시 확인'),
                 ),
             ],
-            const SizedBox(height: 28),
-            TextButton(
+            const SizedBox(height: MongSpace.lg),
+            MongButton.ghost(
+              label: '나중에 확인하기',
               onPressed: () => Navigator.pop(context),
-              child: const Text('나중에 확인하기'),
             ),
           ],
         ),
@@ -1248,9 +1202,15 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
     final isFirstScene = scenes?.length == 1 && scenes!.single.id == scene.id;
     return MongFlowPage(
       key: const ValueKey('reveal'),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      // DESIGN.md §9 Text Reveal: the memory fragment arrives from where the
+      // Orb was, then title, sentence and meta rise in rhythm. No typing.
+      content: RevealEntrance(
+        animate: _freshReveal,
         children: [
+          if (_freshReveal) ...[
+            const MemoryStamp(from: Offset(120, 200)),
+            const SizedBox(height: MongSpace.md),
+          ],
           Semantics(
             header: true,
             liveRegion: true,
@@ -1314,7 +1274,7 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
         ],
       ),
       actions: MongActionGroup(
-        primary: GlassActionButton(
+        primary: MongButton(
           label: _freshReveal ? '새 장면 읽기' : '장면 읽기',
           onPressed: () => Navigator.of(context).pushReplacement<bool, bool>(
             quietPageRoute(
@@ -1325,16 +1285,13 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
         ),
         secondary: [
           if (_presentationError)
-            TextButton(
+            MongButton.ghost(
+              label: '화면 상태 다시 저장',
               onPressed: _revealClaimBusy
                   ? null
                   : () => _consumeReveal(retry: true),
-              child: const Text('화면 상태 다시 저장'),
             ),
-          TextButton(
-            onPressed: _showDirectionSheet,
-            child: const Text('장면 조정하기'),
-          ),
+          MongButton.ghost(label: '장면 조정하기', onPressed: _showDirectionSheet),
         ],
       ),
     );
@@ -1389,12 +1346,12 @@ class _CaptureFlowState extends ConsumerState<CaptureFlow>
                 ),
               ],
               const SizedBox(height: 24),
-              TextButton(
+              MongButton.ghost(
+                label: '장면의 위치 바꾸기',
                 onPressed: () {
                   Navigator.pop(sheetContext);
                   _showPlacementSheet();
                 },
-                child: const Text('장면의 위치 바꾸기'),
               ),
               const SizedBox(height: 12),
               GlassActionButton(
@@ -1551,10 +1508,10 @@ class _FlowHeader extends StatelessWidget {
               'DREAM ${dreamNumber.toString().padLeft(3, '0')}     $title',
             ),
           ),
-          IconButton(
+          MongIconButton(
+            icon: Icons.close,
+            semanticLabel: '닫기',
             onPressed: onClose,
-            icon: const Icon(Icons.close, size: 20),
-            tooltip: '닫기',
           ),
         ],
       ),

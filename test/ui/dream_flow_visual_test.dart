@@ -18,7 +18,7 @@ import 'package:mumumong/ui/capture/capture_flow.dart';
 
 const _dream =
     '나는 물이 찬 긴 복도에 서 있었다. 붉은 문 앞의 여자가 우산을 쥐고 문을 두드렸다. 문틈에서 물소리가 들렸다.';
-const _goldens = '../../docs/ux-review/2026-10-26-start-flow';
+const _goldens = '../../docs/ux-review/2026-10-26-visual-recovery/goldens';
 
 void main() {
   setUpAll(() async {
@@ -86,13 +86,7 @@ void main() {
           expect(tester.takeException(), isNull);
           await expectLater(
             find.byKey(const Key('p2-screen')),
-            matchesGoldenFile(
-              '${state == 'capture'
-                  ? '../../docs/ux-review/2026-10-23-mobile-native'
-                  : ['saved', 'reveal', 'entry'].contains(state)
-                  ? '../../docs/ux-review/2026-10-23-spacing'
-                  : _goldens}/$tag-$state.png',
-            ),
+            matchesGoldenFile('$_goldens/$tag-$state.png'),
           );
         }
 
@@ -138,7 +132,12 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('새 장면 읽기'), findsOneWidget);
           expect(find.text('같은 사람'), findsNothing);
-          expect(find.byType(GlassActionButton), findsOneWidget);
+          expect(
+            find.byWidgetPredicate(
+              (w) => w is MongButton && w.variant == MongButtonVariant.primary,
+            ),
+            findsOneWidget,
+          );
           await capture('reveal');
           // Large type can scroll; the primary action must remain reachable.
           await tester.ensureVisible(find.text('새 장면 읽기'));
