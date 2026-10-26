@@ -76,16 +76,8 @@ final class SpeechChannel: NSObject, FlutterPlugin, FlutterStreamHandler {
     self.request = request
     engine = audio
     active = true
-    input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+    input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
       request.append(buffer)
-      guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return }
-      var squares: Float = 0
-      for i in 0..<Int(buffer.frameLength) { squares += samples[i] * samples[i] }
-      let rms = sqrt(squares / Float(buffer.frameLength))
-      DispatchQueue.main.async {
-        guard let self = self, self.generation == token, self.active else { return }
-        self.sink?(["rms": Double(rms)])
-      }
     }
     task = recognizer.recognitionTask(with: request) { [weak self] response, error in
       DispatchQueue.main.async {

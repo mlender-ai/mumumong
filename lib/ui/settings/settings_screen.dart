@@ -1,40 +1,58 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../core/design/design_system.dart';
-import '../../core/env/env.dart';
 import '../../data/local/data_export.dart';
 import '../../data/local/local_data_control.dart';
 import '../../di/providers.dart';
 import '../auth/ai_consent.dart';
+import 'settings_components.dart';
+import 'appearance_screen.dart';
+import 'generation_settings_screen.dart';
+import '../library/library_screen.dart';
+import '../shared/policy_link.dart';
+import '../../core/design/thinking_orb.dart';
+import '../shared/web_install_guide.dart';
 
-class SettingsScreen extends ConsumerStatefulWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
+  void _open(BuildContext context, SettingsDestination destination) {
+    final page = switch (destination) {
+      SettingsDestination.data => const _RecordManagementScreen(),
+      SettingsDestination.security => const _AppLockSettingsScreen(),
+      SettingsDestination.aiProcessing => const _AiProcessingSettingsScreen(),
+      SettingsDestination.voiceInput =>
+        kIsWeb ? const WebVoiceGuide() : const _VoiceInputSettingsScreen(),
+      SettingsDestination.appearance => const AppearanceScreen(),
+      SettingsDestination.generation => const GenerationSettingsScreen(),
+      SettingsDestination.library => const LibraryScreen(),
+    };
+    Navigator.of(context).push(quietPageRoute(page));
+  }
+
   @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) =>
+      SettingsOverview(onOpen: (destination) => _open(context, destination));
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _exporting = false;
-  bool _deleting = false;
-  late Future<AiConsentPolicy> _policy;
+class _RecordManagementScreen extends ConsumerStatefulWidget {
+  const _RecordManagementScreen();
 
   @override
-  void initState() {
-    super.initState();
-    _policy = _loadPolicy();
-  }
+  ConsumerState<_RecordManagementScreen> createState() =>
+      _RecordManagementScreenState();
+}
 
-  Future<AiConsentPolicy> _loadPolicy() async =>
-      ref.read(aiConsentRepositoryProvider).loadPolicy();
-
-  void _retryPolicy() {
-    setState(() {
-      _policy = _loadPolicy();
-    });
-  }
+class _RecordManagementScreenState
+    extends ConsumerState<_RecordManagementScreen> {
+  bool _exporting = false;
+  bool _deleting = false;
 
   Future<void> _export() async {
     final confirmed = await showDialog<bool>(
@@ -59,7 +77,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _exporting = true);
     try {
-      // Ensure the repository has completed its initial database setup.
       await ref.read(repositoryProvider).watchActiveVolume().first;
       final content = await exportLocalManuscript(ref.read(databaseProvider));
       if (!mounted) return;
@@ -133,9 +150,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       }
       await clearLocalData(ref.read(databaseProvider));
-      if (session != null) {
-        await client.auth.signOut();
-      }
+      if (session != null) await client.auth.signOut();
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -155,36 +170,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => SettingsDetailFrame(
+    title: '기록 관리',
+    description: '내 기록의 사본을 보관하거나, 무무몽에서 지울 수 있어요.',
+    onBack: () => Navigator.pop(context),
+    child: ListView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+      children: [
+        const _SettingsInfo(
+          title: '기록은 내 것이에요',
+          body: '꿈 · 원고 · 출처 · 작성 중인 초안을 JSON 파일로 내보낼 수 있어요.',
+        ),
+        const SizedBox(height: 20),
+        _SettingsAction(
+          title: _exporting ? '파일 준비 중' : '내 기록 내보내기',
+          subtitle: 'JSON 사본 저장 · 꿈 원문과 초안 포함',
+          onTap: _exporting ? null : _export,
+        ),
+        const SizedBox(height: 14),
+        _SettingsAction(
+          title: _deleting ? '삭제 중' : '모든 기록 삭제',
+          subtitle: '계정이 있으면 서버 기록과 계정도 함께 삭제',
+          destructive: true,
+          onTap: _deleting ? null : _deleteAll,
+        ),
+      ],
+    ),
+  );
+}
+
+class _AppLockSettingsScreen extends ConsumerWidget {
+  const _AppLockSettingsScreen();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final lock = ref.watch(appLockProvider);
-    return SafeArea(
+    return SettingsDetailFrame(
+      title: '앱 잠금',
+      description: '이 기기를 잠시 비울 때도 꿈과 원고를 보호해요.',
+      onBack: () => Navigator.pop(context),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 36, 24, 40),
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
         children: [
-          const MetaText('MUMUMONG · SETTINGS'),
-          const SizedBox(height: 16),
-          Text('내 기록과 설정', style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 32),
-          const Text('기록의 소유자는 나'),
-          const SizedBox(height: 12),
-          Text(
-            AppEnv.engine == EngineMode.remote
-                ? '꿈과 원고는 이 기기와 로그인한 계정에 저장돼요. 기록을 따로 보관하려면 내보내기를 사용해 주세요.'
-                : '현재 체험 원고는 이 기기에 저장돼요. 앱을 삭제하기 전에 기록을 내보내 주세요.',
+          _SettingsInfo(
+            title: lock.enabled ? '잠금이 켜져 있어요' : '잠금이 꺼져 있어요',
+            body: 'Face ID 또는 기기 암호로 앱을 열 수 있어요. 인증 정보는 기기 밖으로 전송되지 않아요.',
           ),
-          const SizedBox(height: 16),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(_exporting ? '파일 준비 중' : '내 기록 내보내기'),
-            subtitle: const Text('꿈 · 원고 · 출처 · 작성 중인 초안'),
-            trailing: const Icon(Icons.ios_share, size: 20),
-            onTap: _exporting ? null : _export,
-          ),
-          const Divider(),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('앱 잠금'),
-            subtitle: const Text('Face ID 또는 기기 암호로 꿈과 원고 보호'),
+          const SizedBox(height: 20),
+          SwitchListTile.adaptive(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(MongRadius.field),
+              side: BorderSide(color: context.hairline),
+            ),
+            title: const Text('앱 잠금 사용'),
+            subtitle: const Text('앱을 다시 열 때 기기 인증 요청'),
             value: lock.enabled,
             onChanged: lock.authenticating
                 ? null
@@ -199,62 +239,158 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     }
                   },
           ),
-          const Divider(),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(_deleting ? '삭제 중' : '모든 기록 삭제'),
-            subtitle: const Text('계정이 있으면 서버 기록과 계정도 함께 삭제'),
-            trailing: const Icon(Icons.delete_outline, size: 20),
-            onTap: _deleting ? null : _deleteAll,
-          ),
-          const Divider(),
-          const SizedBox(height: 24),
-          const Text('AI 처리 고지'),
-          const SizedBox(height: 12),
-          FutureBuilder<AiConsentPolicy>(
-            future: _policy,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      snapshot.hasError ? '현재 고지를 불러오지 못했어요.' : '현재 고지를 불러오는 중',
-                    ),
-                    if (snapshot.hasError)
-                      TextButton(
-                        onPressed: _retryPolicy,
-                        child: const Text('다시 시도'),
-                      ),
-                  ],
-                );
-              }
-              final policy = snapshot.requireData;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(policy.message),
-                  const SizedBox(height: 12),
-                  for (final provider in policy.providers) ...[
-                    Text(provider.name),
-                    SelectableText('이용 약관: ${provider.termsUrl}'),
-                    if (provider.dataUrl case final dataUrl?)
-                      SelectableText('데이터 처리 안내: $dataUrl'),
-                    const SizedBox(height: 8),
-                  ],
-                  MetaText('고지 버전 ${policy.version}'),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          const Text('음성 기록'),
-          const SizedBox(height: 12),
-          const Text(
-            '지원하는 iPhone에서만 기기 안의 음성 인식을 사용해요. 음성 파일을 저장하거나 서버로 보내지 않아요. 사용할 수 없는 기기에서는 직접 입력해 주세요.',
-          ),
         ],
       ),
     );
   }
+}
+
+class _AiProcessingSettingsScreen extends ConsumerStatefulWidget {
+  const _AiProcessingSettingsScreen();
+
+  @override
+  ConsumerState<_AiProcessingSettingsScreen> createState() =>
+      _AiProcessingSettingsScreenState();
+}
+
+class _AiProcessingSettingsScreenState
+    extends ConsumerState<_AiProcessingSettingsScreen> {
+  late Future<AiConsentPolicy> _policy;
+
+  @override
+  void initState() {
+    super.initState();
+    _policy = ref.read(aiConsentRepositoryProvider).loadPolicy();
+  }
+
+  @override
+  Widget build(BuildContext context) => SettingsDetailFrame(
+    title: 'AI 처리 고지',
+    description: '꿈 기록이 AI 장면 생성에 사용되는 방식과 제공사를 확인해요.',
+    onBack: () => Navigator.pop(context),
+    child: FutureBuilder<AiConsentPolicy>(
+      future: _policy,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Center(
+            child: snapshot.hasError
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('현재 고지를 불러오지 못했어요.'),
+                      TextButton(
+                        onPressed: () => setState(() {
+                          _policy = ref
+                              .read(aiConsentRepositoryProvider)
+                              .loadPolicy();
+                        }),
+                        child: const Text('다시 시도'),
+                      ),
+                    ],
+                  )
+                : const ThinkingOrb(state: DreamOrbState.connecting),
+          );
+        }
+        final policy = snapshot.requireData;
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+          children: [
+            _SettingsInfo(title: '현재 안내', body: policy.message),
+            const SizedBox(height: 20),
+            const SettingsGroupLabel('처리 제공사'),
+            for (final provider in policy.providers)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      provider.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    PolicyLink(label: '이용 약관', uri: provider.termsUrl),
+                    if (provider.dataUrl case final url?)
+                      PolicyLink(label: '데이터 처리 안내', uri: url),
+                  ],
+                ),
+              ),
+            MetaText('고지 버전 ${policy.version}'),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+class _VoiceInputSettingsScreen extends StatelessWidget {
+  const _VoiceInputSettingsScreen();
+
+  @override
+  Widget build(BuildContext context) => SettingsDetailFrame(
+    title: '음성 기록',
+    description: '꿈을 말로 남길 때 음성이 어떻게 처리되는지 안내해요.',
+    onBack: () => Navigator.pop(context),
+    child: ListView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 32),
+      children: const [
+        _SettingsInfo(
+          title: '음성은 기기 안에서만',
+          body: '지원하는 iPhone에서는 기기 내 음성 인식을 사용해요. 음성 파일을 저장하거나 서버로 보내지 않아요.',
+        ),
+        SizedBox(height: 16),
+        _SettingsInfo(
+          title: '직접 입력도 가능해요',
+          body: '기기에서 음성 인식을 사용할 수 없다면 텍스트로 꿈을 기록할 수 있어요.',
+        ),
+      ],
+    ),
+  );
+}
+
+class _SettingsInfo extends StatelessWidget {
+  const _SettingsInfo({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          body,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: context.secondaryInk,
+            height: 1.55,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _SettingsAction extends StatelessWidget {
+  const _SettingsAction({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) => SettingsNavigationRow(
+    title: title,
+    subtitle: subtitle,
+    onTap: onTap,
+    destructive: destructive,
+  );
 }

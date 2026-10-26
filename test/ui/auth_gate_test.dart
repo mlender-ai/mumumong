@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +10,7 @@ import 'package:mumumong/ui/auth/ai_consent.dart';
 import 'package:mumumong/ui/auth/auth_gate.dart';
 
 void main() {
-  testWidgets('S01은 세 장이고 동의와 연령 확인 전에는 가입할 수 없다', (tester) async {
+  testWidgets('S01은 두 장이고 동의와 연령 확인 전에는 가입할 수 없다', (tester) async {
     final backend = _FakeBackend();
     final controller = AuthenticationController(const _FakeIdentity(), backend);
     await controller.restore();
@@ -18,14 +20,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('MUMUMONG · 01 / 03'), findsOneWidget);
-    await tester.tap(find.text('계속'));
+    expect(find.text('01 / 02'), findsOneWidget);
+    expect(find.text('Apple로 시작하기'), findsOneWidget);
+    expect(find.byType(FilledButton), findsNothing);
+    await tester.tap(find.text('Apple로 시작하기'));
     await tester.pumpAndSettle();
-    expect(find.text('MUMUMONG · 02 / 03'), findsOneWidget);
-    await tester.tap(find.text('계속'));
-    await tester.pumpAndSettle();
-    expect(find.text('MUMUMONG · 03 / 03'), findsOneWidget);
-    expect(find.text('Groq'), findsOneWidget);
+    expect(find.text('02 / 02'), findsOneWidget);
+    expect(find.textContaining('Groq AI로'), findsOneWidget);
+    expect(find.text('고지 버전 1'), findsNothing);
     expect(find.text('Apple로 계속하기'), findsOneWidget);
     expect(find.text('체험 계정으로 시작'), findsOneWidget);
     await tester.tap(find.text('Apple로 계속하기'));
@@ -45,6 +47,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(backend.hasSession, isTrue);
     expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('고지 응답이 늦어도 빈 계정의 Apple 시작 화면은 즉시 보인다', (tester) async {
+    final backend = _FakeBackend();
+    final controller = AuthenticationController(const _FakeIdentity(), backend);
+    await controller.restore();
+    await tester.pumpWidget(
+      _TestApp(controller: controller, consent: _PendingConsentRepository()),
+    );
+    await tester.pump();
+
+    expect(find.text('꿈이 자라,\n이야기가 되는 곳.'), findsOneWidget);
+    expect(find.text('Apple로 시작하기'), findsOneWidget);
+    expect(backend.hasSession, isFalse);
+    await tester.tap(find.text('Apple로 시작하기'));
+    await tester.pumpAndSettle();
+    expect(find.text('안내를 불러오는 중'), findsOneWidget);
+    expect(backend.hasSession, isFalse);
   });
 
   testWidgets('기록된 현재 버전 동의가 있으면 원고를 연다', (tester) async {
@@ -74,12 +94,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('VOL. 01 · SHORT'), findsOneWidget);
-    expect(find.text('균형 있게'), findsOneWidget);
-    expect(find.text('담백하게'), findsOneWidget);
-    expect(find.text('나의 시점'), findsOneWidget);
+    expect(find.text('첫 이야기를\n시작해 볼까요?'), findsOneWidget);
+    expect(find.text('시작하기'), findsOneWidget);
+    expect(find.text('소설 속 인물 시점'), findsNothing);
+    await tester.tap(find.text('이야기 설정'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('소설 속 인물 시점'));
     expect(find.text('소설 속 인물 시점'), findsOneWidget);
-    expect(find.text('이 설정으로 시작'), findsOneWidget);
+    await tester.ensureVisible(find.text('꿈에 충실하게'));
+    await tester.tap(find.text('꿈에 충실하게'));
+    await tester.pump();
+    expect(find.text('시작하기'), findsOneWidget);
   });
 
   testWidgets('동의가 없으면 인증된 원고도 열리지 않는다', (tester) async {
@@ -109,7 +134,12 @@ void main() {
     await tester.pumpWidget(_TestApp(controller: controller, consent: consent));
     await tester.pumpAndSettle();
     expect(find.text('원고 화면'), findsNothing);
+    expect(find.text('고지 버전 2'), findsNothing);
+    await tester.tap(find.byKey(const Key('consent-details-toggle')));
+    await tester.pump();
     expect(find.text('고지 버전 2'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('consent-details-toggle')));
+    await tester.pump();
     await tester.ensureVisible(find.byKey(const Key('age-confirmation')));
     await tester.tap(find.byKey(const Key('age-confirmation')));
     await tester.ensureVisible(find.byKey(const Key('ai-consent')));
@@ -179,6 +209,10 @@ class _TestApp extends StatelessWidget {
       ],
       child: MaterialApp(
         theme: mumumongTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
         home: const AuthGate(manuscript: Text('원고 화면')),
       ),
     );
@@ -229,6 +263,20 @@ class _FakeConsentRepository implements AiConsentRepository {
     recordVersion = version;
     return true;
   }
+}
+
+class _PendingConsentRepository implements AiConsentRepository {
+  final Completer<AiConsentPolicy> _policy = Completer<AiConsentPolicy>();
+
+  @override
+  Future<AiConsentPolicy> loadPolicy() => _policy.future;
+
+  @override
+  Future<AiConsentRecord> loadCurrentUserRecord() => throw UnimplementedError();
+
+  @override
+  Future<bool> accept({required int version, required bool ageConfirmed}) =>
+      throw UnimplementedError();
 }
 
 class _FakeIdentity implements AppleIdentityProvider {

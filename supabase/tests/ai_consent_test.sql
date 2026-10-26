@@ -34,10 +34,11 @@ select throws_ok(
   'stale or invented policy version cannot be accepted'
 );
 select throws_ok(
-  $$insert into public.jobs (id, user_id, volume_id, type, idempotency_key)
+  $$insert into public.jobs (id, user_id, volume_id, dream_id, type, idempotency_key)
     values ('a1515151-1515-4151-8151-151515151515',
       '11111111-1111-4111-8111-111111111111',
-      '22222222-2222-4222-8222-222222222222', 'extract',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333', 'extract',
       'b1515151-1515-4151-8151-151515151515')$$,
   '42501', 'new row violates row-level security policy for table "jobs"',
   'client cannot enqueue without current consent'
@@ -50,10 +51,11 @@ select is((select consent_version from public.profiles
   where user_id = '11111111-1111-4111-8111-111111111111'), 1,
   'profile stores the accepted version');
 select lives_ok(
-  $$insert into public.jobs (id, user_id, volume_id, type, idempotency_key)
+  $$insert into public.jobs (id, user_id, volume_id, dream_id, type, idempotency_key)
     values ('a1515151-1515-4151-8151-151515151515',
       '11111111-1111-4111-8111-111111111111',
-      '22222222-2222-4222-8222-222222222222', 'extract',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333', 'extract',
       'b1515151-1515-4151-8151-151515151515')$$,
   'current consent permits the owner to enqueue'
 );
@@ -67,10 +69,11 @@ set local role authenticated;
 select is(public.user_has_current_ai_consent(), false,
   'version change revokes current status until renewed');
 select throws_ok(
-  $$insert into public.jobs (id, user_id, volume_id, type, idempotency_key)
+  $$insert into public.jobs (id, user_id, volume_id, dream_id, type, idempotency_key)
     values ('a1616161-1616-4161-8161-161616161616',
       '11111111-1111-4111-8111-111111111111',
-      '22222222-2222-4222-8222-222222222222', 'extract',
+      '22222222-2222-4222-8222-222222222222',
+      '33333333-3333-4333-8333-333333333333', 'extract',
       'b1616161-1616-4161-8161-161616161616')$$,
   '42501', 'new row violates row-level security policy for table "jobs"',
   'old consent does not authorize new jobs'

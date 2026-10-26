@@ -108,6 +108,18 @@ class $VolumesTable extends Volumes
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _settingsVersionMeta = const VerificationMeta(
+    'settingsVersion',
+  );
+  @override
+  late final GeneratedColumn<int> settingsVersion = GeneratedColumn<int>(
+    'settings_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -230,6 +242,7 @@ class $VolumesTable extends Volumes
     adaptation,
     style,
     narrativeVoice,
+    settingsVersion,
     status,
     targetMu,
     progressMu,
@@ -328,6 +341,15 @@ class $VolumesTable extends Volumes
       );
     } else if (isInserting) {
       context.missing(_narrativeVoiceMeta);
+    }
+    if (data.containsKey('settings_version')) {
+      context.handle(
+        _settingsVersionMeta,
+        settingsVersion.isAcceptableOrUnknown(
+          data['settings_version']!,
+          _settingsVersionMeta,
+        ),
+      );
     }
     if (data.containsKey('status')) {
       context.handle(
@@ -459,6 +481,10 @@ class $VolumesTable extends Volumes
         DriftSqlType.string,
         data['${effectivePrefix}narrative_voice'],
       )!,
+      settingsVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}settings_version'],
+      )!,
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -519,6 +545,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
   final String adaptation;
   final String style;
   final String narrativeVoice;
+  final int settingsVersion;
   final String status;
   final double targetMu;
   final double progressMu;
@@ -540,6 +567,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
     required this.adaptation,
     required this.style,
     required this.narrativeVoice,
+    required this.settingsVersion,
     required this.status,
     required this.targetMu,
     required this.progressMu,
@@ -566,6 +594,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
     map['adaptation'] = Variable<String>(adaptation);
     map['style'] = Variable<String>(style);
     map['narrative_voice'] = Variable<String>(narrativeVoice);
+    map['settings_version'] = Variable<int>(settingsVersion);
     map['status'] = Variable<String>(status);
     map['target_mu'] = Variable<double>(targetMu);
     map['progress_mu'] = Variable<double>(progressMu);
@@ -603,6 +632,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
       adaptation: Value(adaptation),
       style: Value(style),
       narrativeVoice: Value(narrativeVoice),
+      settingsVersion: Value(settingsVersion),
       status: Value(status),
       targetMu: Value(targetMu),
       progressMu: Value(progressMu),
@@ -642,6 +672,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
       adaptation: serializer.fromJson<String>(json['adaptation']),
       style: serializer.fromJson<String>(json['style']),
       narrativeVoice: serializer.fromJson<String>(json['narrativeVoice']),
+      settingsVersion: serializer.fromJson<int>(json['settingsVersion']),
       status: serializer.fromJson<String>(json['status']),
       targetMu: serializer.fromJson<double>(json['targetMu']),
       progressMu: serializer.fromJson<double>(json['progressMu']),
@@ -668,6 +699,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
       'adaptation': serializer.toJson<String>(adaptation),
       'style': serializer.toJson<String>(style),
       'narrativeVoice': serializer.toJson<String>(narrativeVoice),
+      'settingsVersion': serializer.toJson<int>(settingsVersion),
       'status': serializer.toJson<String>(status),
       'targetMu': serializer.toJson<double>(targetMu),
       'progressMu': serializer.toJson<double>(progressMu),
@@ -692,6 +724,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
     String? adaptation,
     String? style,
     String? narrativeVoice,
+    int? settingsVersion,
     String? status,
     double? targetMu,
     double? progressMu,
@@ -713,6 +746,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
     adaptation: adaptation ?? this.adaptation,
     style: style ?? this.style,
     narrativeVoice: narrativeVoice ?? this.narrativeVoice,
+    settingsVersion: settingsVersion ?? this.settingsVersion,
     status: status ?? this.status,
     targetMu: targetMu ?? this.targetMu,
     progressMu: progressMu ?? this.progressMu,
@@ -742,6 +776,9 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
       narrativeVoice: data.narrativeVoice.present
           ? data.narrativeVoice.value
           : this.narrativeVoice,
+      settingsVersion: data.settingsVersion.present
+          ? data.settingsVersion.value
+          : this.settingsVersion,
       status: data.status.present ? data.status.value : this.status,
       targetMu: data.targetMu.present ? data.targetMu.value : this.targetMu,
       progressMu: data.progressMu.present
@@ -782,6 +819,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
           ..write('adaptation: $adaptation, ')
           ..write('style: $style, ')
           ..write('narrativeVoice: $narrativeVoice, ')
+          ..write('settingsVersion: $settingsVersion, ')
           ..write('status: $status, ')
           ..write('targetMu: $targetMu, ')
           ..write('progressMu: $progressMu, ')
@@ -797,7 +835,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     createdAt,
     updatedAt,
@@ -808,6 +846,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
     adaptation,
     style,
     narrativeVoice,
+    settingsVersion,
     status,
     targetMu,
     progressMu,
@@ -818,7 +857,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
     authorNote,
     prologueSceneId,
     completedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -833,6 +872,7 @@ class LocalVolumeRow extends DataClass implements Insertable<LocalVolumeRow> {
           other.adaptation == this.adaptation &&
           other.style == this.style &&
           other.narrativeVoice == this.narrativeVoice &&
+          other.settingsVersion == this.settingsVersion &&
           other.status == this.status &&
           other.targetMu == this.targetMu &&
           other.progressMu == this.progressMu &&
@@ -856,6 +896,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
   final Value<String> adaptation;
   final Value<String> style;
   final Value<String> narrativeVoice;
+  final Value<int> settingsVersion;
   final Value<String> status;
   final Value<double> targetMu;
   final Value<double> progressMu;
@@ -878,6 +919,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
     this.adaptation = const Value.absent(),
     this.style = const Value.absent(),
     this.narrativeVoice = const Value.absent(),
+    this.settingsVersion = const Value.absent(),
     this.status = const Value.absent(),
     this.targetMu = const Value.absent(),
     this.progressMu = const Value.absent(),
@@ -901,6 +943,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
     required String adaptation,
     required String style,
     required String narrativeVoice,
+    this.settingsVersion = const Value.absent(),
     required String status,
     required double targetMu,
     required double progressMu,
@@ -934,6 +977,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
     Expression<String>? adaptation,
     Expression<String>? style,
     Expression<String>? narrativeVoice,
+    Expression<int>? settingsVersion,
     Expression<String>? status,
     Expression<double>? targetMu,
     Expression<double>? progressMu,
@@ -957,6 +1001,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
       if (adaptation != null) 'adaptation': adaptation,
       if (style != null) 'style': style,
       if (narrativeVoice != null) 'narrative_voice': narrativeVoice,
+      if (settingsVersion != null) 'settings_version': settingsVersion,
       if (status != null) 'status': status,
       if (targetMu != null) 'target_mu': targetMu,
       if (progressMu != null) 'progress_mu': progressMu,
@@ -982,6 +1027,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
     Value<String>? adaptation,
     Value<String>? style,
     Value<String>? narrativeVoice,
+    Value<int>? settingsVersion,
     Value<String>? status,
     Value<double>? targetMu,
     Value<double>? progressMu,
@@ -1005,6 +1051,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
       adaptation: adaptation ?? this.adaptation,
       style: style ?? this.style,
       narrativeVoice: narrativeVoice ?? this.narrativeVoice,
+      settingsVersion: settingsVersion ?? this.settingsVersion,
       status: status ?? this.status,
       targetMu: targetMu ?? this.targetMu,
       progressMu: progressMu ?? this.progressMu,
@@ -1051,6 +1098,9 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
     }
     if (narrativeVoice.present) {
       map['narrative_voice'] = Variable<String>(narrativeVoice.value);
+    }
+    if (settingsVersion.present) {
+      map['settings_version'] = Variable<int>(settingsVersion.value);
     }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
@@ -1101,6 +1151,7 @@ class VolumesCompanion extends UpdateCompanion<LocalVolumeRow> {
           ..write('adaptation: $adaptation, ')
           ..write('style: $style, ')
           ..write('narrativeVoice: $narrativeVoice, ')
+          ..write('settingsVersion: $settingsVersion, ')
           ..write('status: $status, ')
           ..write('targetMu: $targetMu, ')
           ..write('progressMu: $progressMu, ')
@@ -7406,6 +7457,62 @@ class $ReaderPositionsTable extends ReaderPositions
       'REFERENCES volumes (id)',
     ),
   );
+  static const VerificationMeta _sceneIdMeta = const VerificationMeta(
+    'sceneId',
+  );
+  @override
+  late final GeneratedColumn<String> sceneId = GeneratedColumn<String>(
+    'scene_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sceneOrderKeyMeta = const VerificationMeta(
+    'sceneOrderKey',
+  );
+  @override
+  late final GeneratedColumn<String> sceneOrderKey = GeneratedColumn<String>(
+    'scene_order_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _passageIdMeta = const VerificationMeta(
+    'passageId',
+  );
+  @override
+  late final GeneratedColumn<String> passageId = GeneratedColumn<String>(
+    'passage_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _passageOrderKeyMeta = const VerificationMeta(
+    'passageOrderKey',
+  );
+  @override
+  late final GeneratedColumn<String> passageOrderKey = GeneratedColumn<String>(
+    'passage_order_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _passageFractionMeta = const VerificationMeta(
+    'passageFraction',
+  );
+  @override
+  late final GeneratedColumn<double> passageFraction = GeneratedColumn<double>(
+    'passage_fraction',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _offsetMeta = const VerificationMeta('offset');
   @override
   late final GeneratedColumn<double> offset = GeneratedColumn<double>(
@@ -7428,7 +7535,16 @@ class $ReaderPositionsTable extends ReaderPositions
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [volumeId, offset, updatedAt];
+  List<GeneratedColumn> get $columns => [
+    volumeId,
+    sceneId,
+    sceneOrderKey,
+    passageId,
+    passageOrderKey,
+    passageFraction,
+    offset,
+    updatedAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -7448,6 +7564,45 @@ class $ReaderPositionsTable extends ReaderPositions
       );
     } else if (isInserting) {
       context.missing(_volumeIdMeta);
+    }
+    if (data.containsKey('scene_id')) {
+      context.handle(
+        _sceneIdMeta,
+        sceneId.isAcceptableOrUnknown(data['scene_id']!, _sceneIdMeta),
+      );
+    }
+    if (data.containsKey('scene_order_key')) {
+      context.handle(
+        _sceneOrderKeyMeta,
+        sceneOrderKey.isAcceptableOrUnknown(
+          data['scene_order_key']!,
+          _sceneOrderKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('passage_id')) {
+      context.handle(
+        _passageIdMeta,
+        passageId.isAcceptableOrUnknown(data['passage_id']!, _passageIdMeta),
+      );
+    }
+    if (data.containsKey('passage_order_key')) {
+      context.handle(
+        _passageOrderKeyMeta,
+        passageOrderKey.isAcceptableOrUnknown(
+          data['passage_order_key']!,
+          _passageOrderKeyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('passage_fraction')) {
+      context.handle(
+        _passageFractionMeta,
+        passageFraction.isAcceptableOrUnknown(
+          data['passage_fraction']!,
+          _passageFractionMeta,
+        ),
+      );
     }
     if (data.containsKey('offset')) {
       context.handle(
@@ -7476,6 +7631,26 @@ class $ReaderPositionsTable extends ReaderPositions
         DriftSqlType.string,
         data['${effectivePrefix}volume_id'],
       )!,
+      sceneId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scene_id'],
+      ),
+      sceneOrderKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scene_order_key'],
+      ),
+      passageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}passage_id'],
+      ),
+      passageOrderKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}passage_order_key'],
+      ),
+      passageFraction: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}passage_fraction'],
+      )!,
       offset: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}offset'],
@@ -7496,10 +7671,20 @@ class $ReaderPositionsTable extends ReaderPositions
 class LocalReaderPositionRow extends DataClass
     implements Insertable<LocalReaderPositionRow> {
   final String volumeId;
+  final String? sceneId;
+  final String? sceneOrderKey;
+  final String? passageId;
+  final String? passageOrderKey;
+  final double passageFraction;
   final double offset;
   final DateTime updatedAt;
   const LocalReaderPositionRow({
     required this.volumeId,
+    this.sceneId,
+    this.sceneOrderKey,
+    this.passageId,
+    this.passageOrderKey,
+    required this.passageFraction,
     required this.offset,
     required this.updatedAt,
   });
@@ -7507,6 +7692,19 @@ class LocalReaderPositionRow extends DataClass
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['volume_id'] = Variable<String>(volumeId);
+    if (!nullToAbsent || sceneId != null) {
+      map['scene_id'] = Variable<String>(sceneId);
+    }
+    if (!nullToAbsent || sceneOrderKey != null) {
+      map['scene_order_key'] = Variable<String>(sceneOrderKey);
+    }
+    if (!nullToAbsent || passageId != null) {
+      map['passage_id'] = Variable<String>(passageId);
+    }
+    if (!nullToAbsent || passageOrderKey != null) {
+      map['passage_order_key'] = Variable<String>(passageOrderKey);
+    }
+    map['passage_fraction'] = Variable<double>(passageFraction);
     map['offset'] = Variable<double>(offset);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -7515,6 +7713,19 @@ class LocalReaderPositionRow extends DataClass
   ReaderPositionsCompanion toCompanion(bool nullToAbsent) {
     return ReaderPositionsCompanion(
       volumeId: Value(volumeId),
+      sceneId: sceneId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sceneId),
+      sceneOrderKey: sceneOrderKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sceneOrderKey),
+      passageId: passageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(passageId),
+      passageOrderKey: passageOrderKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(passageOrderKey),
+      passageFraction: Value(passageFraction),
       offset: Value(offset),
       updatedAt: Value(updatedAt),
     );
@@ -7527,6 +7738,11 @@ class LocalReaderPositionRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return LocalReaderPositionRow(
       volumeId: serializer.fromJson<String>(json['volumeId']),
+      sceneId: serializer.fromJson<String?>(json['sceneId']),
+      sceneOrderKey: serializer.fromJson<String?>(json['sceneOrderKey']),
+      passageId: serializer.fromJson<String?>(json['passageId']),
+      passageOrderKey: serializer.fromJson<String?>(json['passageOrderKey']),
+      passageFraction: serializer.fromJson<double>(json['passageFraction']),
       offset: serializer.fromJson<double>(json['offset']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -7536,6 +7752,11 @@ class LocalReaderPositionRow extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'volumeId': serializer.toJson<String>(volumeId),
+      'sceneId': serializer.toJson<String?>(sceneId),
+      'sceneOrderKey': serializer.toJson<String?>(sceneOrderKey),
+      'passageId': serializer.toJson<String?>(passageId),
+      'passageOrderKey': serializer.toJson<String?>(passageOrderKey),
+      'passageFraction': serializer.toJson<double>(passageFraction),
       'offset': serializer.toJson<double>(offset),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -7543,16 +7764,41 @@ class LocalReaderPositionRow extends DataClass
 
   LocalReaderPositionRow copyWith({
     String? volumeId,
+    Value<String?> sceneId = const Value.absent(),
+    Value<String?> sceneOrderKey = const Value.absent(),
+    Value<String?> passageId = const Value.absent(),
+    Value<String?> passageOrderKey = const Value.absent(),
+    double? passageFraction,
     double? offset,
     DateTime? updatedAt,
   }) => LocalReaderPositionRow(
     volumeId: volumeId ?? this.volumeId,
+    sceneId: sceneId.present ? sceneId.value : this.sceneId,
+    sceneOrderKey: sceneOrderKey.present
+        ? sceneOrderKey.value
+        : this.sceneOrderKey,
+    passageId: passageId.present ? passageId.value : this.passageId,
+    passageOrderKey: passageOrderKey.present
+        ? passageOrderKey.value
+        : this.passageOrderKey,
+    passageFraction: passageFraction ?? this.passageFraction,
     offset: offset ?? this.offset,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   LocalReaderPositionRow copyWithCompanion(ReaderPositionsCompanion data) {
     return LocalReaderPositionRow(
       volumeId: data.volumeId.present ? data.volumeId.value : this.volumeId,
+      sceneId: data.sceneId.present ? data.sceneId.value : this.sceneId,
+      sceneOrderKey: data.sceneOrderKey.present
+          ? data.sceneOrderKey.value
+          : this.sceneOrderKey,
+      passageId: data.passageId.present ? data.passageId.value : this.passageId,
+      passageOrderKey: data.passageOrderKey.present
+          ? data.passageOrderKey.value
+          : this.passageOrderKey,
+      passageFraction: data.passageFraction.present
+          ? data.passageFraction.value
+          : this.passageFraction,
       offset: data.offset.present ? data.offset.value : this.offset,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -7562,6 +7808,11 @@ class LocalReaderPositionRow extends DataClass
   String toString() {
     return (StringBuffer('LocalReaderPositionRow(')
           ..write('volumeId: $volumeId, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('sceneOrderKey: $sceneOrderKey, ')
+          ..write('passageId: $passageId, ')
+          ..write('passageOrderKey: $passageOrderKey, ')
+          ..write('passageFraction: $passageFraction, ')
           ..write('offset: $offset, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -7569,29 +7820,58 @@ class LocalReaderPositionRow extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(volumeId, offset, updatedAt);
+  int get hashCode => Object.hash(
+    volumeId,
+    sceneId,
+    sceneOrderKey,
+    passageId,
+    passageOrderKey,
+    passageFraction,
+    offset,
+    updatedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is LocalReaderPositionRow &&
           other.volumeId == this.volumeId &&
+          other.sceneId == this.sceneId &&
+          other.sceneOrderKey == this.sceneOrderKey &&
+          other.passageId == this.passageId &&
+          other.passageOrderKey == this.passageOrderKey &&
+          other.passageFraction == this.passageFraction &&
           other.offset == this.offset &&
           other.updatedAt == this.updatedAt);
 }
 
 class ReaderPositionsCompanion extends UpdateCompanion<LocalReaderPositionRow> {
   final Value<String> volumeId;
+  final Value<String?> sceneId;
+  final Value<String?> sceneOrderKey;
+  final Value<String?> passageId;
+  final Value<String?> passageOrderKey;
+  final Value<double> passageFraction;
   final Value<double> offset;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
   const ReaderPositionsCompanion({
     this.volumeId = const Value.absent(),
+    this.sceneId = const Value.absent(),
+    this.sceneOrderKey = const Value.absent(),
+    this.passageId = const Value.absent(),
+    this.passageOrderKey = const Value.absent(),
+    this.passageFraction = const Value.absent(),
     this.offset = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ReaderPositionsCompanion.insert({
     required String volumeId,
+    this.sceneId = const Value.absent(),
+    this.sceneOrderKey = const Value.absent(),
+    this.passageId = const Value.absent(),
+    this.passageOrderKey = const Value.absent(),
+    this.passageFraction = const Value.absent(),
     this.offset = const Value.absent(),
     required DateTime updatedAt,
     this.rowid = const Value.absent(),
@@ -7599,12 +7879,22 @@ class ReaderPositionsCompanion extends UpdateCompanion<LocalReaderPositionRow> {
        updatedAt = Value(updatedAt);
   static Insertable<LocalReaderPositionRow> custom({
     Expression<String>? volumeId,
+    Expression<String>? sceneId,
+    Expression<String>? sceneOrderKey,
+    Expression<String>? passageId,
+    Expression<String>? passageOrderKey,
+    Expression<double>? passageFraction,
     Expression<double>? offset,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (volumeId != null) 'volume_id': volumeId,
+      if (sceneId != null) 'scene_id': sceneId,
+      if (sceneOrderKey != null) 'scene_order_key': sceneOrderKey,
+      if (passageId != null) 'passage_id': passageId,
+      if (passageOrderKey != null) 'passage_order_key': passageOrderKey,
+      if (passageFraction != null) 'passage_fraction': passageFraction,
       if (offset != null) 'offset': offset,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -7613,12 +7903,22 @@ class ReaderPositionsCompanion extends UpdateCompanion<LocalReaderPositionRow> {
 
   ReaderPositionsCompanion copyWith({
     Value<String>? volumeId,
+    Value<String?>? sceneId,
+    Value<String?>? sceneOrderKey,
+    Value<String?>? passageId,
+    Value<String?>? passageOrderKey,
+    Value<double>? passageFraction,
     Value<double>? offset,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
   }) {
     return ReaderPositionsCompanion(
       volumeId: volumeId ?? this.volumeId,
+      sceneId: sceneId ?? this.sceneId,
+      sceneOrderKey: sceneOrderKey ?? this.sceneOrderKey,
+      passageId: passageId ?? this.passageId,
+      passageOrderKey: passageOrderKey ?? this.passageOrderKey,
+      passageFraction: passageFraction ?? this.passageFraction,
       offset: offset ?? this.offset,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -7630,6 +7930,21 @@ class ReaderPositionsCompanion extends UpdateCompanion<LocalReaderPositionRow> {
     final map = <String, Expression>{};
     if (volumeId.present) {
       map['volume_id'] = Variable<String>(volumeId.value);
+    }
+    if (sceneId.present) {
+      map['scene_id'] = Variable<String>(sceneId.value);
+    }
+    if (sceneOrderKey.present) {
+      map['scene_order_key'] = Variable<String>(sceneOrderKey.value);
+    }
+    if (passageId.present) {
+      map['passage_id'] = Variable<String>(passageId.value);
+    }
+    if (passageOrderKey.present) {
+      map['passage_order_key'] = Variable<String>(passageOrderKey.value);
+    }
+    if (passageFraction.present) {
+      map['passage_fraction'] = Variable<double>(passageFraction.value);
     }
     if (offset.present) {
       map['offset'] = Variable<double>(offset.value);
@@ -7647,8 +7962,1686 @@ class ReaderPositionsCompanion extends UpdateCompanion<LocalReaderPositionRow> {
   String toString() {
     return (StringBuffer('ReaderPositionsCompanion(')
           ..write('volumeId: $volumeId, ')
+          ..write('sceneId: $sceneId, ')
+          ..write('sceneOrderKey: $sceneOrderKey, ')
+          ..write('passageId: $passageId, ')
+          ..write('passageOrderKey: $passageOrderKey, ')
+          ..write('passageFraction: $passageFraction, ')
           ..write('offset: $offset, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PresentationReceiptsTable extends PresentationReceipts
+    with TableInfo<$PresentationReceiptsTable, LocalPresentationReceiptRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PresentationReceiptsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _volumeIdMeta = const VerificationMeta(
+    'volumeId',
+  );
+  @override
+  late final GeneratedColumn<String> volumeId = GeneratedColumn<String>(
+    'volume_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES volumes (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _consumedAtMeta = const VerificationMeta(
+    'consumedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> consumedAt = GeneratedColumn<DateTime>(
+    'consumed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [volumeId, kind, sourceId, consumedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'presentation_receipts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalPresentationReceiptRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('volume_id')) {
+      context.handle(
+        _volumeIdMeta,
+        volumeId.isAcceptableOrUnknown(data['volume_id']!, _volumeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_volumeIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceIdMeta);
+    }
+    if (data.containsKey('consumed_at')) {
+      context.handle(
+        _consumedAtMeta,
+        consumedAt.isAcceptableOrUnknown(data['consumed_at']!, _consumedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_consumedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {volumeId, kind, sourceId};
+  @override
+  LocalPresentationReceiptRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalPresentationReceiptRow(
+      volumeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}volume_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      )!,
+      consumedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}consumed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PresentationReceiptsTable createAlias(String alias) {
+    return $PresentationReceiptsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalPresentationReceiptRow extends DataClass
+    implements Insertable<LocalPresentationReceiptRow> {
+  final String volumeId;
+  final String kind;
+  final String sourceId;
+  final DateTime consumedAt;
+  const LocalPresentationReceiptRow({
+    required this.volumeId,
+    required this.kind,
+    required this.sourceId,
+    required this.consumedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['volume_id'] = Variable<String>(volumeId);
+    map['kind'] = Variable<String>(kind);
+    map['source_id'] = Variable<String>(sourceId);
+    map['consumed_at'] = Variable<DateTime>(consumedAt);
+    return map;
+  }
+
+  PresentationReceiptsCompanion toCompanion(bool nullToAbsent) {
+    return PresentationReceiptsCompanion(
+      volumeId: Value(volumeId),
+      kind: Value(kind),
+      sourceId: Value(sourceId),
+      consumedAt: Value(consumedAt),
+    );
+  }
+
+  factory LocalPresentationReceiptRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalPresentationReceiptRow(
+      volumeId: serializer.fromJson<String>(json['volumeId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      sourceId: serializer.fromJson<String>(json['sourceId']),
+      consumedAt: serializer.fromJson<DateTime>(json['consumedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'volumeId': serializer.toJson<String>(volumeId),
+      'kind': serializer.toJson<String>(kind),
+      'sourceId': serializer.toJson<String>(sourceId),
+      'consumedAt': serializer.toJson<DateTime>(consumedAt),
+    };
+  }
+
+  LocalPresentationReceiptRow copyWith({
+    String? volumeId,
+    String? kind,
+    String? sourceId,
+    DateTime? consumedAt,
+  }) => LocalPresentationReceiptRow(
+    volumeId: volumeId ?? this.volumeId,
+    kind: kind ?? this.kind,
+    sourceId: sourceId ?? this.sourceId,
+    consumedAt: consumedAt ?? this.consumedAt,
+  );
+  LocalPresentationReceiptRow copyWithCompanion(
+    PresentationReceiptsCompanion data,
+  ) {
+    return LocalPresentationReceiptRow(
+      volumeId: data.volumeId.present ? data.volumeId.value : this.volumeId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      consumedAt: data.consumedAt.present
+          ? data.consumedAt.value
+          : this.consumedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalPresentationReceiptRow(')
+          ..write('volumeId: $volumeId, ')
+          ..write('kind: $kind, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('consumedAt: $consumedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(volumeId, kind, sourceId, consumedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalPresentationReceiptRow &&
+          other.volumeId == this.volumeId &&
+          other.kind == this.kind &&
+          other.sourceId == this.sourceId &&
+          other.consumedAt == this.consumedAt);
+}
+
+class PresentationReceiptsCompanion
+    extends UpdateCompanion<LocalPresentationReceiptRow> {
+  final Value<String> volumeId;
+  final Value<String> kind;
+  final Value<String> sourceId;
+  final Value<DateTime> consumedAt;
+  final Value<int> rowid;
+  const PresentationReceiptsCompanion({
+    this.volumeId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.consumedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PresentationReceiptsCompanion.insert({
+    required String volumeId,
+    required String kind,
+    required String sourceId,
+    required DateTime consumedAt,
+    this.rowid = const Value.absent(),
+  }) : volumeId = Value(volumeId),
+       kind = Value(kind),
+       sourceId = Value(sourceId),
+       consumedAt = Value(consumedAt);
+  static Insertable<LocalPresentationReceiptRow> custom({
+    Expression<String>? volumeId,
+    Expression<String>? kind,
+    Expression<String>? sourceId,
+    Expression<DateTime>? consumedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (volumeId != null) 'volume_id': volumeId,
+      if (kind != null) 'kind': kind,
+      if (sourceId != null) 'source_id': sourceId,
+      if (consumedAt != null) 'consumed_at': consumedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PresentationReceiptsCompanion copyWith({
+    Value<String>? volumeId,
+    Value<String>? kind,
+    Value<String>? sourceId,
+    Value<DateTime>? consumedAt,
+    Value<int>? rowid,
+  }) {
+    return PresentationReceiptsCompanion(
+      volumeId: volumeId ?? this.volumeId,
+      kind: kind ?? this.kind,
+      sourceId: sourceId ?? this.sourceId,
+      consumedAt: consumedAt ?? this.consumedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (volumeId.present) {
+      map['volume_id'] = Variable<String>(volumeId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (consumedAt.present) {
+      map['consumed_at'] = Variable<DateTime>(consumedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PresentationReceiptsCompanion(')
+          ..write('volumeId: $volumeId, ')
+          ..write('kind: $kind, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('consumedAt: $consumedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GenerationSettingsChangesTable extends GenerationSettingsChanges
+    with
+        TableInfo<
+          $GenerationSettingsChangesTable,
+          LocalGenerationSettingsChangeRow
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GenerationSettingsChangesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _volumeIdMeta = const VerificationMeta(
+    'volumeId',
+  );
+  @override
+  late final GeneratedColumn<String> volumeId = GeneratedColumn<String>(
+    'volume_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES volumes (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _mutationIdMeta = const VerificationMeta(
+    'mutationId',
+  );
+  @override
+  late final GeneratedColumn<String> mutationId = GeneratedColumn<String>(
+    'mutation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baseVersionMeta = const VerificationMeta(
+    'baseVersion',
+  );
+  @override
+  late final GeneratedColumn<int> baseVersion = GeneratedColumn<int>(
+    'base_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _adaptationMeta = const VerificationMeta(
+    'adaptation',
+  );
+  @override
+  late final GeneratedColumn<String> adaptation = GeneratedColumn<String>(
+    'adaptation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _styleMeta = const VerificationMeta('style');
+  @override
+  late final GeneratedColumn<String> style = GeneratedColumn<String>(
+    'style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _narrativeVoiceMeta = const VerificationMeta(
+    'narrativeVoice',
+  );
+  @override
+  late final GeneratedColumn<String> narrativeVoice = GeneratedColumn<String>(
+    'narrative_voice',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    volumeId,
+    mutationId,
+    baseVersion,
+    adaptation,
+    style,
+    narrativeVoice,
+    status,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'generation_settings_changes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalGenerationSettingsChangeRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('volume_id')) {
+      context.handle(
+        _volumeIdMeta,
+        volumeId.isAcceptableOrUnknown(data['volume_id']!, _volumeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_volumeIdMeta);
+    }
+    if (data.containsKey('mutation_id')) {
+      context.handle(
+        _mutationIdMeta,
+        mutationId.isAcceptableOrUnknown(data['mutation_id']!, _mutationIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_mutationIdMeta);
+    }
+    if (data.containsKey('base_version')) {
+      context.handle(
+        _baseVersionMeta,
+        baseVersion.isAcceptableOrUnknown(
+          data['base_version']!,
+          _baseVersionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_baseVersionMeta);
+    }
+    if (data.containsKey('adaptation')) {
+      context.handle(
+        _adaptationMeta,
+        adaptation.isAcceptableOrUnknown(data['adaptation']!, _adaptationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_adaptationMeta);
+    }
+    if (data.containsKey('style')) {
+      context.handle(
+        _styleMeta,
+        style.isAcceptableOrUnknown(data['style']!, _styleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_styleMeta);
+    }
+    if (data.containsKey('narrative_voice')) {
+      context.handle(
+        _narrativeVoiceMeta,
+        narrativeVoice.isAcceptableOrUnknown(
+          data['narrative_voice']!,
+          _narrativeVoiceMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_narrativeVoiceMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {volumeId};
+  @override
+  LocalGenerationSettingsChangeRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalGenerationSettingsChangeRow(
+      volumeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}volume_id'],
+      )!,
+      mutationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mutation_id'],
+      )!,
+      baseVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}base_version'],
+      )!,
+      adaptation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}adaptation'],
+      )!,
+      style: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}style'],
+      )!,
+      narrativeVoice: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}narrative_voice'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $GenerationSettingsChangesTable createAlias(String alias) {
+    return $GenerationSettingsChangesTable(attachedDatabase, alias);
+  }
+}
+
+class LocalGenerationSettingsChangeRow extends DataClass
+    implements Insertable<LocalGenerationSettingsChangeRow> {
+  final String volumeId;
+  final String mutationId;
+  final int baseVersion;
+  final String adaptation;
+  final String style;
+  final String narrativeVoice;
+  final String status;
+  final DateTime updatedAt;
+  const LocalGenerationSettingsChangeRow({
+    required this.volumeId,
+    required this.mutationId,
+    required this.baseVersion,
+    required this.adaptation,
+    required this.style,
+    required this.narrativeVoice,
+    required this.status,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['volume_id'] = Variable<String>(volumeId);
+    map['mutation_id'] = Variable<String>(mutationId);
+    map['base_version'] = Variable<int>(baseVersion);
+    map['adaptation'] = Variable<String>(adaptation);
+    map['style'] = Variable<String>(style);
+    map['narrative_voice'] = Variable<String>(narrativeVoice);
+    map['status'] = Variable<String>(status);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  GenerationSettingsChangesCompanion toCompanion(bool nullToAbsent) {
+    return GenerationSettingsChangesCompanion(
+      volumeId: Value(volumeId),
+      mutationId: Value(mutationId),
+      baseVersion: Value(baseVersion),
+      adaptation: Value(adaptation),
+      style: Value(style),
+      narrativeVoice: Value(narrativeVoice),
+      status: Value(status),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LocalGenerationSettingsChangeRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalGenerationSettingsChangeRow(
+      volumeId: serializer.fromJson<String>(json['volumeId']),
+      mutationId: serializer.fromJson<String>(json['mutationId']),
+      baseVersion: serializer.fromJson<int>(json['baseVersion']),
+      adaptation: serializer.fromJson<String>(json['adaptation']),
+      style: serializer.fromJson<String>(json['style']),
+      narrativeVoice: serializer.fromJson<String>(json['narrativeVoice']),
+      status: serializer.fromJson<String>(json['status']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'volumeId': serializer.toJson<String>(volumeId),
+      'mutationId': serializer.toJson<String>(mutationId),
+      'baseVersion': serializer.toJson<int>(baseVersion),
+      'adaptation': serializer.toJson<String>(adaptation),
+      'style': serializer.toJson<String>(style),
+      'narrativeVoice': serializer.toJson<String>(narrativeVoice),
+      'status': serializer.toJson<String>(status),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LocalGenerationSettingsChangeRow copyWith({
+    String? volumeId,
+    String? mutationId,
+    int? baseVersion,
+    String? adaptation,
+    String? style,
+    String? narrativeVoice,
+    String? status,
+    DateTime? updatedAt,
+  }) => LocalGenerationSettingsChangeRow(
+    volumeId: volumeId ?? this.volumeId,
+    mutationId: mutationId ?? this.mutationId,
+    baseVersion: baseVersion ?? this.baseVersion,
+    adaptation: adaptation ?? this.adaptation,
+    style: style ?? this.style,
+    narrativeVoice: narrativeVoice ?? this.narrativeVoice,
+    status: status ?? this.status,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LocalGenerationSettingsChangeRow copyWithCompanion(
+    GenerationSettingsChangesCompanion data,
+  ) {
+    return LocalGenerationSettingsChangeRow(
+      volumeId: data.volumeId.present ? data.volumeId.value : this.volumeId,
+      mutationId: data.mutationId.present
+          ? data.mutationId.value
+          : this.mutationId,
+      baseVersion: data.baseVersion.present
+          ? data.baseVersion.value
+          : this.baseVersion,
+      adaptation: data.adaptation.present
+          ? data.adaptation.value
+          : this.adaptation,
+      style: data.style.present ? data.style.value : this.style,
+      narrativeVoice: data.narrativeVoice.present
+          ? data.narrativeVoice.value
+          : this.narrativeVoice,
+      status: data.status.present ? data.status.value : this.status,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalGenerationSettingsChangeRow(')
+          ..write('volumeId: $volumeId, ')
+          ..write('mutationId: $mutationId, ')
+          ..write('baseVersion: $baseVersion, ')
+          ..write('adaptation: $adaptation, ')
+          ..write('style: $style, ')
+          ..write('narrativeVoice: $narrativeVoice, ')
+          ..write('status: $status, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    volumeId,
+    mutationId,
+    baseVersion,
+    adaptation,
+    style,
+    narrativeVoice,
+    status,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalGenerationSettingsChangeRow &&
+          other.volumeId == this.volumeId &&
+          other.mutationId == this.mutationId &&
+          other.baseVersion == this.baseVersion &&
+          other.adaptation == this.adaptation &&
+          other.style == this.style &&
+          other.narrativeVoice == this.narrativeVoice &&
+          other.status == this.status &&
+          other.updatedAt == this.updatedAt);
+}
+
+class GenerationSettingsChangesCompanion
+    extends UpdateCompanion<LocalGenerationSettingsChangeRow> {
+  final Value<String> volumeId;
+  final Value<String> mutationId;
+  final Value<int> baseVersion;
+  final Value<String> adaptation;
+  final Value<String> style;
+  final Value<String> narrativeVoice;
+  final Value<String> status;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const GenerationSettingsChangesCompanion({
+    this.volumeId = const Value.absent(),
+    this.mutationId = const Value.absent(),
+    this.baseVersion = const Value.absent(),
+    this.adaptation = const Value.absent(),
+    this.style = const Value.absent(),
+    this.narrativeVoice = const Value.absent(),
+    this.status = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  GenerationSettingsChangesCompanion.insert({
+    required String volumeId,
+    required String mutationId,
+    required int baseVersion,
+    required String adaptation,
+    required String style,
+    required String narrativeVoice,
+    required String status,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : volumeId = Value(volumeId),
+       mutationId = Value(mutationId),
+       baseVersion = Value(baseVersion),
+       adaptation = Value(adaptation),
+       style = Value(style),
+       narrativeVoice = Value(narrativeVoice),
+       status = Value(status),
+       updatedAt = Value(updatedAt);
+  static Insertable<LocalGenerationSettingsChangeRow> custom({
+    Expression<String>? volumeId,
+    Expression<String>? mutationId,
+    Expression<int>? baseVersion,
+    Expression<String>? adaptation,
+    Expression<String>? style,
+    Expression<String>? narrativeVoice,
+    Expression<String>? status,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (volumeId != null) 'volume_id': volumeId,
+      if (mutationId != null) 'mutation_id': mutationId,
+      if (baseVersion != null) 'base_version': baseVersion,
+      if (adaptation != null) 'adaptation': adaptation,
+      if (style != null) 'style': style,
+      if (narrativeVoice != null) 'narrative_voice': narrativeVoice,
+      if (status != null) 'status': status,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  GenerationSettingsChangesCompanion copyWith({
+    Value<String>? volumeId,
+    Value<String>? mutationId,
+    Value<int>? baseVersion,
+    Value<String>? adaptation,
+    Value<String>? style,
+    Value<String>? narrativeVoice,
+    Value<String>? status,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return GenerationSettingsChangesCompanion(
+      volumeId: volumeId ?? this.volumeId,
+      mutationId: mutationId ?? this.mutationId,
+      baseVersion: baseVersion ?? this.baseVersion,
+      adaptation: adaptation ?? this.adaptation,
+      style: style ?? this.style,
+      narrativeVoice: narrativeVoice ?? this.narrativeVoice,
+      status: status ?? this.status,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (volumeId.present) {
+      map['volume_id'] = Variable<String>(volumeId.value);
+    }
+    if (mutationId.present) {
+      map['mutation_id'] = Variable<String>(mutationId.value);
+    }
+    if (baseVersion.present) {
+      map['base_version'] = Variable<int>(baseVersion.value);
+    }
+    if (adaptation.present) {
+      map['adaptation'] = Variable<String>(adaptation.value);
+    }
+    if (style.present) {
+      map['style'] = Variable<String>(style.value);
+    }
+    if (narrativeVoice.present) {
+      map['narrative_voice'] = Variable<String>(narrativeVoice.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GenerationSettingsChangesCompanion(')
+          ..write('volumeId: $volumeId, ')
+          ..write('mutationId: $mutationId, ')
+          ..write('baseVersion: $baseVersion, ')
+          ..write('adaptation: $adaptation, ')
+          ..write('style: $style, ')
+          ..write('narrativeVoice: $narrativeVoice, ')
+          ..write('status: $status, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CompletedBooksTable extends CompletedBooks
+    with TableInfo<$CompletedBooksTable, LocalCompletedBookRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CompletedBooksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _volumeIdMeta = const VerificationMeta(
+    'volumeId',
+  );
+  @override
+  late final GeneratedColumn<String> volumeId = GeneratedColumn<String>(
+    'volume_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _snapshotMeta = const VerificationMeta(
+    'snapshot',
+  );
+  @override
+  late final GeneratedColumn<String> snapshot = GeneratedColumn<String>(
+    'snapshot',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    volumeId,
+    userId,
+    snapshot,
+    completedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'completed_books';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalCompletedBookRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('volume_id')) {
+      context.handle(
+        _volumeIdMeta,
+        volumeId.isAcceptableOrUnknown(data['volume_id']!, _volumeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_volumeIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('snapshot')) {
+      context.handle(
+        _snapshotMeta,
+        snapshot.isAcceptableOrUnknown(data['snapshot']!, _snapshotMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_completedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {volumeId};
+  @override
+  LocalCompletedBookRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalCompletedBookRow(
+      volumeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}volume_id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      snapshot: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CompletedBooksTable createAlias(String alias) {
+    return $CompletedBooksTable(attachedDatabase, alias);
+  }
+}
+
+class LocalCompletedBookRow extends DataClass
+    implements Insertable<LocalCompletedBookRow> {
+  final String volumeId;
+  final String userId;
+  final String snapshot;
+  final DateTime completedAt;
+  const LocalCompletedBookRow({
+    required this.volumeId,
+    required this.userId,
+    required this.snapshot,
+    required this.completedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['volume_id'] = Variable<String>(volumeId);
+    map['user_id'] = Variable<String>(userId);
+    map['snapshot'] = Variable<String>(snapshot);
+    map['completed_at'] = Variable<DateTime>(completedAt);
+    return map;
+  }
+
+  CompletedBooksCompanion toCompanion(bool nullToAbsent) {
+    return CompletedBooksCompanion(
+      volumeId: Value(volumeId),
+      userId: Value(userId),
+      snapshot: Value(snapshot),
+      completedAt: Value(completedAt),
+    );
+  }
+
+  factory LocalCompletedBookRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalCompletedBookRow(
+      volumeId: serializer.fromJson<String>(json['volumeId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      snapshot: serializer.fromJson<String>(json['snapshot']),
+      completedAt: serializer.fromJson<DateTime>(json['completedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'volumeId': serializer.toJson<String>(volumeId),
+      'userId': serializer.toJson<String>(userId),
+      'snapshot': serializer.toJson<String>(snapshot),
+      'completedAt': serializer.toJson<DateTime>(completedAt),
+    };
+  }
+
+  LocalCompletedBookRow copyWith({
+    String? volumeId,
+    String? userId,
+    String? snapshot,
+    DateTime? completedAt,
+  }) => LocalCompletedBookRow(
+    volumeId: volumeId ?? this.volumeId,
+    userId: userId ?? this.userId,
+    snapshot: snapshot ?? this.snapshot,
+    completedAt: completedAt ?? this.completedAt,
+  );
+  LocalCompletedBookRow copyWithCompanion(CompletedBooksCompanion data) {
+    return LocalCompletedBookRow(
+      volumeId: data.volumeId.present ? data.volumeId.value : this.volumeId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      snapshot: data.snapshot.present ? data.snapshot.value : this.snapshot,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalCompletedBookRow(')
+          ..write('volumeId: $volumeId, ')
+          ..write('userId: $userId, ')
+          ..write('snapshot: $snapshot, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(volumeId, userId, snapshot, completedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalCompletedBookRow &&
+          other.volumeId == this.volumeId &&
+          other.userId == this.userId &&
+          other.snapshot == this.snapshot &&
+          other.completedAt == this.completedAt);
+}
+
+class CompletedBooksCompanion extends UpdateCompanion<LocalCompletedBookRow> {
+  final Value<String> volumeId;
+  final Value<String> userId;
+  final Value<String> snapshot;
+  final Value<DateTime> completedAt;
+  final Value<int> rowid;
+  const CompletedBooksCompanion({
+    this.volumeId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.snapshot = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CompletedBooksCompanion.insert({
+    required String volumeId,
+    required String userId,
+    required String snapshot,
+    required DateTime completedAt,
+    this.rowid = const Value.absent(),
+  }) : volumeId = Value(volumeId),
+       userId = Value(userId),
+       snapshot = Value(snapshot),
+       completedAt = Value(completedAt);
+  static Insertable<LocalCompletedBookRow> custom({
+    Expression<String>? volumeId,
+    Expression<String>? userId,
+    Expression<String>? snapshot,
+    Expression<DateTime>? completedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (volumeId != null) 'volume_id': volumeId,
+      if (userId != null) 'user_id': userId,
+      if (snapshot != null) 'snapshot': snapshot,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CompletedBooksCompanion copyWith({
+    Value<String>? volumeId,
+    Value<String>? userId,
+    Value<String>? snapshot,
+    Value<DateTime>? completedAt,
+    Value<int>? rowid,
+  }) {
+    return CompletedBooksCompanion(
+      volumeId: volumeId ?? this.volumeId,
+      userId: userId ?? this.userId,
+      snapshot: snapshot ?? this.snapshot,
+      completedAt: completedAt ?? this.completedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (volumeId.present) {
+      map['volume_id'] = Variable<String>(volumeId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (snapshot.present) {
+      map['snapshot'] = Variable<String>(snapshot.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CompletedBooksCompanion(')
+          ..write('volumeId: $volumeId, ')
+          ..write('userId: $userId, ')
+          ..write('snapshot: $snapshot, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CompletionRequestsTable extends CompletionRequests
+    with TableInfo<$CompletionRequestsTable, LocalCompletionRequestRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CompletionRequestsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _volumeIdMeta = const VerificationMeta(
+    'volumeId',
+  );
+  @override
+  late final GeneratedColumn<String> volumeId = GeneratedColumn<String>(
+    'volume_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES volumes (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _requestIdMeta = const VerificationMeta(
+    'requestId',
+  );
+  @override
+  late final GeneratedColumn<String> requestId = GeneratedColumn<String>(
+    'request_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _revisionMeta = const VerificationMeta(
+    'revision',
+  );
+  @override
+  late final GeneratedColumn<String> revision = GeneratedColumn<String>(
+    'revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _authorNoteMeta = const VerificationMeta(
+    'authorNote',
+  );
+  @override
+  late final GeneratedColumn<String> authorNote = GeneratedColumn<String>(
+    'author_note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _previousStatusMeta = const VerificationMeta(
+    'previousStatus',
+  );
+  @override
+  late final GeneratedColumn<String> previousStatus = GeneratedColumn<String>(
+    'previous_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    volumeId,
+    requestId,
+    revision,
+    title,
+    authorNote,
+    previousStatus,
+    status,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'completion_requests';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalCompletionRequestRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('volume_id')) {
+      context.handle(
+        _volumeIdMeta,
+        volumeId.isAcceptableOrUnknown(data['volume_id']!, _volumeIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_volumeIdMeta);
+    }
+    if (data.containsKey('request_id')) {
+      context.handle(
+        _requestIdMeta,
+        requestId.isAcceptableOrUnknown(data['request_id']!, _requestIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_requestIdMeta);
+    }
+    if (data.containsKey('revision')) {
+      context.handle(
+        _revisionMeta,
+        revision.isAcceptableOrUnknown(data['revision']!, _revisionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_revisionMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('author_note')) {
+      context.handle(
+        _authorNoteMeta,
+        authorNote.isAcceptableOrUnknown(data['author_note']!, _authorNoteMeta),
+      );
+    }
+    if (data.containsKey('previous_status')) {
+      context.handle(
+        _previousStatusMeta,
+        previousStatus.isAcceptableOrUnknown(
+          data['previous_status']!,
+          _previousStatusMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_previousStatusMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {volumeId};
+  @override
+  LocalCompletionRequestRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalCompletionRequestRow(
+      volumeId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}volume_id'],
+      )!,
+      requestId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}request_id'],
+      )!,
+      revision: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}revision'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      authorNote: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}author_note'],
+      ),
+      previousStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}previous_status'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+    );
+  }
+
+  @override
+  $CompletionRequestsTable createAlias(String alias) {
+    return $CompletionRequestsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalCompletionRequestRow extends DataClass
+    implements Insertable<LocalCompletionRequestRow> {
+  final String volumeId;
+  final String requestId;
+  final String revision;
+  final String title;
+  final String? authorNote;
+  final String previousStatus;
+  final String status;
+  const LocalCompletionRequestRow({
+    required this.volumeId,
+    required this.requestId,
+    required this.revision,
+    required this.title,
+    this.authorNote,
+    required this.previousStatus,
+    required this.status,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['volume_id'] = Variable<String>(volumeId);
+    map['request_id'] = Variable<String>(requestId);
+    map['revision'] = Variable<String>(revision);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || authorNote != null) {
+      map['author_note'] = Variable<String>(authorNote);
+    }
+    map['previous_status'] = Variable<String>(previousStatus);
+    map['status'] = Variable<String>(status);
+    return map;
+  }
+
+  CompletionRequestsCompanion toCompanion(bool nullToAbsent) {
+    return CompletionRequestsCompanion(
+      volumeId: Value(volumeId),
+      requestId: Value(requestId),
+      revision: Value(revision),
+      title: Value(title),
+      authorNote: authorNote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(authorNote),
+      previousStatus: Value(previousStatus),
+      status: Value(status),
+    );
+  }
+
+  factory LocalCompletionRequestRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalCompletionRequestRow(
+      volumeId: serializer.fromJson<String>(json['volumeId']),
+      requestId: serializer.fromJson<String>(json['requestId']),
+      revision: serializer.fromJson<String>(json['revision']),
+      title: serializer.fromJson<String>(json['title']),
+      authorNote: serializer.fromJson<String?>(json['authorNote']),
+      previousStatus: serializer.fromJson<String>(json['previousStatus']),
+      status: serializer.fromJson<String>(json['status']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'volumeId': serializer.toJson<String>(volumeId),
+      'requestId': serializer.toJson<String>(requestId),
+      'revision': serializer.toJson<String>(revision),
+      'title': serializer.toJson<String>(title),
+      'authorNote': serializer.toJson<String?>(authorNote),
+      'previousStatus': serializer.toJson<String>(previousStatus),
+      'status': serializer.toJson<String>(status),
+    };
+  }
+
+  LocalCompletionRequestRow copyWith({
+    String? volumeId,
+    String? requestId,
+    String? revision,
+    String? title,
+    Value<String?> authorNote = const Value.absent(),
+    String? previousStatus,
+    String? status,
+  }) => LocalCompletionRequestRow(
+    volumeId: volumeId ?? this.volumeId,
+    requestId: requestId ?? this.requestId,
+    revision: revision ?? this.revision,
+    title: title ?? this.title,
+    authorNote: authorNote.present ? authorNote.value : this.authorNote,
+    previousStatus: previousStatus ?? this.previousStatus,
+    status: status ?? this.status,
+  );
+  LocalCompletionRequestRow copyWithCompanion(
+    CompletionRequestsCompanion data,
+  ) {
+    return LocalCompletionRequestRow(
+      volumeId: data.volumeId.present ? data.volumeId.value : this.volumeId,
+      requestId: data.requestId.present ? data.requestId.value : this.requestId,
+      revision: data.revision.present ? data.revision.value : this.revision,
+      title: data.title.present ? data.title.value : this.title,
+      authorNote: data.authorNote.present
+          ? data.authorNote.value
+          : this.authorNote,
+      previousStatus: data.previousStatus.present
+          ? data.previousStatus.value
+          : this.previousStatus,
+      status: data.status.present ? data.status.value : this.status,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalCompletionRequestRow(')
+          ..write('volumeId: $volumeId, ')
+          ..write('requestId: $requestId, ')
+          ..write('revision: $revision, ')
+          ..write('title: $title, ')
+          ..write('authorNote: $authorNote, ')
+          ..write('previousStatus: $previousStatus, ')
+          ..write('status: $status')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    volumeId,
+    requestId,
+    revision,
+    title,
+    authorNote,
+    previousStatus,
+    status,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalCompletionRequestRow &&
+          other.volumeId == this.volumeId &&
+          other.requestId == this.requestId &&
+          other.revision == this.revision &&
+          other.title == this.title &&
+          other.authorNote == this.authorNote &&
+          other.previousStatus == this.previousStatus &&
+          other.status == this.status);
+}
+
+class CompletionRequestsCompanion
+    extends UpdateCompanion<LocalCompletionRequestRow> {
+  final Value<String> volumeId;
+  final Value<String> requestId;
+  final Value<String> revision;
+  final Value<String> title;
+  final Value<String?> authorNote;
+  final Value<String> previousStatus;
+  final Value<String> status;
+  final Value<int> rowid;
+  const CompletionRequestsCompanion({
+    this.volumeId = const Value.absent(),
+    this.requestId = const Value.absent(),
+    this.revision = const Value.absent(),
+    this.title = const Value.absent(),
+    this.authorNote = const Value.absent(),
+    this.previousStatus = const Value.absent(),
+    this.status = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CompletionRequestsCompanion.insert({
+    required String volumeId,
+    required String requestId,
+    required String revision,
+    required String title,
+    this.authorNote = const Value.absent(),
+    required String previousStatus,
+    required String status,
+    this.rowid = const Value.absent(),
+  }) : volumeId = Value(volumeId),
+       requestId = Value(requestId),
+       revision = Value(revision),
+       title = Value(title),
+       previousStatus = Value(previousStatus),
+       status = Value(status);
+  static Insertable<LocalCompletionRequestRow> custom({
+    Expression<String>? volumeId,
+    Expression<String>? requestId,
+    Expression<String>? revision,
+    Expression<String>? title,
+    Expression<String>? authorNote,
+    Expression<String>? previousStatus,
+    Expression<String>? status,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (volumeId != null) 'volume_id': volumeId,
+      if (requestId != null) 'request_id': requestId,
+      if (revision != null) 'revision': revision,
+      if (title != null) 'title': title,
+      if (authorNote != null) 'author_note': authorNote,
+      if (previousStatus != null) 'previous_status': previousStatus,
+      if (status != null) 'status': status,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CompletionRequestsCompanion copyWith({
+    Value<String>? volumeId,
+    Value<String>? requestId,
+    Value<String>? revision,
+    Value<String>? title,
+    Value<String?>? authorNote,
+    Value<String>? previousStatus,
+    Value<String>? status,
+    Value<int>? rowid,
+  }) {
+    return CompletionRequestsCompanion(
+      volumeId: volumeId ?? this.volumeId,
+      requestId: requestId ?? this.requestId,
+      revision: revision ?? this.revision,
+      title: title ?? this.title,
+      authorNote: authorNote ?? this.authorNote,
+      previousStatus: previousStatus ?? this.previousStatus,
+      status: status ?? this.status,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (volumeId.present) {
+      map['volume_id'] = Variable<String>(volumeId.value);
+    }
+    if (requestId.present) {
+      map['request_id'] = Variable<String>(requestId.value);
+    }
+    if (revision.present) {
+      map['revision'] = Variable<String>(revision.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (authorNote.present) {
+      map['author_note'] = Variable<String>(authorNote.value);
+    }
+    if (previousStatus.present) {
+      map['previous_status'] = Variable<String>(previousStatus.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CompletionRequestsCompanion(')
+          ..write('volumeId: $volumeId, ')
+          ..write('requestId: $requestId, ')
+          ..write('revision: $revision, ')
+          ..write('title: $title, ')
+          ..write('authorNote: $authorNote, ')
+          ..write('previousStatus: $previousStatus, ')
+          ..write('status: $status, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7904,6 +9897,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ReaderPositionsTable readerPositions = $ReaderPositionsTable(
     this,
   );
+  late final $PresentationReceiptsTable presentationReceipts =
+      $PresentationReceiptsTable(this);
+  late final $GenerationSettingsChangesTable generationSettingsChanges =
+      $GenerationSettingsChangesTable(this);
+  late final $CompletedBooksTable completedBooks = $CompletedBooksTable(this);
+  late final $CompletionRequestsTable completionRequests =
+      $CompletionRequestsTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -7922,8 +9922,38 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     dreamDrafts,
     outbox,
     readerPositions,
+    presentationReceipts,
+    generationSettingsChanges,
+    completedBooks,
+    completionRequests,
     syncState,
   ];
+  @override
+  StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'volumes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('presentation_receipts', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'volumes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [
+        TableUpdate('generation_settings_changes', kind: UpdateKind.delete),
+      ],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'volumes',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('completion_requests', kind: UpdateKind.delete)],
+    ),
+  ]);
 }
 
 typedef $$VolumesTableCreateCompanionBuilder =
@@ -7938,6 +9968,7 @@ typedef $$VolumesTableCreateCompanionBuilder =
       required String adaptation,
       required String style,
       required String narrativeVoice,
+      Value<int> settingsVersion,
       required String status,
       required double targetMu,
       required double progressMu,
@@ -7962,6 +9993,7 @@ typedef $$VolumesTableUpdateCompanionBuilder =
       Value<String> adaptation,
       Value<String> style,
       Value<String> narrativeVoice,
+      Value<int> settingsVersion,
       Value<String> status,
       Value<double> targetMu,
       Value<double> progressMu,
@@ -8110,6 +10142,80 @@ final class $$VolumesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $PresentationReceiptsTable,
+    List<LocalPresentationReceiptRow>
+  >
+  _presentationReceiptsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.presentationReceipts,
+        aliasName: 'volumes__id__presentation_receipts__volume_id',
+      );
+
+  $$PresentationReceiptsTableProcessedTableManager
+  get presentationReceiptsRefs {
+    final manager = $$PresentationReceiptsTableTableManager(
+      $_db,
+      $_db.presentationReceipts,
+    ).filter((f) => f.volumeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _presentationReceiptsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $GenerationSettingsChangesTable,
+    List<LocalGenerationSettingsChangeRow>
+  >
+  _generationSettingsChangesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.generationSettingsChanges,
+        aliasName: 'volumes__id__generation_settings_changes__volume_id',
+      );
+
+  $$GenerationSettingsChangesTableProcessedTableManager
+  get generationSettingsChangesRefs {
+    final manager = $$GenerationSettingsChangesTableTableManager(
+      $_db,
+      $_db.generationSettingsChanges,
+    ).filter((f) => f.volumeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _generationSettingsChangesRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $CompletionRequestsTable,
+    List<LocalCompletionRequestRow>
+  >
+  _completionRequestsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.completionRequests,
+        aliasName: 'volumes__id__completion_requests__volume_id',
+      );
+
+  $$CompletionRequestsTableProcessedTableManager get completionRequestsRefs {
+    final manager = $$CompletionRequestsTableTableManager(
+      $_db,
+      $_db.completionRequests,
+    ).filter((f) => f.volumeId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _completionRequestsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$VolumesTableFilterComposer
@@ -8168,6 +10274,11 @@ class $$VolumesTableFilterComposer
 
   ColumnFilters<String> get narrativeVoice => $composableBuilder(
     column: $table.narrativeVoice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get settingsVersion => $composableBuilder(
+    column: $table.settingsVersion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8395,6 +10506,83 @@ class $$VolumesTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> presentationReceiptsRefs(
+    Expression<bool> Function($$PresentationReceiptsTableFilterComposer f) f,
+  ) {
+    final $$PresentationReceiptsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.presentationReceipts,
+      getReferencedColumn: (t) => t.volumeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PresentationReceiptsTableFilterComposer(
+            $db: $db,
+            $table: $db.presentationReceipts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> generationSettingsChangesRefs(
+    Expression<bool> Function($$GenerationSettingsChangesTableFilterComposer f)
+    f,
+  ) {
+    final $$GenerationSettingsChangesTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.generationSettingsChanges,
+          getReferencedColumn: (t) => t.volumeId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$GenerationSettingsChangesTableFilterComposer(
+                $db: $db,
+                $table: $db.generationSettingsChanges,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<bool> completionRequestsRefs(
+    Expression<bool> Function($$CompletionRequestsTableFilterComposer f) f,
+  ) {
+    final $$CompletionRequestsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.completionRequests,
+      getReferencedColumn: (t) => t.volumeId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CompletionRequestsTableFilterComposer(
+            $db: $db,
+            $table: $db.completionRequests,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$VolumesTableOrderingComposer
@@ -8453,6 +10641,11 @@ class $$VolumesTableOrderingComposer
 
   ColumnOrderings<String> get narrativeVoice => $composableBuilder(
     column: $table.narrativeVoice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get settingsVersion => $composableBuilder(
+    column: $table.settingsVersion,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -8547,6 +10740,11 @@ class $$VolumesTableAnnotationComposer
 
   GeneratedColumn<String> get narrativeVoice => $composableBuilder(
     column: $table.narrativeVoice,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get settingsVersion => $composableBuilder(
+    column: $table.settingsVersion,
     builder: (column) => column,
   );
 
@@ -8768,6 +10966,85 @@ class $$VolumesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> presentationReceiptsRefs<T extends Object>(
+    Expression<T> Function($$PresentationReceiptsTableAnnotationComposer a) f,
+  ) {
+    final $$PresentationReceiptsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.presentationReceipts,
+          getReferencedColumn: (t) => t.volumeId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$PresentationReceiptsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.presentationReceipts,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> generationSettingsChangesRefs<T extends Object>(
+    Expression<T> Function($$GenerationSettingsChangesTableAnnotationComposer a)
+    f,
+  ) {
+    final $$GenerationSettingsChangesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.generationSettingsChanges,
+          getReferencedColumn: (t) => t.volumeId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$GenerationSettingsChangesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.generationSettingsChanges,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
+  Expression<T> completionRequestsRefs<T extends Object>(
+    Expression<T> Function($$CompletionRequestsTableAnnotationComposer a) f,
+  ) {
+    final $$CompletionRequestsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.completionRequests,
+          getReferencedColumn: (t) => t.volumeId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$CompletionRequestsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.completionRequests,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$VolumesTableTableManager
@@ -8791,6 +11068,9 @@ class $$VolumesTableTableManager
             bool jobsRefs,
             bool linkDecisionsRefs,
             bool readerPositionsRefs,
+            bool presentationReceiptsRefs,
+            bool generationSettingsChangesRefs,
+            bool completionRequestsRefs,
           })
         > {
   $$VolumesTableTableManager(_$AppDatabase db, $VolumesTable table)
@@ -8816,6 +11096,7 @@ class $$VolumesTableTableManager
                 Value<String> adaptation = const Value.absent(),
                 Value<String> style = const Value.absent(),
                 Value<String> narrativeVoice = const Value.absent(),
+                Value<int> settingsVersion = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<double> targetMu = const Value.absent(),
                 Value<double> progressMu = const Value.absent(),
@@ -8838,6 +11119,7 @@ class $$VolumesTableTableManager
                 adaptation: adaptation,
                 style: style,
                 narrativeVoice: narrativeVoice,
+                settingsVersion: settingsVersion,
                 status: status,
                 targetMu: targetMu,
                 progressMu: progressMu,
@@ -8862,6 +11144,7 @@ class $$VolumesTableTableManager
                 required String adaptation,
                 required String style,
                 required String narrativeVoice,
+                Value<int> settingsVersion = const Value.absent(),
                 required String status,
                 required double targetMu,
                 required double progressMu,
@@ -8884,6 +11167,7 @@ class $$VolumesTableTableManager
                 adaptation: adaptation,
                 style: style,
                 narrativeVoice: narrativeVoice,
+                settingsVersion: settingsVersion,
                 status: status,
                 targetMu: targetMu,
                 progressMu: progressMu,
@@ -8913,6 +11197,9 @@ class $$VolumesTableTableManager
                 jobsRefs = false,
                 linkDecisionsRefs = false,
                 readerPositionsRefs = false,
+                presentationReceiptsRefs = false,
+                generationSettingsChangesRefs = false,
+                completionRequestsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -8924,6 +11211,10 @@ class $$VolumesTableTableManager
                     if (jobsRefs) db.jobs,
                     if (linkDecisionsRefs) db.linkDecisions,
                     if (readerPositionsRefs) db.readerPositions,
+                    if (presentationReceiptsRefs) db.presentationReceipts,
+                    if (generationSettingsChangesRefs)
+                      db.generationSettingsChanges,
+                    if (completionRequestsRefs) db.completionRequests,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -9071,6 +11362,69 @@ class $$VolumesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (presentationReceiptsRefs)
+                        await $_getPrefetchedData<
+                          LocalVolumeRow,
+                          $VolumesTable,
+                          LocalPresentationReceiptRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$VolumesTableReferences
+                              ._presentationReceiptsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$VolumesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).presentationReceiptsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.volumeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (generationSettingsChangesRefs)
+                        await $_getPrefetchedData<
+                          LocalVolumeRow,
+                          $VolumesTable,
+                          LocalGenerationSettingsChangeRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$VolumesTableReferences
+                              ._generationSettingsChangesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$VolumesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).generationSettingsChangesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.volumeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (completionRequestsRefs)
+                        await $_getPrefetchedData<
+                          LocalVolumeRow,
+                          $VolumesTable,
+                          LocalCompletionRequestRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$VolumesTableReferences
+                              ._completionRequestsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$VolumesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).completionRequestsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.volumeId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -9099,6 +11453,9 @@ typedef $$VolumesTableProcessedTableManager =
         bool jobsRefs,
         bool linkDecisionsRefs,
         bool readerPositionsRefs,
+        bool presentationReceiptsRefs,
+        bool generationSettingsChangesRefs,
+        bool completionRequestsRefs,
       })
     >;
 typedef $$DreamsTableCreateCompanionBuilder =
@@ -14033,6 +16390,11 @@ typedef $$OutboxTableProcessedTableManager =
 typedef $$ReaderPositionsTableCreateCompanionBuilder =
     ReaderPositionsCompanion Function({
       required String volumeId,
+      Value<String?> sceneId,
+      Value<String?> sceneOrderKey,
+      Value<String?> passageId,
+      Value<String?> passageOrderKey,
+      Value<double> passageFraction,
       Value<double> offset,
       required DateTime updatedAt,
       Value<int> rowid,
@@ -14040,6 +16402,11 @@ typedef $$ReaderPositionsTableCreateCompanionBuilder =
 typedef $$ReaderPositionsTableUpdateCompanionBuilder =
     ReaderPositionsCompanion Function({
       Value<String> volumeId,
+      Value<String?> sceneId,
+      Value<String?> sceneOrderKey,
+      Value<String?> passageId,
+      Value<String?> passageOrderKey,
+      Value<double> passageFraction,
       Value<double> offset,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -14085,6 +16452,31 @@ class $$ReaderPositionsTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sceneOrderKey => $composableBuilder(
+    column: $table.sceneOrderKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get passageId => $composableBuilder(
+    column: $table.passageId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get passageOrderKey => $composableBuilder(
+    column: $table.passageOrderKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get passageFraction => $composableBuilder(
+    column: $table.passageFraction,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<double> get offset => $composableBuilder(
     column: $table.offset,
     builder: (column) => ColumnFilters(column),
@@ -14128,6 +16520,31 @@ class $$ReaderPositionsTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<String> get sceneId => $composableBuilder(
+    column: $table.sceneId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sceneOrderKey => $composableBuilder(
+    column: $table.sceneOrderKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get passageId => $composableBuilder(
+    column: $table.passageId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get passageOrderKey => $composableBuilder(
+    column: $table.passageOrderKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get passageFraction => $composableBuilder(
+    column: $table.passageFraction,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get offset => $composableBuilder(
     column: $table.offset,
     builder: (column) => ColumnOrderings(column),
@@ -14171,6 +16588,27 @@ class $$ReaderPositionsTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<String> get sceneId =>
+      $composableBuilder(column: $table.sceneId, builder: (column) => column);
+
+  GeneratedColumn<String> get sceneOrderKey => $composableBuilder(
+    column: $table.sceneOrderKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get passageId =>
+      $composableBuilder(column: $table.passageId, builder: (column) => column);
+
+  GeneratedColumn<String> get passageOrderKey => $composableBuilder(
+    column: $table.passageOrderKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get passageFraction => $composableBuilder(
+    column: $table.passageFraction,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get offset =>
       $composableBuilder(column: $table.offset, builder: (column) => column);
 
@@ -14232,11 +16670,21 @@ class $$ReaderPositionsTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> volumeId = const Value.absent(),
+                Value<String?> sceneId = const Value.absent(),
+                Value<String?> sceneOrderKey = const Value.absent(),
+                Value<String?> passageId = const Value.absent(),
+                Value<String?> passageOrderKey = const Value.absent(),
+                Value<double> passageFraction = const Value.absent(),
                 Value<double> offset = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ReaderPositionsCompanion(
                 volumeId: volumeId,
+                sceneId: sceneId,
+                sceneOrderKey: sceneOrderKey,
+                passageId: passageId,
+                passageOrderKey: passageOrderKey,
+                passageFraction: passageFraction,
                 offset: offset,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -14244,11 +16692,21 @@ class $$ReaderPositionsTableTableManager
           createCompanionCallback:
               ({
                 required String volumeId,
+                Value<String?> sceneId = const Value.absent(),
+                Value<String?> sceneOrderKey = const Value.absent(),
+                Value<String?> passageId = const Value.absent(),
+                Value<String?> passageOrderKey = const Value.absent(),
+                Value<double> passageFraction = const Value.absent(),
                 Value<double> offset = const Value.absent(),
                 required DateTime updatedAt,
                 Value<int> rowid = const Value.absent(),
               }) => ReaderPositionsCompanion.insert(
                 volumeId: volumeId,
+                sceneId: sceneId,
+                sceneOrderKey: sceneOrderKey,
+                passageId: passageId,
+                passageOrderKey: passageOrderKey,
+                passageFraction: passageFraction,
                 offset: offset,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -14322,6 +16780,1323 @@ typedef $$ReaderPositionsTableProcessedTableManager =
       $$ReaderPositionsTableUpdateCompanionBuilder,
       (LocalReaderPositionRow, $$ReaderPositionsTableReferences),
       LocalReaderPositionRow,
+      PrefetchHooks Function({bool volumeId})
+    >;
+typedef $$PresentationReceiptsTableCreateCompanionBuilder =
+    PresentationReceiptsCompanion Function({
+      required String volumeId,
+      required String kind,
+      required String sourceId,
+      required DateTime consumedAt,
+      Value<int> rowid,
+    });
+typedef $$PresentationReceiptsTableUpdateCompanionBuilder =
+    PresentationReceiptsCompanion Function({
+      Value<String> volumeId,
+      Value<String> kind,
+      Value<String> sourceId,
+      Value<DateTime> consumedAt,
+      Value<int> rowid,
+    });
+
+final class $$PresentationReceiptsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $PresentationReceiptsTable,
+          LocalPresentationReceiptRow
+        > {
+  $$PresentationReceiptsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $VolumesTable _volumeIdTable(_$AppDatabase db) =>
+      db.volumes.createAlias('presentation_receipts__volume_id__volumes__id');
+
+  $$VolumesTableProcessedTableManager get volumeId {
+    final $_column = $_itemColumn<String>('volume_id')!;
+
+    final manager = $$VolumesTableTableManager(
+      $_db,
+      $_db.volumes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_volumeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PresentationReceiptsTableFilterComposer
+    extends Composer<_$AppDatabase, $PresentationReceiptsTable> {
+  $$PresentationReceiptsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get consumedAt => $composableBuilder(
+    column: $table.consumedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$VolumesTableFilterComposer get volumeId {
+    final $$VolumesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableFilterComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PresentationReceiptsTableOrderingComposer
+    extends Composer<_$AppDatabase, $PresentationReceiptsTable> {
+  $$PresentationReceiptsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get consumedAt => $composableBuilder(
+    column: $table.consumedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$VolumesTableOrderingComposer get volumeId {
+    final $$VolumesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableOrderingComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PresentationReceiptsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PresentationReceiptsTable> {
+  $$PresentationReceiptsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get consumedAt => $composableBuilder(
+    column: $table.consumedAt,
+    builder: (column) => column,
+  );
+
+  $$VolumesTableAnnotationComposer get volumeId {
+    final $$VolumesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PresentationReceiptsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PresentationReceiptsTable,
+          LocalPresentationReceiptRow,
+          $$PresentationReceiptsTableFilterComposer,
+          $$PresentationReceiptsTableOrderingComposer,
+          $$PresentationReceiptsTableAnnotationComposer,
+          $$PresentationReceiptsTableCreateCompanionBuilder,
+          $$PresentationReceiptsTableUpdateCompanionBuilder,
+          (LocalPresentationReceiptRow, $$PresentationReceiptsTableReferences),
+          LocalPresentationReceiptRow,
+          PrefetchHooks Function({bool volumeId})
+        > {
+  $$PresentationReceiptsTableTableManager(
+    _$AppDatabase db,
+    $PresentationReceiptsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PresentationReceiptsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PresentationReceiptsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$PresentationReceiptsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> volumeId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> sourceId = const Value.absent(),
+                Value<DateTime> consumedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PresentationReceiptsCompanion(
+                volumeId: volumeId,
+                kind: kind,
+                sourceId: sourceId,
+                consumedAt: consumedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String volumeId,
+                required String kind,
+                required String sourceId,
+                required DateTime consumedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PresentationReceiptsCompanion.insert(
+                volumeId: volumeId,
+                kind: kind,
+                sourceId: sourceId,
+                consumedAt: consumedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $PresentationReceiptsTable,
+                    LocalPresentationReceiptRow
+                  >(table),
+                  $$PresentationReceiptsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({volumeId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (volumeId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.volumeId,
+                                referencedTable:
+                                    $$PresentationReceiptsTableReferences
+                                        ._volumeIdTable(db),
+                                referencedColumn:
+                                    $$PresentationReceiptsTableReferences
+                                        ._volumeIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PresentationReceiptsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PresentationReceiptsTable,
+      LocalPresentationReceiptRow,
+      $$PresentationReceiptsTableFilterComposer,
+      $$PresentationReceiptsTableOrderingComposer,
+      $$PresentationReceiptsTableAnnotationComposer,
+      $$PresentationReceiptsTableCreateCompanionBuilder,
+      $$PresentationReceiptsTableUpdateCompanionBuilder,
+      (LocalPresentationReceiptRow, $$PresentationReceiptsTableReferences),
+      LocalPresentationReceiptRow,
+      PrefetchHooks Function({bool volumeId})
+    >;
+typedef $$GenerationSettingsChangesTableCreateCompanionBuilder =
+    GenerationSettingsChangesCompanion Function({
+      required String volumeId,
+      required String mutationId,
+      required int baseVersion,
+      required String adaptation,
+      required String style,
+      required String narrativeVoice,
+      required String status,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$GenerationSettingsChangesTableUpdateCompanionBuilder =
+    GenerationSettingsChangesCompanion Function({
+      Value<String> volumeId,
+      Value<String> mutationId,
+      Value<int> baseVersion,
+      Value<String> adaptation,
+      Value<String> style,
+      Value<String> narrativeVoice,
+      Value<String> status,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+final class $$GenerationSettingsChangesTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $GenerationSettingsChangesTable,
+          LocalGenerationSettingsChangeRow
+        > {
+  $$GenerationSettingsChangesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $VolumesTable _volumeIdTable(_$AppDatabase db) => db.volumes
+      .createAlias('generation_settings_changes__volume_id__volumes__id');
+
+  $$VolumesTableProcessedTableManager get volumeId {
+    final $_column = $_itemColumn<String>('volume_id')!;
+
+    final manager = $$VolumesTableTableManager(
+      $_db,
+      $_db.volumes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_volumeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$GenerationSettingsChangesTableFilterComposer
+    extends Composer<_$AppDatabase, $GenerationSettingsChangesTable> {
+  $$GenerationSettingsChangesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get mutationId => $composableBuilder(
+    column: $table.mutationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get baseVersion => $composableBuilder(
+    column: $table.baseVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get adaptation => $composableBuilder(
+    column: $table.adaptation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get style => $composableBuilder(
+    column: $table.style,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get narrativeVoice => $composableBuilder(
+    column: $table.narrativeVoice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$VolumesTableFilterComposer get volumeId {
+    final $$VolumesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableFilterComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GenerationSettingsChangesTableOrderingComposer
+    extends Composer<_$AppDatabase, $GenerationSettingsChangesTable> {
+  $$GenerationSettingsChangesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get mutationId => $composableBuilder(
+    column: $table.mutationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get baseVersion => $composableBuilder(
+    column: $table.baseVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get adaptation => $composableBuilder(
+    column: $table.adaptation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get style => $composableBuilder(
+    column: $table.style,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get narrativeVoice => $composableBuilder(
+    column: $table.narrativeVoice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$VolumesTableOrderingComposer get volumeId {
+    final $$VolumesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableOrderingComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GenerationSettingsChangesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $GenerationSettingsChangesTable> {
+  $$GenerationSettingsChangesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get mutationId => $composableBuilder(
+    column: $table.mutationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get baseVersion => $composableBuilder(
+    column: $table.baseVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get adaptation => $composableBuilder(
+    column: $table.adaptation,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get style =>
+      $composableBuilder(column: $table.style, builder: (column) => column);
+
+  GeneratedColumn<String> get narrativeVoice => $composableBuilder(
+    column: $table.narrativeVoice,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$VolumesTableAnnotationComposer get volumeId {
+    final $$VolumesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$GenerationSettingsChangesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $GenerationSettingsChangesTable,
+          LocalGenerationSettingsChangeRow,
+          $$GenerationSettingsChangesTableFilterComposer,
+          $$GenerationSettingsChangesTableOrderingComposer,
+          $$GenerationSettingsChangesTableAnnotationComposer,
+          $$GenerationSettingsChangesTableCreateCompanionBuilder,
+          $$GenerationSettingsChangesTableUpdateCompanionBuilder,
+          (
+            LocalGenerationSettingsChangeRow,
+            $$GenerationSettingsChangesTableReferences,
+          ),
+          LocalGenerationSettingsChangeRow,
+          PrefetchHooks Function({bool volumeId})
+        > {
+  $$GenerationSettingsChangesTableTableManager(
+    _$AppDatabase db,
+    $GenerationSettingsChangesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GenerationSettingsChangesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$GenerationSettingsChangesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$GenerationSettingsChangesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> volumeId = const Value.absent(),
+                Value<String> mutationId = const Value.absent(),
+                Value<int> baseVersion = const Value.absent(),
+                Value<String> adaptation = const Value.absent(),
+                Value<String> style = const Value.absent(),
+                Value<String> narrativeVoice = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => GenerationSettingsChangesCompanion(
+                volumeId: volumeId,
+                mutationId: mutationId,
+                baseVersion: baseVersion,
+                adaptation: adaptation,
+                style: style,
+                narrativeVoice: narrativeVoice,
+                status: status,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String volumeId,
+                required String mutationId,
+                required int baseVersion,
+                required String adaptation,
+                required String style,
+                required String narrativeVoice,
+                required String status,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => GenerationSettingsChangesCompanion.insert(
+                volumeId: volumeId,
+                mutationId: mutationId,
+                baseVersion: baseVersion,
+                adaptation: adaptation,
+                style: style,
+                narrativeVoice: narrativeVoice,
+                status: status,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $GenerationSettingsChangesTable,
+                    LocalGenerationSettingsChangeRow
+                  >(table),
+                  $$GenerationSettingsChangesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({volumeId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (volumeId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.volumeId,
+                                referencedTable:
+                                    $$GenerationSettingsChangesTableReferences
+                                        ._volumeIdTable(db),
+                                referencedColumn:
+                                    $$GenerationSettingsChangesTableReferences
+                                        ._volumeIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$GenerationSettingsChangesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $GenerationSettingsChangesTable,
+      LocalGenerationSettingsChangeRow,
+      $$GenerationSettingsChangesTableFilterComposer,
+      $$GenerationSettingsChangesTableOrderingComposer,
+      $$GenerationSettingsChangesTableAnnotationComposer,
+      $$GenerationSettingsChangesTableCreateCompanionBuilder,
+      $$GenerationSettingsChangesTableUpdateCompanionBuilder,
+      (
+        LocalGenerationSettingsChangeRow,
+        $$GenerationSettingsChangesTableReferences,
+      ),
+      LocalGenerationSettingsChangeRow,
+      PrefetchHooks Function({bool volumeId})
+    >;
+typedef $$CompletedBooksTableCreateCompanionBuilder =
+    CompletedBooksCompanion Function({
+      required String volumeId,
+      required String userId,
+      required String snapshot,
+      required DateTime completedAt,
+      Value<int> rowid,
+    });
+typedef $$CompletedBooksTableUpdateCompanionBuilder =
+    CompletedBooksCompanion Function({
+      Value<String> volumeId,
+      Value<String> userId,
+      Value<String> snapshot,
+      Value<DateTime> completedAt,
+      Value<int> rowid,
+    });
+
+class $$CompletedBooksTableFilterComposer
+    extends Composer<_$AppDatabase, $CompletedBooksTable> {
+  $$CompletedBooksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get volumeId => $composableBuilder(
+    column: $table.volumeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshot => $composableBuilder(
+    column: $table.snapshot,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CompletedBooksTableOrderingComposer
+    extends Composer<_$AppDatabase, $CompletedBooksTable> {
+  $$CompletedBooksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get volumeId => $composableBuilder(
+    column: $table.volumeId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshot => $composableBuilder(
+    column: $table.snapshot,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CompletedBooksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CompletedBooksTable> {
+  $$CompletedBooksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get volumeId =>
+      $composableBuilder(column: $table.volumeId, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get snapshot =>
+      $composableBuilder(column: $table.snapshot, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$CompletedBooksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CompletedBooksTable,
+          LocalCompletedBookRow,
+          $$CompletedBooksTableFilterComposer,
+          $$CompletedBooksTableOrderingComposer,
+          $$CompletedBooksTableAnnotationComposer,
+          $$CompletedBooksTableCreateCompanionBuilder,
+          $$CompletedBooksTableUpdateCompanionBuilder,
+          (
+            LocalCompletedBookRow,
+            BaseReferences<
+              _$AppDatabase,
+              $CompletedBooksTable,
+              LocalCompletedBookRow
+            >,
+          ),
+          LocalCompletedBookRow,
+          PrefetchHooks Function()
+        > {
+  $$CompletedBooksTableTableManager(
+    _$AppDatabase db,
+    $CompletedBooksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CompletedBooksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CompletedBooksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CompletedBooksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> volumeId = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<String> snapshot = const Value.absent(),
+                Value<DateTime> completedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CompletedBooksCompanion(
+                volumeId: volumeId,
+                userId: userId,
+                snapshot: snapshot,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String volumeId,
+                required String userId,
+                required String snapshot,
+                required DateTime completedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CompletedBooksCompanion.insert(
+                volumeId: volumeId,
+                userId: userId,
+                snapshot: snapshot,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CompletedBooksTable, LocalCompletedBookRow>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CompletedBooksTable,
+                    LocalCompletedBookRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CompletedBooksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CompletedBooksTable,
+      LocalCompletedBookRow,
+      $$CompletedBooksTableFilterComposer,
+      $$CompletedBooksTableOrderingComposer,
+      $$CompletedBooksTableAnnotationComposer,
+      $$CompletedBooksTableCreateCompanionBuilder,
+      $$CompletedBooksTableUpdateCompanionBuilder,
+      (
+        LocalCompletedBookRow,
+        BaseReferences<
+          _$AppDatabase,
+          $CompletedBooksTable,
+          LocalCompletedBookRow
+        >,
+      ),
+      LocalCompletedBookRow,
+      PrefetchHooks Function()
+    >;
+typedef $$CompletionRequestsTableCreateCompanionBuilder =
+    CompletionRequestsCompanion Function({
+      required String volumeId,
+      required String requestId,
+      required String revision,
+      required String title,
+      Value<String?> authorNote,
+      required String previousStatus,
+      required String status,
+      Value<int> rowid,
+    });
+typedef $$CompletionRequestsTableUpdateCompanionBuilder =
+    CompletionRequestsCompanion Function({
+      Value<String> volumeId,
+      Value<String> requestId,
+      Value<String> revision,
+      Value<String> title,
+      Value<String?> authorNote,
+      Value<String> previousStatus,
+      Value<String> status,
+      Value<int> rowid,
+    });
+
+final class $$CompletionRequestsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $CompletionRequestsTable,
+          LocalCompletionRequestRow
+        > {
+  $$CompletionRequestsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $VolumesTable _volumeIdTable(_$AppDatabase db) =>
+      db.volumes.createAlias('completion_requests__volume_id__volumes__id');
+
+  $$VolumesTableProcessedTableManager get volumeId {
+    final $_column = $_itemColumn<String>('volume_id')!;
+
+    final manager = $$VolumesTableTableManager(
+      $_db,
+      $_db.volumes,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_volumeIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$CompletionRequestsTableFilterComposer
+    extends Composer<_$AppDatabase, $CompletionRequestsTable> {
+  $$CompletionRequestsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get requestId => $composableBuilder(
+    column: $table.requestId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get authorNote => $composableBuilder(
+    column: $table.authorNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get previousStatus => $composableBuilder(
+    column: $table.previousStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$VolumesTableFilterComposer get volumeId {
+    final $$VolumesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableFilterComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CompletionRequestsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CompletionRequestsTable> {
+  $$CompletionRequestsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get requestId => $composableBuilder(
+    column: $table.requestId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get revision => $composableBuilder(
+    column: $table.revision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get authorNote => $composableBuilder(
+    column: $table.authorNote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get previousStatus => $composableBuilder(
+    column: $table.previousStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$VolumesTableOrderingComposer get volumeId {
+    final $$VolumesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableOrderingComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CompletionRequestsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CompletionRequestsTable> {
+  $$CompletionRequestsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get requestId =>
+      $composableBuilder(column: $table.requestId, builder: (column) => column);
+
+  GeneratedColumn<String> get revision =>
+      $composableBuilder(column: $table.revision, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get authorNote => $composableBuilder(
+    column: $table.authorNote,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get previousStatus => $composableBuilder(
+    column: $table.previousStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  $$VolumesTableAnnotationComposer get volumeId {
+    final $$VolumesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.volumeId,
+      referencedTable: $db.volumes,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VolumesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.volumes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CompletionRequestsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CompletionRequestsTable,
+          LocalCompletionRequestRow,
+          $$CompletionRequestsTableFilterComposer,
+          $$CompletionRequestsTableOrderingComposer,
+          $$CompletionRequestsTableAnnotationComposer,
+          $$CompletionRequestsTableCreateCompanionBuilder,
+          $$CompletionRequestsTableUpdateCompanionBuilder,
+          (LocalCompletionRequestRow, $$CompletionRequestsTableReferences),
+          LocalCompletionRequestRow,
+          PrefetchHooks Function({bool volumeId})
+        > {
+  $$CompletionRequestsTableTableManager(
+    _$AppDatabase db,
+    $CompletionRequestsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CompletionRequestsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CompletionRequestsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CompletionRequestsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> volumeId = const Value.absent(),
+                Value<String> requestId = const Value.absent(),
+                Value<String> revision = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> authorNote = const Value.absent(),
+                Value<String> previousStatus = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CompletionRequestsCompanion(
+                volumeId: volumeId,
+                requestId: requestId,
+                revision: revision,
+                title: title,
+                authorNote: authorNote,
+                previousStatus: previousStatus,
+                status: status,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String volumeId,
+                required String requestId,
+                required String revision,
+                required String title,
+                Value<String?> authorNote = const Value.absent(),
+                required String previousStatus,
+                required String status,
+                Value<int> rowid = const Value.absent(),
+              }) => CompletionRequestsCompanion.insert(
+                volumeId: volumeId,
+                requestId: requestId,
+                revision: revision,
+                title: title,
+                authorNote: authorNote,
+                previousStatus: previousStatus,
+                status: status,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $CompletionRequestsTable,
+                    LocalCompletionRequestRow
+                  >(table),
+                  $$CompletionRequestsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({volumeId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (volumeId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.volumeId,
+                                referencedTable:
+                                    $$CompletionRequestsTableReferences
+                                        ._volumeIdTable(db),
+                                referencedColumn:
+                                    $$CompletionRequestsTableReferences
+                                        ._volumeIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CompletionRequestsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CompletionRequestsTable,
+      LocalCompletionRequestRow,
+      $$CompletionRequestsTableFilterComposer,
+      $$CompletionRequestsTableOrderingComposer,
+      $$CompletionRequestsTableAnnotationComposer,
+      $$CompletionRequestsTableCreateCompanionBuilder,
+      $$CompletionRequestsTableUpdateCompanionBuilder,
+      (LocalCompletionRequestRow, $$CompletionRequestsTableReferences),
+      LocalCompletionRequestRow,
       PrefetchHooks Function({bool volumeId})
     >;
 typedef $$SyncStateTableCreateCompanionBuilder =
@@ -14507,6 +18282,17 @@ class $AppDatabaseManager {
       $$OutboxTableTableManager(_db, _db.outbox);
   $$ReaderPositionsTableTableManager get readerPositions =>
       $$ReaderPositionsTableTableManager(_db, _db.readerPositions);
+  $$PresentationReceiptsTableTableManager get presentationReceipts =>
+      $$PresentationReceiptsTableTableManager(_db, _db.presentationReceipts);
+  $$GenerationSettingsChangesTableTableManager get generationSettingsChanges =>
+      $$GenerationSettingsChangesTableTableManager(
+        _db,
+        _db.generationSettingsChanges,
+      );
+  $$CompletedBooksTableTableManager get completedBooks =>
+      $$CompletedBooksTableTableManager(_db, _db.completedBooks);
+  $$CompletionRequestsTableTableManager get completionRequests =>
+      $$CompletionRequestsTableTableManager(_db, _db.completionRequests);
   $$SyncStateTableTableManager get syncState =>
       $$SyncStateTableTableManager(_db, _db.syncState);
 }

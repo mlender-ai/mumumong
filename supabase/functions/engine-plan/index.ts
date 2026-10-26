@@ -1,4 +1,5 @@
 import { loadJob } from "../_shared/jobs.ts";
+import { pinnedGenerationVolume } from "../_shared/generation_settings.ts";
 import { createProductionLlm } from "../_shared/llm_adapter.ts";
 import { runPlan } from "./core.ts";
 import { logEvent } from "../_shared/log.ts";
@@ -42,7 +43,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const core = await runPlan({
       dream: dreamQuery.data,
-      volume: volumeQuery.data,
+      volume: pinnedGenerationVolume(volumeQuery.data, job.payload),
       memory: memoryQuery.data,
       existingScenes: scenesQuery.data ?? [],
       payload: job.payload,

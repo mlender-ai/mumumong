@@ -33,12 +33,333 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
   Future<void> get ready => _ready;
 
   @override
+  Stream<GenerationSettingsState?> watchGenerationSettings(String volumeId) =>
+      _afterReady(
+        (_database.select(_database.volumes)
+              ..where((v) => v.id.equals(volumeId)))
+            .join([
+              leftOuterJoin(
+                _database.generationSettingsChanges,
+                _database.generationSettingsChanges.volumeId.equalsExp(
+                  _database.volumes.id,
+                ),
+              ),
+            ])
+            .watch()
+            .map((rows) {
+              if (rows.isEmpty) return null;
+              final volume = rows.single.readTable(_database.volumes);
+              final change = rows.single.readTableOrNull(
+                _database.generationSettingsChanges,
+              );
+              return GenerationSettingsState(
+                confirmed: GenerationSettings(
+                  adaptation: enumFromDatabase(
+                    volume.adaptation,
+                    AdaptationLevel.values,
+                  ),
+                  style: enumFromDatabase(volume.style, WritingStyle.values),
+                  narrativeVoice: enumFromDatabase(
+                    volume.narrativeVoice,
+                    NarrativeVoice.values,
+                  ),
+                ),
+                version: volume.settingsVersion,
+                pending: change == null
+                    ? null
+                    : GenerationSettings(
+                        adaptation: enumFromDatabase(
+                          change.adaptation,
+                          AdaptationLevel.values,
+                        ),
+                        style: enumFromDatabase(
+                          change.style,
+                          WritingStyle.values,
+                        ),
+                        narrativeVoice: enumFromDatabase(
+                          change.narrativeVoice,
+                          NarrativeVoice.values,
+                        ),
+                      ),
+                status: change == null
+                    ? SettingsSyncStatus.synced
+                    : change.status == 'conflict'
+                    ? SettingsSyncStatus.conflict
+                    : SettingsSyncStatus.pending,
+              );
+            }),
+      );
+
+  @override
+  Future<void> saveGenerationSettings(
+    String volumeId,
+    GenerationSettings settings,
+  ) async {
+    await _ready;
+    await _database.transaction(() async {
+      final volume = await (_database.select(
+        _database.volumes,
+      )..where((v) => v.id.equals(volumeId))).getSingleOrNull();
+      if (volume == null ||
+          !['active', 'completable'].contains(volume.status)) {
+        throw StateError('volume_settings_unavailable');
+      }
+      final pending = await (_database.select(
+        _database.generationSettingsChanges,
+      )..where((c) => c.volumeId.equals(volumeId))).getSingleOrNull();
+      if (pending != null) throw const GenerationSettingsPending();
+      if (volume.adaptation == settings.adaptation.databaseValue &&
+          volume.style == settings.style.databaseValue &&
+          volume.narrativeVoice == settings.narrativeVoice.databaseValue) {
+        return;
+      }
+      final now = _now().toUtc();
+      if (!queueCloudMutations) {
+        await (_database.update(
+          _database.volumes,
+        )..where((v) => v.id.equals(volumeId))).write(
+          VolumesCompanion(
+            adaptation: Value(settings.adaptation.databaseValue),
+            style: Value(settings.style.databaseValue),
+            narrativeVoice: Value(settings.narrativeVoice.databaseValue),
+            settingsVersion: Value(volume.settingsVersion + 1),
+            updatedAt: Value(now),
+          ),
+        );
+        return;
+      }
+      await _queueSettings(volumeId, volume.settingsVersion, settings, now);
+    });
+  }
+
+  Future<void> _queueSettings(
+    String volumeId,
+    int baseVersion,
+    GenerationSettings settings,
+    DateTime now,
+  ) async {
+    final mutationId = _uuid.v4();
+    await _database
+        .into(_database.generationSettingsChanges)
+        .insert(
+          GenerationSettingsChangesCompanion.insert(
+            volumeId: volumeId,
+            mutationId: mutationId,
+            baseVersion: baseVersion,
+            adaptation: settings.adaptation.databaseValue,
+            style: settings.style.databaseValue,
+            narrativeVoice: settings.narrativeVoice.databaseValue,
+            status: 'pending',
+            updatedAt: now,
+          ),
+        );
+    await _database
+        .into(_database.outbox)
+        .insert(
+          LocalOutboxRow(
+            id: mutationId,
+            op: 'update_generation_settings',
+            payload: jsonEncode({
+              'aggregate_id': 'volume:$volumeId',
+              'created_at': now.toIso8601String(),
+              'body': {
+                'volume_id': volumeId,
+                'mutation_id': mutationId,
+                'expected_version': baseVersion,
+                ...settings.toJson(),
+              },
+            }),
+            idempotencyKey: mutationId,
+            attempt: 0,
+            nextAttemptAt: now,
+            status: 'pending',
+          ),
+        );
+  }
+
+  @override
+  Future<void> retryGenerationSettings(String volumeId) async {
+    await _ready;
+    await _database.transaction(() async {
+      final change = await (_database.select(
+        _database.generationSettingsChanges,
+      )..where((c) => c.volumeId.equals(volumeId))).getSingleOrNull();
+      if (change == null || change.status != 'pending') return;
+      await (_database.update(
+        _database.outbox,
+      )..where((o) => o.id.equals(change.mutationId))).write(
+        OutboxCompanion(
+          status: const Value('pending'),
+          attempt: const Value(0),
+          nextAttemptAt: Value(_now().toUtc()),
+        ),
+      );
+    });
+  }
+
+  @override
+  Future<void> resolveGenerationSettingsConflict(
+    String volumeId, {
+    required bool keepLocal,
+  }) async {
+    await _ready;
+    await _database.transaction(() async {
+      final change = await (_database.select(
+        _database.generationSettingsChanges,
+      )..where((c) => c.volumeId.equals(volumeId))).getSingleOrNull();
+      if (change == null || change.status != 'conflict') {
+        throw StateError('settings_conflict_required');
+      }
+      final volume = await (_database.select(
+        _database.volumes,
+      )..where((v) => v.id.equals(volumeId))).getSingle();
+      await (_database.delete(
+        _database.generationSettingsChanges,
+      )..where((c) => c.volumeId.equals(volumeId))).go();
+      await (_database.update(_database.outbox)
+            ..where((o) => o.id.equals(change.mutationId)))
+          .write(const OutboxCompanion(status: Value('done')));
+      if (keepLocal) {
+        await _queueSettings(
+          volumeId,
+          volume.settingsVersion,
+          GenerationSettings(
+            adaptation: enumFromDatabase(
+              change.adaptation,
+              AdaptationLevel.values,
+            ),
+            style: enumFromDatabase(change.style, WritingStyle.values),
+            narrativeVoice: enumFromDatabase(
+              change.narrativeVoice,
+              NarrativeVoice.values,
+            ),
+          ),
+          _now().toUtc(),
+        );
+      }
+    });
+  }
+
+  @override
+  Future<bool> consumePresentation({
+    required String volumeId,
+    required PresentationKind kind,
+    required String sourceId,
+  }) async {
+    await _ready;
+    return _database.transaction(() async {
+      var alreadyRead = false;
+      if (kind == PresentationKind.reveal) {
+        final scene =
+            await (_database.select(_database.scenes)..where(
+                  (row) =>
+                      row.id.equals(sourceId) & row.volumeId.equals(volumeId),
+                ))
+                .getSingleOrNull();
+        final passages =
+            await (_database.select(_database.passages)
+                  ..where((row) => row.sceneId.equals(sourceId))
+                  ..orderBy([(row) => OrderingTerm.asc(row.orderKey)])
+                  ..limit(1))
+                .get();
+        if (scene == null || passages.isEmpty) {
+          throw StateError('presentation_source_unavailable');
+        }
+        alreadyRead = passages.first.firstReadAt != null;
+      } else {
+        final event =
+            await (_database.select(_database.progressEvents)..where(
+                  (row) =>
+                      row.id.equals(sourceId) &
+                      row.volumeId.equals(volumeId) &
+                      row.deltaMu.isBiggerThanValue(0),
+                ))
+                .getSingleOrNull();
+        if (event == null) throw StateError('presentation_source_unavailable');
+      }
+      final receipt = await _database
+          .into(_database.presentationReceipts)
+          .insertReturningOrNull(
+            PresentationReceiptsCompanion.insert(
+              volumeId: volumeId,
+              kind: kind.name,
+              sourceId: sourceId,
+              consumedAt: _now().toUtc(),
+            ),
+            mode: InsertMode.insertOrIgnore,
+          );
+      return receipt != null && !alreadyRead;
+    });
+  }
+
+  @override
+  Future<ReaderPosition?> loadReaderPosition(String volumeId) async {
+    await _ready;
+    final row = await (_database.select(
+      _database.readerPositions,
+    )..where((r) => r.volumeId.equals(volumeId))).getSingleOrNull();
+    return row == null
+        ? null
+        : ReaderPosition(
+            volumeId: row.volumeId,
+            sceneId: row.sceneId,
+            sceneOrderKey: row.sceneOrderKey,
+            passageId: row.passageId,
+            passageOrderKey: row.passageOrderKey,
+            passageFraction: row.passageFraction,
+            offset: row.offset,
+            updatedAt: row.updatedAt,
+          );
+  }
+
+  @override
+  Future<void> saveReaderPosition(ReaderPosition position) async {
+    await _ready;
+    await _database.transaction(() async {
+      final scene =
+          await (_database.select(_database.scenes)..where(
+                (s) =>
+                    s.id.equals(position.sceneId ?? '') &
+                    s.volumeId.equals(position.volumeId),
+              ))
+              .getSingleOrNull();
+      final volume = await (_database.select(
+        _database.volumes,
+      )..where((v) => v.id.equals(position.volumeId))).getSingleOrNull();
+      final passage = position.passageId == null
+          ? null
+          : await (_database.select(_database.passages)..where(
+                  (p) =>
+                      p.id.equals(position.passageId!) &
+                      p.sceneId.equals(position.sceneId ?? ''),
+                ))
+                .getSingleOrNull();
+      if (!position.hasValidGeometry ||
+          scene == null ||
+          volume == null ||
+          (position.passageId != null && passage == null)) {
+        throw StateError('invalid_reader_position');
+      }
+      await _database
+          .into(_database.readerPositions)
+          .insertOnConflictUpdate(
+            ReaderPositionsCompanion.insert(
+              volumeId: position.volumeId,
+              sceneId: Value(position.sceneId),
+              sceneOrderKey: Value(position.sceneOrderKey),
+              passageId: Value(position.passageId),
+              passageOrderKey: Value(position.passageOrderKey),
+              passageFraction: Value(position.passageFraction),
+              offset: Value(position.offset),
+              updatedAt: position.updatedAt,
+            ),
+          );
+    });
+  }
+
+  @override
   Stream<Volume?> watchActiveVolume() => _afterReady(
     (_database.select(_database.volumes)
-          ..where(
-            (row) =>
-                row.status.isNotValue(VolumeStatus.completed.databaseValue),
-          )
           ..orderBy([(row) => OrderingTerm.desc(row.volNo)])
           ..limit(1))
         .watchSingleOrNull()
@@ -261,11 +582,52 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
   }
 
   @override
-  Future<void> answerRecall(String dreamId, Map<String, String> answers) async {
+  Future<void> saveRecallAnswers(
+    String dreamId,
+    Map<String, String> answers,
+  ) async {
     await _ready;
-    final dream = await _dreamRow(dreamId);
     final timestamp = _now().toUtc();
     await _database.transaction(() async {
+      final dream = await _dreamRow(dreamId);
+      if (dream.status != DreamStatus.queued.databaseValue) {
+        throw StateError('recall_already_processing');
+      }
+      await (_database.update(
+        _database.dreams,
+      )..where((r) => r.id.equals(dreamId))).write(
+        DreamsCompanion(
+          recallAnswers: Value(jsonEncode(answers)),
+          updatedAt: Value(timestamp),
+        ),
+      );
+      if (queueCloudMutations) {
+        // Existing safe upsert sends current author fields, but never enqueues AI.
+        await _enqueueInteraction(
+          operation: 'create_dream',
+          aggregateId: dreamId,
+          body: {'dream_id': dreamId},
+          timestamp: timestamp,
+        );
+      }
+    });
+  }
+
+  @override
+  Future<void> answerRecall(String dreamId, Map<String, String> answers) async {
+    await _ready;
+    final timestamp = _now().toUtc();
+    await _database.transaction(() async {
+      final dream = await _dreamRow(dreamId);
+      if (dream.status == DreamStatus.processing.databaseValue) return;
+      final pendingSettings =
+          await (_database.select(_database.generationSettingsChanges)
+                ..where((c) => c.volumeId.equals(dream.volumeId ?? '')))
+              .getSingleOrNull();
+      if (dream.status != DreamStatus.queued.databaseValue &&
+          dream.status != DreamStatus.failed.databaseValue) {
+        throw StateError('dream_already_completed');
+      }
       await (_database.update(
         _database.dreams,
       )..where((row) => row.id.equals(dreamId))).write(
@@ -280,6 +642,24 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
                 ..where((row) => row.dreamId.equals(dreamId))
                 ..limit(1))
               .getSingleOrNull();
+      final volumeSettings = await (_database.select(
+        _database.volumes,
+      )..where((v) => v.id.equals(dream.volumeId!))).getSingle();
+      if (!['active', 'completable'].contains(volumeSettings.status)) {
+        throw StateError('volume_generation_closed');
+      }
+      final priorPayload = existingJob == null
+          ? <String, dynamic>{}
+          : jsonDecode(existingJob.payload) as Map<String, dynamic>;
+      if (pendingSettings != null &&
+          !priorPayload.containsKey('generation_settings_version')) {
+        throw const GenerationSettingsPending();
+      }
+      final pinnedPayload = jsonEncode({
+        ...priorPayload,
+        if (!priorPayload.containsKey('generation_settings_version'))
+          'generation_settings_version': volumeSettings.settingsVersion,
+      });
       if (existingJob == null) {
         await _database
             .into(_database.jobs)
@@ -295,7 +675,7 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
                 status: JobStatus.running.databaseValue,
                 attempt: 1,
                 idempotencyKey: 'extract:$dreamId',
-                payload: '{}',
+                payload: pinnedPayload,
                 stageLabel: '꿈을 읽는 중',
               ),
             );
@@ -304,6 +684,7 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
           _database.jobs,
         )..where((row) => row.id.equals(existingJob.id))).write(
           JobsCompanion(
+            payload: Value(pinnedPayload),
             status: Value(JobStatus.running.databaseValue),
             attempt: Value(existingJob.attempt + 1),
             stageLabel: const Value('꿈을 읽는 중'),
@@ -412,6 +793,35 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
             status: 'pending',
           ),
         );
+  }
+
+  @override
+  Future<void> recordJobProgress(JobProgress progress) async {
+    await _ready;
+    await _database.transaction(() async {
+      final dream = await _dreamRow(progress.dreamId);
+      final resumed =
+          dream.status == DreamStatus.failed.databaseValue &&
+          (progress.status == JobStatus.queued ||
+              progress.status == JobStatus.running);
+      if (dream.status != DreamStatus.processing.databaseValue && !resumed) {
+        return;
+      }
+      await writeEngineProgress(progress);
+      if (progress.status == JobStatus.failed || resumed) {
+        await (_database.update(
+          _database.dreams,
+        )..where((row) => row.id.equals(progress.dreamId))).write(
+          DreamsCompanion(
+            status: Value(
+              (resumed ? DreamStatus.processing : DreamStatus.failed)
+                  .databaseValue,
+            ),
+            updatedAt: Value(_now().toUtc()),
+          ),
+        );
+      }
+    });
   }
 
   @override
@@ -889,10 +1299,7 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
 
   Future<LocalVolumeRow?> _activeVolumeRow() {
     return (_database.select(_database.volumes)
-          ..where(
-            (row) =>
-                row.status.isNotValue(VolumeStatus.completed.databaseValue),
-          )
+          ..where((row) => row.status.isIn(['active', 'completable']))
           ..orderBy([(row) => OrderingTerm.desc(row.volNo)])
           ..limit(1))
         .getSingleOrNull();
@@ -1028,7 +1435,10 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
   }
 
   Future<void> _seedIfEmpty() async {
-    if (await _database.select(_database.volumes).getSingleOrNull() != null) {
+    if (await (_database.select(
+          _database.volumes,
+        )..limit(1)).getSingleOrNull() !=
+        null) {
       return;
     }
     final memory = MemoryRepository();
@@ -1102,6 +1512,7 @@ class DriftRepository implements MumumongRepository, MockEngineStore {
       adaptation: value.adaptation.databaseValue,
       style: value.style.databaseValue,
       narrativeVoice: value.narrativeVoice.databaseValue,
+      settingsVersion: value.settingsVersion,
       status: value.status.databaseValue,
       targetMu: value.targetMu,
       progressMu: value.progressMu,
@@ -1211,6 +1622,7 @@ Volume _volumeFromRow(LocalVolumeRow row) => Volume(
   genreProfile: _decodeDoubleMap(row.genreProfile),
   coverMotifId: row.coverMotifId,
   prologueSceneId: row.prologueSceneId,
+  settingsVersion: row.settingsVersion,
 );
 
 List<Dream> _dreamsFromRows(List<LocalDreamRow> rows) =>

@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/model/enums.dart';
 import '../../domain/model/serialization.dart';
+import '../../domain/model/generation_settings.dart';
 import '../engine/engine_client.dart';
 import '../local/database.dart';
 
@@ -57,6 +59,10 @@ abstract interface class CloudSyncGateway {
   Future<void> deleteDream(String dreamId, {required bool keepDerived});
 
   Future<CloudVolumeBundle> fetchVolumeBundle(String volumeId);
+  Future<Map<String, dynamic>> updateGenerationSettings(
+    Map<String, dynamic> request,
+  );
+  Future<Map<String, dynamic>> fetchGenerationSettings(String volumeId);
 }
 
 class SupabaseCloudSyncGateway implements CloudSyncGateway {
@@ -68,6 +74,42 @@ class SupabaseCloudSyncGateway implements CloudSyncGateway {
   String? get currentUserId => client.auth.currentUser?.id;
 
   @override
+  Future<Map<String, dynamic>> updateGenerationSettings(
+    Map<String, dynamic> request,
+  ) async {
+    try {
+      final result = await client.rpc(
+        'user_update_generation_settings',
+        params: {
+          'p_volume_id': request['volume_id'],
+          'p_expected_version': request['expected_version'],
+          'p_mutation_id': request['mutation_id'],
+          'p_adaptation': request['adaptation'],
+          'p_style': request['style'],
+          'p_narrative_voice': request['narrative_voice'],
+        },
+      );
+      return Map<String, dynamic>.from(result as Map);
+    } on PostgrestException catch (error) {
+      if (['PT409', '40001'].contains(error.code) &&
+          error.message == 'settings_version_conflict') {
+        throw const GenerationSettingsConflict();
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchGenerationSettings(String volumeId) async {
+    final row = await client
+        .from('volumes')
+        .select('settings_version,adaptation,style,narrative_voice')
+        .eq('id', volumeId)
+        .single();
+    return {...row, 'version': row['settings_version']};
+  }
+
+  @override
   Future<Map<String, dynamic>?> fetchActiveVolume() async {
     final row = await client
         .from('volumes')
@@ -76,7 +118,15 @@ class SupabaseCloudSyncGateway implements CloudSyncGateway {
         .order('vol_no', ascending: false)
         .limit(1)
         .maybeSingle();
-    return row == null ? null : Map<String, dynamic>.from(row);
+    if (row != null) return Map<String, dynamic>.from(row);
+    final latest = await client
+        .from('volumes')
+        .select()
+        .eq('status', 'completed')
+        .order('vol_no', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return latest == null ? null : Map<String, dynamic>.from(latest);
   }
 
   @override
@@ -227,7 +277,8 @@ class SupabaseCloudSyncGateway implements CloudSyncGateway {
 
 /// Owns the cloud/local boundary. Remote-generated manuscript rows are pulled
 /// server-first, while locally authored dream input is upserted client-first.
-class CloudSyncService implements RemoteEngineSync {
+class CloudSyncService
+    implements RemoteEngineSync, GenerationSettingsPinSource {
   CloudSyncService(this.database, this.gateway);
 
   final AppDatabase database;
@@ -312,7 +363,15 @@ class CloudSyncService implements RemoteEngineSync {
     )..where((row) => row.id.equals(dreamId))).getSingle();
     final volumeId = dream.volumeId;
     if (volumeId == null) throw StateError('dream_volume_required');
-    await _apply(await gateway.fetchVolumeBundle(volumeId));
+    // Capture pending author mutations before HTTP: delivery may acknowledge
+    // them while this older server snapshot is still in flight.
+    final protectedIds = await _pendingPassageIds();
+    final requestedAt = DateTime.now().toUtc();
+    await _apply(
+      await gateway.fetchVolumeBundle(volumeId),
+      protectedPassageIds: protectedIds,
+      requestedAt: requestedAt,
+    );
   }
 
   Future<void> deliverInteraction(
@@ -321,6 +380,8 @@ class CloudSyncService implements RemoteEngineSync {
   ) async {
     _requireUser();
     switch (operation) {
+      case 'update_generation_settings':
+        await _deliverGenerationSettings(payload);
       case 'decide_link':
         await gateway.decideLink(
           payload['decision_id'] as String,
@@ -361,6 +422,85 @@ class CloudSyncService implements RemoteEngineSync {
     }
   }
 
+  @override
+  Future<int?> generationSettingsVersion(String dreamId) async {
+    final row =
+        await (database.select(database.jobs)
+              ..where((j) => j.dreamId.equals(dreamId))
+              ..orderBy([(j) => OrderingTerm.desc(j.updatedAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (row == null) return null;
+    return (jsonDecode(row.payload)['generation_settings_version'] as num?)
+        ?.toInt();
+  }
+
+  Future<void> _deliverGenerationSettings(Map<String, dynamic> request) async {
+    final userId = _requireUser();
+    final volumeId = request['volume_id'] as String;
+    final mutationId = request['mutation_id'] as String;
+    final pending = await (database.select(
+      database.generationSettingsChanges,
+    )..where((c) => c.volumeId.equals(volumeId))).getSingleOrNull();
+    if (pending == null || pending.mutationId != mutationId) return;
+    final owner = await (database.select(
+      database.volumes,
+    )..where((v) => v.id.equals(volumeId))).getSingle();
+    if (owner.userId != userId) throw StateError('cloud_owner_changed');
+    var conflict = false;
+    late Map<String, dynamic> snapshot;
+    try {
+      snapshot = await gateway.updateGenerationSettings(request);
+      if ((snapshot['version'] as num).toInt() !=
+          (request['expected_version'] as num).toInt() + 1) {
+        throw StateError('settings_ack_mismatch');
+      }
+    } on GenerationSettingsConflict {
+      snapshot = await gateway.fetchGenerationSettings(volumeId);
+      conflict = true;
+    }
+    final settings = GenerationSettings.fromJson(snapshot);
+    final version = (snapshot['version'] as num).toInt();
+    if (version < 1 || _requireUser() != userId) {
+      throw StateError('cloud_owner_changed');
+    }
+    await database.transaction(() async {
+      final current = await (database.select(
+        database.volumes,
+      )..where((v) => v.id.equals(volumeId))).getSingleOrNull();
+      if (current == null || current.userId != userId) {
+        throw StateError('cloud_owner_changed');
+      }
+      if (version >= current.settingsVersion) {
+        await (database.update(
+          database.volumes,
+        )..where((v) => v.id.equals(volumeId))).write(
+          VolumesCompanion(
+            adaptation: Value(settings.adaptation.databaseValue),
+            style: Value(settings.style.databaseValue),
+            narrativeVoice: Value(settings.narrativeVoice.databaseValue),
+            settingsVersion: Value(version),
+          ),
+        );
+      }
+      final change = await (database.select(
+        database.generationSettingsChanges,
+      )..where((c) => c.volumeId.equals(volumeId))).getSingleOrNull();
+      if (change?.mutationId != mutationId) return;
+      if (conflict) {
+        await (database.update(
+          database.generationSettingsChanges,
+        )..where((c) => c.volumeId.equals(volumeId))).write(
+          const GenerationSettingsChangesCompanion(status: Value('conflict')),
+        );
+      } else {
+        await (database.delete(
+          database.generationSettingsChanges,
+        )..where((c) => c.volumeId.equals(volumeId))).go();
+      }
+    });
+  }
+
   String _requireUser() {
     final userId = gateway.currentUserId;
     if (userId == null) throw StateError('authentication_required');
@@ -373,6 +513,8 @@ class CloudSyncService implements RemoteEngineSync {
     )..where((row) => row.userId.isNotValue(userId))).getSingleOrNull();
     if (foreign == null) return;
     await database.transaction(() async {
+      await database.delete(database.completedBooks).go();
+      await database.delete(database.completionRequests).go();
       await database.delete(database.passages).go();
       await database.delete(database.linkDecisions).go();
       await database.delete(database.jobs).go();
@@ -380,6 +522,8 @@ class CloudSyncService implements RemoteEngineSync {
       await database.delete(database.progressEvents).go();
       await database.delete(database.entities).go();
       await database.delete(database.readerPositions).go();
+      await database.delete(database.presentationReceipts).go();
+      await database.delete(database.generationSettingsChanges).go();
       await database.delete(database.scenes).go();
       await database.delete(database.dreams).go();
       await database.delete(database.volumes).go();
@@ -388,11 +532,70 @@ class CloudSyncService implements RemoteEngineSync {
     });
   }
 
-  Future<void> _apply(CloudVolumeBundle bundle) async {
+  Future<Set<String>> _pendingPassageIds({DateTime? since}) async {
+    final rows = await (database.select(
+      database.outbox,
+    )..where((row) => row.op.isIn(['edit_passage', 'revert_passage']))).get();
+    final ids = <String>{};
+    for (final row in rows) {
+      final envelope = jsonDecode(row.payload) as Map;
+      final createdAt = DateTime.tryParse(
+        envelope['created_at'] as String? ?? '',
+      );
+      if (row.status != 'done' ||
+          (since != null && createdAt != null && !createdAt.isBefore(since))) {
+        ids.add((envelope['body'] as Map)['passage_id'] as String);
+      }
+    }
+    return ids;
+  }
+
+  Future<void> _apply(
+    CloudVolumeBundle bundle, {
+    Set<String> protectedPassageIds = const {},
+    DateTime? requestedAt,
+  }) async {
     final userId = _requireUser();
     final volume = bundle.volume;
     final volumeId = volume['id'] as String;
+    if (volume['user_id'] != userId) throw StateError('cloud_owner_changed');
     await database.transaction(() async {
+      final preservedIds = {
+        ...protectedPassageIds,
+        ...await _pendingPassageIds(since: requestedAt),
+      };
+      final localPassages = {
+        for (final passage in await database.select(database.passages).get())
+          passage.id: passage,
+      };
+      for (final row in bundle.passages) {
+        final local = localPassages[row['id']];
+        if (local == null) continue;
+        // Also protect edits that started and were acknowledged during HTTP,
+        // and a locked U against an older generated snapshot.
+        if (local.locked &&
+            local.origin == 'U' &&
+            row['origin'] != 'U' &&
+            local.updatedAt.isAfter(_dateTime(row['updated_at']))) {
+          preservedIds.add(local.id);
+        }
+      }
+      final localVolume = await (database.select(
+        database.volumes,
+      )..where((v) => v.id.equals(volumeId))).getSingleOrNull();
+      final remoteSettingsVersion =
+          (volume['settings_version'] as num?)?.toInt() ?? 1;
+      final keepSettings =
+          localVolume != null &&
+          localVolume.settingsVersion > remoteSettingsVersion;
+      final completionRequest = await (database.select(
+        database.completionRequests,
+      )..where((r) => r.volumeId.equals(volumeId))).getSingleOrNull();
+      final preserveCompletion =
+          localVolume != null &&
+          (localVolume.status == 'completed' ||
+              (localVolume.status == 'completing' &&
+                  completionRequest?.status == 'pending'));
       await database
           .into(database.volumes)
           .insertOnConflictUpdate(
@@ -402,10 +605,21 @@ class CloudSyncService implements RemoteEngineSync {
               volNo: (volume['vol_no'] as num).toInt(),
               title: volume['title'] as String?,
               format: volume['format'] as String,
-              adaptation: volume['adaptation'] as String,
-              style: volume['style'] as String,
-              narrativeVoice: volume['narrative_voice'] as String,
-              status: volume['status'] as String,
+              adaptation: keepSettings
+                  ? localVolume.adaptation
+                  : volume['adaptation'] as String,
+              style: keepSettings
+                  ? localVolume.style
+                  : volume['style'] as String,
+              narrativeVoice: keepSettings
+                  ? localVolume.narrativeVoice
+                  : volume['narrative_voice'] as String,
+              settingsVersion: keepSettings
+                  ? localVolume.settingsVersion
+                  : remoteSettingsVersion,
+              status: preserveCompletion
+                  ? localVolume.status
+                  : volume['status'] as String,
               targetMu: (volume['target_mu'] as num).toDouble(),
               progressMu: (volume['progress_mu'] as num).toDouble(),
               genreProfile: jsonEncode(volume['genre_profile'] ?? const {}),
@@ -493,11 +707,25 @@ class CloudSyncService implements RemoteEngineSync {
 
       final sceneIds = bundle.scenes.map((row) => row['id'] as String).toList();
       if (sceneIds.isNotEmpty) {
-        await (database.delete(
-          database.passages,
-        )..where((row) => row.sceneId.isIn(sceneIds))).go();
+        await (database.delete(database.passages)..where(
+              (row) =>
+                  row.sceneId.isIn(sceneIds) & row.id.isNotIn(preservedIds),
+            ))
+            .go();
       }
       for (final row in bundle.passages) {
+        final id = row['id'] as String;
+        if (preservedIds.contains(id) && localPassages.containsKey(id)) {
+          continue;
+        }
+        // Opening a result is monotonic, even if a stale snapshot has no mark.
+        final localRead = localPassages[id]?.firstReadAt;
+        final remoteRead = _nullableDateTime(row['first_read_at']);
+        final firstRead = localRead == null
+            ? remoteRead
+            : remoteRead == null || localRead.isBefore(remoteRead)
+            ? localRead
+            : remoteRead;
         await database
             .into(database.passages)
             .insertOnConflictUpdate(
@@ -516,7 +744,7 @@ class CloudSyncService implements RemoteEngineSync {
                 originalText: row['original_text'] as String?,
                 locked: row['locked'] as bool? ?? false,
                 createdBy: row['created_by'] as String,
-                firstReadAt: _nullableDateTime(row['first_read_at']),
+                firstReadAt: firstRead,
                 createdAt: _dateTime(row['created_at']),
                 updatedAt: _dateTime(row['updated_at']),
               ),

@@ -1,7 +1,7 @@
 import { logEvent } from "../_shared/log.ts";
 import { corsPreflight, json } from "../_shared/pipeline.ts";
 import { serviceRoleClient } from "../_shared/supabase.ts";
-import { authorizedWorker } from "../_shared/worker_auth.ts";
+import { authorizedScheduler, authorizedWorker } from "../_shared/worker_auth.ts";
 import { isTerminalFailure, retryDelaySeconds, stageFunction } from "./worker.ts";
 import { createClient } from "@supabase/supabase-js";
 
@@ -44,7 +44,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
   if (!serviceKey || !baseUrl) return json({ error: "server_not_configured" }, 500);
   const client = serviceRoleClient();
 
-  const serviceCall = authorizedWorker(request, serviceKey);
+  const serviceCall = authorizedWorker(request, serviceKey) ||
+    authorizedScheduler(request, Deno.env.get("WORKER_SCHEDULE_TOKEN"));
   let userId: string | null = null;
   if (!serviceCall) {
     const token = request.headers.get("authorization")?.replace(/^Bearer\s+/u, "") ?? "";

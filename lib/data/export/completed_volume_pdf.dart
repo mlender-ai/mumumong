@@ -91,7 +91,6 @@ class CompletedVolumePdfComposer {
 
   static const pageWidthMm = 128.0;
   static const pageHeightMm = 188.0;
-  static const coverClarity = 0.875; // 56 of 64 dots: below the 0.9 ceiling.
 
   static final pageFormat = PdfPageFormat(
     pageWidthMm * PdfPageFormat.mm,
@@ -175,13 +174,16 @@ class CompletedVolumePdfComposer {
           children: [
             pw.Text('MUMUMONG', style: _metaStyle),
             pw.Spacer(),
-            _completedDotField(),
-            pw.SizedBox(height: 20 * PdfPageFormat.mm),
+            _coverGradient(compact: book.title.runes.length > 50),
+            pw.SizedBox(
+              height:
+                  (book.title.runes.length > 50 ? 12 : 20) * PdfPageFormat.mm,
+            ),
             pw.Text(
               book.title.trim(),
               style: pw.TextStyle(
                 font: _maruBold,
-                fontSize: 24,
+                fontSize: book.title.runes.length > 50 ? 14 : 24,
                 height: 1.2,
                 color: _ink,
               ),
@@ -199,24 +201,21 @@ class CompletedVolumePdfComposer {
     );
   }
 
-  pw.Widget _completedDotField() {
-    const missing = {3, 10, 19, 28, 36, 45, 54, 61};
-    return pw.SizedBox(
-      width: 50 * PdfPageFormat.mm,
-      child: pw.Wrap(
-        spacing: 3 * PdfPageFormat.mm,
-        runSpacing: 3 * PdfPageFormat.mm,
-        children: [
-          for (var i = 0; i < 64; i++)
-            pw.Container(
-              width: 3 * PdfPageFormat.mm,
-              height: 3 * PdfPageFormat.mm,
-              decoration: pw.BoxDecoration(
-                shape: pw.BoxShape.circle,
-                color: missing.contains(i) ? PdfColors.white : _ink,
-              ),
-            ),
-        ],
+  pw.Widget _coverGradient({bool compact = false}) {
+    return pw.Container(
+      width: 78 * PdfPageFormat.mm,
+      height: (compact ? 40 : 55) * PdfPageFormat.mm,
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(12 * PdfPageFormat.mm),
+        gradient: const pw.LinearGradient(
+          begin: pw.Alignment.topLeft,
+          end: pw.Alignment.bottomRight,
+          colors: [
+            PdfColor.fromInt(0xFFF7FBFC),
+            PdfColor.fromInt(0xFF93B9CF),
+            PdfColor.fromInt(0xFF4D7C9B),
+          ],
+        ),
       ),
     );
   }
@@ -255,28 +254,26 @@ class CompletedVolumePdfComposer {
 
   void _addContents(pw.Document pdf, CompletedVolumeSnapshot book) {
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: pageFormat,
         margin: pw.EdgeInsets.all(18 * PdfPageFormat.mm),
-        build: (_) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            _sectionTitle('차례'),
-            pw.SizedBox(height: 12 * PdfPageFormat.mm),
-            for (final chapter in book.chapters)
-              pw.Padding(
-                padding: pw.EdgeInsets.only(bottom: 5 * PdfPageFormat.mm),
-                child: pw.Text(
-                  '${chapter.number}. ${chapter.title}',
-                  style: _bodyStyle,
-                ),
+        maxPages: 100,
+        build: (_) => [
+          _sectionTitle('차례'),
+          pw.SizedBox(height: 12 * PdfPageFormat.mm),
+          for (final chapter in book.chapters)
+            pw.Padding(
+              padding: pw.EdgeInsets.only(bottom: 5 * PdfPageFormat.mm),
+              child: pw.Text(
+                '${chapter.number}. ${chapter.title}',
+                style: _bodyStyle,
               ),
-            if (book.authorNote?.trim().isNotEmpty ?? false)
-              pw.Text('작가의 말', style: _bodyStyle),
-            pw.SizedBox(height: 5 * PdfPageFormat.mm),
-            pw.Text('이 책의 꿈들', style: _bodyStyle),
-          ],
-        ),
+            ),
+          if (book.authorNote?.trim().isNotEmpty ?? false)
+            pw.Text('작가의 말', style: _bodyStyle),
+          pw.SizedBox(height: 5 * PdfPageFormat.mm),
+          pw.Text('이 책의 꿈들', style: _bodyStyle),
+        ],
       ),
     );
   }
@@ -325,7 +322,7 @@ class CompletedVolumePdfComposer {
       style: _bodyStyle,
       children: [
         pw.WidgetSpan(child: pw.SizedBox(width: 10)),
-        pw.TextSpan(text: text.trim()),
+        pw.TextSpan(text: text),
       ],
     ),
   );
@@ -371,10 +368,11 @@ class CompletedVolumePdfComposer {
           pw.SizedBox(height: 12 * PdfPageFormat.mm),
           if (dreams.isEmpty) pw.Text('기록된 꿈이 없습니다.', style: _metaStyle),
           for (final dream in dreams) ...[
+            if (dream != dreams.first)
+              pw.SizedBox(height: 5 * PdfPageFormat.mm),
             pw.Text(_date(dream.date), style: _metaStyle),
             pw.SizedBox(height: 2 * PdfPageFormat.mm),
             pw.Text(dream.firstLine.trim(), style: _bodyStyle),
-            pw.SizedBox(height: 5 * PdfPageFormat.mm),
           ],
         ],
       ),

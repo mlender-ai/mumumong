@@ -36,6 +36,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/output/pdf/
 
 # Private evaluation inputs, generated manuscripts, and human judgments
 /eval/corpus/

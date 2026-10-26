@@ -127,4 +127,27 @@ void main() {
     final bytes = await composer.compose(longBook);
     expect(bytes.length, greaterThan(2000));
   });
+  test(
+    'maximum title and a long contents list paginate without overflow',
+    () async {
+      final many = CompletedVolumeSnapshot(
+        volumeNo: 2,
+        status: VolumeStatus.completed,
+        title: '가상 제목' * 24,
+        completedAt: DateTime(2026, 10, 23),
+        chapters: List.generate(
+          30,
+          (i) => BookChapter(
+            number: i + 1,
+            title: '가상 장면의 긴 이름 $i',
+            paragraphs: const [
+              BookParagraph(text: '가상 문장: 별이 빛났다.', origin: PassageOrigin.user),
+            ],
+          ),
+        ),
+        dreams: const [],
+      );
+      expect((await composer.compose(many)).length, greaterThan(10000));
+    },
+  );
 }

@@ -3,14 +3,18 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 import '../core/env/env.dart';
+import '../core/design/ui_preferences.dart';
 import '../data/auth/apple_authentication.dart';
 import '../data/auth/auth_controller.dart';
 import '../data/auth/secure_session_storage.dart';
 import '../data/engine/engine_client.dart';
 import '../data/engine/mock_engine_client.dart';
 import '../data/local/database.dart';
+import '../data/export/book_store.dart';
+import '../domain/model/frozen_book.dart';
 import '../data/local/drift_repository.dart';
 import '../data/privacy/app_lock.dart';
 import '../data/speech/speech_input.dart';
@@ -18,6 +22,31 @@ import '../data/sync/cloud_sync_service.dart';
 import '../data/sync/outbox_worker.dart';
 import '../domain/model/models.dart';
 import '../domain/repository/mumumong_repository.dart';
+
+final uiPreferenceStoreProvider = Provider<UiPreferenceStore>(
+  (ref) => DeviceUiPreferenceStore(),
+);
+final uiPreferencesProvider = ChangeNotifierProvider<UiPreferences>(
+  (ref) => UiPreferences(ref.watch(uiPreferenceStoreProvider)),
+);
+
+// A scene becomes an opened result when its first passage is read in Reader.
+// No local timer or progress counter invents new results.
+final newSceneProvider = Provider.autoDispose.family<Scene?, String>((
+  ref,
+  volumeId,
+) {
+  final scenes = ref.watch(scenesProvider(volumeId)).value ?? const <Scene>[];
+  for (final scene in scenes.reversed) {
+    final passages = ref.watch(passagesProvider(scene.id)).value;
+    if (passages != null &&
+        passages.isNotEmpty &&
+        passages.first.firstReadAt == null) {
+      return scene;
+    }
+  }
+  return null;
+});
 
 final authControllerProvider = ChangeNotifierProvider<AuthenticationController>(
   (ref) {
@@ -56,6 +85,28 @@ final cloudSyncServiceProvider = Provider<CloudSyncService>((ref) {
   );
 });
 
+final bookStoreProvider = Provider<BookStore>(
+  (ref) => BookStore(
+    ref.watch(databaseProvider),
+    gateway: AppEnv.engine == EngineMode.remote
+        ? SupabaseBookGateway(Supabase.instance.client)
+        : null,
+    pullVolume: AppEnv.engine == EngineMode.remote
+        ? () async {
+            await ref.read(cloudSyncServiceProvider).bootstrapCurrentAccount();
+          }
+        : null,
+  ),
+);
+final libraryReturnHomeProvider = StateProvider<int>((ref) => 0);
+final completedBooksProvider = StreamProvider.autoDispose<List<FrozenBook>>(
+  (ref) => ref.watch(bookStoreProvider).watchBooks(),
+);
+final completionRequestProvider = StreamProvider.autoDispose
+    .family<LocalCompletionRequestRow?, String>(
+      (ref, id) => ref.watch(bookStoreProvider).watchRequest(id),
+    );
+
 final outboxWorkerProvider = Provider.autoDispose<OutboxWorker?>((ref) {
   if (AppEnv.engine != EngineMode.remote) return null;
   final sync = ref.watch(cloudSyncServiceProvider);
@@ -73,7 +124,10 @@ final outboxWorkerProvider = Provider.autoDispose<OutboxWorker?>((ref) {
       case 'process_dream':
         final dreamId = payload['dream_id'] as String;
         await engine.enqueue(dreamId, idempotencyKey);
+      case 'complete_volume':
+        await ref.read(bookStoreProvider).deliver(payload);
       case 'decide_link' ||
+          'update_generation_settings' ||
           'change_placement' ||
           'edit_passage' ||
           'revert_passage' ||
@@ -124,6 +178,39 @@ final activeVolumeProvider = StreamProvider<Volume?>((ref) {
   return ref.watch(repositoryProvider).watchActiveVolume();
 });
 
+final generationSettingsProvider = StreamProvider.autoDispose
+    .family<GenerationSettingsState?, String>(
+      (ref, volumeId) =>
+          ref.watch(repositoryProvider).watchGenerationSettings(volumeId),
+    );
+
+final readerPositionProvider = FutureProvider.autoDispose
+    .family<ReaderPosition?, String>(
+      (ref, volumeId) =>
+          ref.watch(repositoryProvider).loadReaderPosition(volumeId),
+    );
+
+// Connectivity describes the device link, not server availability.
+final networkConnectedProvider = StreamProvider.autoDispose<bool?>((
+  ref,
+) async* {
+  if (AppEnv.engine == EngineMode.mock) {
+    yield true;
+    return;
+  }
+  final connectivity = Connectivity();
+  try {
+    yield !(await connectivity.checkConnectivity()).contains(
+      ConnectivityResult.none,
+    );
+    yield* connectivity.onConnectivityChanged.map(
+      (states) => !states.contains(ConnectivityResult.none),
+    );
+  } on Object {
+    yield null;
+  }
+});
+
 final dreamsProvider = StreamProvider.family<List<Dream>, DreamStatusFilter>((
   ref,
   filter,
@@ -162,9 +249,62 @@ final linkDecisionsProvider = StreamProvider.family<List<LinkDecision>, String>(
   },
 );
 
-final jobProgressProvider = StreamProvider.family<JobProgress?, String>((
-  ref,
-  dreamId,
-) {
-  return ref.watch(engineClientProvider).watch(dreamId);
+// Kept alive by the consent-approved shell, not by a disposable capture route.
+// Restoring a subscription must never enqueue or regenerate anything.
+final generationRecoveryProvider = Provider.autoDispose<void>((ref) {
+  final dreams = ref.watch(dreamsProvider(DreamStatusFilter.all)).value;
+  for (final dream in dreams ?? const <Dream>[]) {
+    if (dream.status == DreamStatus.processing) {
+      ref.watch(jobProgressProvider(dream.id));
+    }
+  }
 });
+
+final jobProgressProvider = StreamProvider.autoDispose
+    .family<JobProgress?, String>((ref, dreamId) {
+      final repository = ref.watch(repositoryProvider);
+      final engine = ref.watch(engineClientProvider);
+      return Stream<JobProgress?>.multi((controller) {
+        var receivedRemote = false;
+        var cancelled = false;
+        // Attach immediately; loading a cache must not lose a hot job event.
+        final subscription = engine
+            .watch(dreamId)
+            .asyncMap((progress) async {
+              await repository.recordJobProgress(progress);
+              return progress;
+            })
+            .listen(
+              (progress) {
+                receivedRemote = true;
+                controller.add(progress);
+              },
+              onError: (Object error, StackTrace stack) {
+                receivedRemote = true;
+                controller.addError(error, stack);
+              },
+              onDone: controller.close,
+            );
+        unawaited(
+          repository
+              .watchJob(dreamId)
+              .first
+              .then(
+                (cached) {
+                  if (!cancelled && !receivedRemote && cached != null) {
+                    controller.add(cached);
+                  }
+                },
+                onError: (Object error, StackTrace stack) {
+                  if (!cancelled && !receivedRemote) {
+                    controller.addError(error, stack);
+                  }
+                },
+              ),
+        );
+        controller.onCancel = () async {
+          cancelled = true;
+          await subscription.cancel();
+        };
+      });
+    });

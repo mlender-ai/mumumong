@@ -36,7 +36,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^3.4.3
   riverpod_annotation: ^4.0.7
-  drift: ^2.35.0
+  # 2.35.1 fixes IndexedDB transaction commits lost on reload; 2.35.2 also
+  # fixes OPFS nested transactions. Keep the generated web worker in sync.
+  drift: 2.35.2
   drift_flutter: ^0.3.1
   path_provider: ^2.1.6
   supabase_flutter: ^2.17.2
@@ -48,8 +50,12 @@ dependencies:
   share_plus: ^13.3.0
   local_auth: ^3.0.2
   pdf: ^3.13.1
+  thinking_orbs: ^0.2.0
+  shared_preferences: 2.5.5
+  url_launcher: 6.3.2
 
 dev_dependencies:
+  sqlite3: ^3.5.2 # Real browser VFS durability regression; same locked version.
   flutter_test:
     sdk: flutter
   integration_test:
@@ -77,13 +83,16 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # PDF-only font: keep bundled for offline export without eagerly registering
+  # (and downloading) this 3.35MB face during Flutter web initialization.
+  assets:
+    - assets/fonts/MaruBuri-Bold.ttf
+
   fonts:
     - family: MaruBuri
       fonts:
         - asset: assets/fonts/MaruBuri-Regular.ttf
           weight: 400
-        - asset: assets/fonts/MaruBuri-Bold.ttf
-          weight: 700
     - family: Pretendard
       fonts:
         - asset: assets/fonts/Pretendard-Regular.otf

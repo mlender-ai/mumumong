@@ -24,7 +24,7 @@ void main() {
         'count': ['private'],
         'stage': 'write',
       });
-      expect(capturedFields, {'stage': 'write'});
+      expect(capturedFields, {'build': 'local', 'stage': 'write'});
     },
   );
 
@@ -35,13 +35,13 @@ void main() {
     });
 
     expect(capturedName, 'processing_started');
-    expect(capturedFields, {'dream_id': 'dream-1'});
+    expect(capturedFields, {'build': 'local', 'dream_id': 'dream-1'});
   });
 
   test('64자를 초과하는 문자열을 제거한다', () {
     AppLog.event('processing_failed', {'code': 'x' * 65, 'stage': 'write'});
 
-    expect(capturedFields, {'stage': 'write'});
+    expect(capturedFields, {'build': 'local', 'stage': 'write'});
   });
 
   test('허용 키와 64자 문자열을 보존한다', () {
@@ -51,6 +51,11 @@ void main() {
       'count': 3,
     });
 
-    expect(capturedFields, {'status': 'x' * 64, 'ms': 1200, 'count': 3});
+    expect(capturedFields, {
+      'build': 'local',
+      'status': 'x' * 64,
+      'ms': 1200,
+      'count': 3,
+    });
   });
 }

@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design_system.dart';
+import '../capture/capture_flow.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../domain/repository/mumumong_repository.dart';
+import '../reader/reader_screen.dart';
+import '../shared/content_state.dart';
 
 class ArchiveScreen extends ConsumerStatefulWidget {
   const ArchiveScreen({super.key, required this.onCapture});
@@ -23,101 +26,166 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
   @override
   Widget build(BuildContext context) {
     final dreamsAsync = ref.watch(dreamsProvider(_filter));
-    return SafeArea(
-      bottom: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('꿈 보관함', style: Theme.of(context).textTheme.displayMedium),
-                QuietTextButton(label: '+ 기록', onPressed: widget.onCapture),
-              ],
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              children: [
-                for (final filter in DreamStatusFilter.values) ...[
-                  ChoiceChipEditorial(
-                    label: _filterLabel(filter),
-                    selected: _filter == filter,
-                    onTap: () => setState(() => _filter = filter),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: MongPageHeader(
+                  title: '꿈 보관함',
+                  description: dreamsAsync.hasValue
+                      ? '기록된 꿈 ${dreamsAsync.requireValue.length}'
+                      : null,
+                  trailing: IconButton(
+                    tooltip: '꿈 기록하기',
+                    onPressed: widget.onCapture,
+                    icon: const Icon(Icons.add_rounded),
                   ),
-                  const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 26),
-          Expanded(
-            child: dreamsAsync.when(
-              loading: () => const Center(
-                child: MetaText('꿈을 불러오는 중', color: MongColor.ink3),
+                ),
               ),
-              error: (_, _) => const Center(
-                child: MetaText('꿈을 불러오지 못했어요.', color: MongColor.ink3),
-              ),
-              data: (dreams) {
-                if (dreams.isEmpty) {
-                  return const Center(
-                    child: MetaText('아직 기록된 꿈이 없어요.', color: MongColor.ink3),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
-                  itemCount: dreams.length,
-                  itemBuilder: (context, index) {
-                    final dream = dreams[index];
-                    final beginsMonth =
-                        index == 0 ||
-                        !_sameMonth(
-                          dream.dreamDate,
-                          dreams[index - 1].dreamDate,
-                        );
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (beginsMonth) ...[
-                          if (index > 0) const SizedBox(height: 26),
-                          MetaText(_monthLabel(dream.dreamDate)),
-                          const SizedBox(height: 10),
-                        ],
-                        _ArchiveRow(
-                          dream: dream,
-                          onTap: () => _showDream(dream),
+              SliverToBoxAdapter(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: MongSpace.screen,
+                  ),
+                  child: Row(
+                    children: [
+                      for (final filter in DreamStatusFilter.values) ...[
+                        ChoiceChipEditorial(
+                          label: _filterLabel(filter),
+                          selected: _filter == filter,
+                          onTap: () => setState(() => _filter = filter),
                         ),
-                        if (index < dreams.length - 1) const Divider(),
+                        const SizedBox(width: MongSpace.xs),
                       ],
+                    ],
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: MongSpace.lg)),
+              const SliverToBoxAdapter(child: OfflineNotice()),
+              dreamsAsync.when(
+                loading: () => const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: ContentState(message: '꿈을 불러오는 중'),
+                ),
+                error: (_, _) => SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: ContentState(
+                    message: '꿈을 불러오지 못했어요. 저장한 기록을 다시 확인해 보세요.',
+                    action: '다시 불러오기',
+                    onAction: () => ref.invalidate(dreamsProvider(_filter)),
+                  ),
+                ),
+                data: (dreams) {
+                  if (dreams.isEmpty) {
+                    return SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: ContentState(
+                        message: _filter == DreamStatusFilter.all
+                            ? '아직 기록된 꿈이 없어요.'
+                            : '이 조건에 맞는 꿈이 없어요.',
+                        action: _filter == DreamStatusFilter.all
+                            ? '첫 꿈 기록하기'
+                            : '전체 꿈 보기',
+                        onAction: _filter == DreamStatusFilter.all
+                            ? widget.onCapture
+                            : () => setState(
+                                () => _filter = DreamStatusFilter.all,
+                              ),
+                      ),
                     );
-                  },
-                );
-              },
-            ),
+                  }
+                  return SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(
+                      MongSpace.screen,
+                      0,
+                      MongSpace.screen,
+                      MongSpace.xl,
+                    ),
+                    sliver: SliverList.builder(
+                      itemCount: dreams.length,
+                      itemBuilder: (context, index) {
+                        final dream = dreams[index];
+                        final beginsMonth =
+                            index == 0 ||
+                            !_sameMonth(
+                              dream.dreamDate,
+                              dreams[index - 1].dreamDate,
+                            );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (beginsMonth) ...[
+                              if (index > 0)
+                                const SizedBox(height: MongSpace.lg),
+                              MetaText(_monthLabel(dream.dreamDate)),
+                              const SizedBox(height: MongSpace.md),
+                            ],
+                            _ArchiveRow(
+                              dream: dream,
+                              onTap: () => _showDream(dream),
+                            ),
+                            if (index < dreams.length - 1) const Divider(),
+                          ],
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Future<void> _showDream(Dream dream) async {
+    try {
+      await _showDreamDetails(dream);
+    } on Object {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('기록을 불러오지 못했어요'),
+          content: const Text('저장한 꿈은 지우지 않았어요. 다시 불러와 주세요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('닫기'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                unawaited(_showDream(dream));
+              },
+              child: const Text('다시 불러오기'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _showDreamDetails(Dream dream) async {
     final repository = ref.read(repositoryProvider);
     final volume = await repository.watchActiveVolume().first;
     final scenes = volume == null
         ? const <Scene>[]
         : await repository.watchScenes(volume.id).first;
     final derivedScene = _sceneForDream(scenes, dream.id);
+    final allDreams = await repository.watchDreams(DreamStatusFilter.all).first;
     if (!mounted) {
       return;
     }
 
     var rawText = dream.rawText;
+    var openReader = false;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -133,15 +201,13 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
               controller: controller,
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
               children: [
-                Center(
-                  child: Container(width: 34, height: 2, color: MongColor.line),
-                ),
+                const MongSheetHandle(),
                 const SizedBox(height: 28),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     MetaText('DREAM     ${_dateLabel(dream.dreamDate)}'),
-                    _ClarityDots(count: _clarityCount(dream.clarity)),
+                    MetaText(_clarityLabel(dream.clarity)),
                   ],
                 ),
                 const SizedBox(height: 28),
@@ -151,12 +217,12 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                     Expanded(
                       child: Text(
                         rawText,
-                        style: Theme.of(context).textTheme.bodyLarge,
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    QuietTextButton(
-                      label: '원문 수정',
+                    TextButton(
+                      child: const Text('원문 수정'),
                       onPressed: () async {
                         final edited = await _editDreamText(
                           dream,
@@ -191,14 +257,17 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                       '${_statusLabel(dream.status)}',
                     ),
                     trailing: const Icon(Icons.arrow_forward, size: 18),
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      openReader = true;
+                      Navigator.pop(context);
+                    },
                   )
                 else
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: MetaText(
                       _statusLabel(dream.status),
-                      color: MongColor.ink3,
+                      color: context.metaInk,
                     ),
                   ),
                 const Divider(),
@@ -211,10 +280,24 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                         child: EditorialButton(
                           label: dream.status == DreamStatus.failed
                               ? '다시 처리'
+                              : dream.status == DreamStatus.queued
+                              ? '장면 만들기'
                               : '처리 이어가기',
                           onPressed: () {
                             Navigator.pop(sheetContext);
-                            unawaited(_resumeProcessing(dream));
+                            Navigator.of(this.context).push(
+                              quietPageRoute(
+                                CaptureFlow(
+                                  dreamNumber:
+                                      allDreams.length -
+                                      allDreams.indexWhere(
+                                        (d) => d.id == dream.id,
+                                      ),
+                                  sceneNumber: scenes.length + 1,
+                                  savedDream: dream,
+                                ),
+                              ),
+                            );
                           },
                         ),
                       ),
@@ -222,8 +305,8 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
                   ),
                 const SizedBox(height: 4),
                 Center(
-                  child: QuietTextButton(
-                    label: '꿈 삭제',
+                  child: TextButton(
+                    child: const Text('꿈 삭제'),
                     onPressed: () async {
                       final mode = await _confirmDeleteDream(
                         hasDerivedScene: derivedScene != null,
@@ -240,6 +323,17 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
         ),
       ),
     );
+    if (openReader && mounted) {
+      await Navigator.of(context).push(
+        quietPageRoute(
+          ReaderScreen(
+            volumeId: volume!.id,
+            initialSceneId: derivedScene!.id,
+            onCapture: widget.onCapture,
+          ),
+        ),
+      );
+    }
   }
 
   Future<String?> _editDreamText(
@@ -247,98 +341,79 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     required String initialText,
   }) async {
     final controller = TextEditingController(text: initialText);
+    var saving = false;
+    String? error;
     final edited = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: MongColor.paper,
-        title: const Text('꿈 원문 수정'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          minLines: 5,
-          maxLines: 10,
-          decoration: const InputDecoration(hintText: '기억나는 장면을 적어주세요.'),
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => PopScope(
+          canPop: !saving,
+          child: AlertDialog(
+            backgroundColor: context.raised,
+            title: const Text('꿈 원문 수정'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    enabled: !saving,
+                    minLines: 3,
+                    maxLines: 8,
+                    decoration: const InputDecoration(
+                      hintText: '기억나는 장면을 적어주세요.',
+                    ),
+                  ),
+                  if (error != null) Text(error!),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(context),
+                child: const Text('취소'),
+              ),
+              TextButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final value = controller.text.trim();
+                        if (value.isEmpty) return;
+                        update(() {
+                          saving = true;
+                          error = null;
+                        });
+                        try {
+                          await ref
+                              .read(repositoryProvider)
+                              .updateDreamText(dream.id, value);
+                          if (context.mounted) Navigator.pop(context, value);
+                        } on Object {
+                          if (context.mounted) {
+                            update(() {
+                              saving = false;
+                              error = '원문을 저장하지 못했어요. 입력은 그대로 남아 있어요.';
+                            });
+                          }
+                        }
+                      },
+                child: Text(saving ? '저장 중' : '저장'),
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(context, value);
-            },
-            child: const Text('저장'),
-          ),
-        ],
       ),
     );
+    await Future<void>.delayed(const Duration(milliseconds: 350));
     controller.dispose();
-    if (edited == null || edited == initialText || !mounted) return null;
-    try {
-      await ref.read(repositoryProvider).updateDreamText(dream.id, edited);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('꿈 원문을 수정했어요.')));
-      }
-      return edited;
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('원문을 저장하지 못했어요. 다시 시도해 주세요.')),
-        );
-      }
-      return null;
+    if (edited != null && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('꿈 원문을 수정했어요.')));
     }
-  }
-
-  Future<void> _resumeProcessing(Dream dream) async {
-    if (!mounted) return;
-    final repository = ref.read(repositoryProvider);
-    final engine = ref.read(engineClientProvider);
-    try {
-      if (dream.status != DreamStatus.processing) {
-        await repository.answerRecall(dream.id, dream.recallAnswers);
-      }
-      if (dream.status == DreamStatus.failed) {
-        await engine.retry(dream.id);
-      } else {
-        await engine.enqueue(dream.id, dream.id);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('장면 처리를 이어갈게요.')));
-      }
-      final result = await engine
-          .watch(dream.id)
-          .firstWhere(
-            (progress) =>
-                progress.status == JobStatus.failed ||
-                (progress.status == JobStatus.done &&
-                    (progress.type == JobType.commit ||
-                        progress.type == JobType.remember)),
-          )
-          .timeout(const Duration(minutes: 3));
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.status == JobStatus.failed
-                ? '장면을 만들지 못했어요. 다시 시도해 주세요.'
-                : '새 장면이 원고에 들어갔어요.',
-          ),
-        ),
-      );
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('처리 상태를 확인하지 못했어요. 다시 시도해 주세요.')),
-        );
-      }
-    }
+    return edited;
   }
 
   Future<DeleteMode?> _confirmDeleteDream({required bool hasDerivedScene}) {
@@ -346,7 +421,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
       return showDialog<DeleteMode>(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: MongColor.paper,
+          backgroundColor: context.raised,
           title: const Text('꿈을 삭제할까요?'),
           content: const Text('삭제한 꿈은 되돌릴 수 없어요.'),
           actions: [
@@ -366,7 +441,7 @@ class _ArchiveScreenState extends ConsumerState<ArchiveScreen> {
     return showDialog<DeleteMode>(
       context: context,
       builder: (context) => SimpleDialog(
-        backgroundColor: MongColor.paper,
+        backgroundColor: context.raised,
         title: const Text('파생 장면은 어떻게 할까요?'),
         children: [
           SimpleDialogOption(
@@ -423,67 +498,61 @@ class _ArchiveRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stackDate = MediaQuery.textScalerOf(context).scale(12) > 15;
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        child: Row(
+        padding: const EdgeInsets.symmetric(vertical: MongSpace.md),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 62, child: MetaText(_dateLabel(dream.dreamDate))),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    dream.rawText,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium,
+            if (stackDate) ...[
+              MetaText(_dateLabel(dream.dreamDate)),
+              const SizedBox(height: MongSpace.xs),
+            ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!stackDate)
+                  SizedBox(
+                    width: 62,
+                    child: MetaText(_dateLabel(dream.dreamDate)),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _ClarityDots(count: _clarityCount(dream.clarity)),
-                      const SizedBox(width: 12),
-                      MetaText(_statusLabel(dream.status)),
+                      Text(
+                        dream.rawText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: MongSpace.xs),
+                      Wrap(
+                        spacing: MongSpace.sm,
+                        runSpacing: MongSpace.xxs,
+                        children: [
+                          MetaText(_clarityLabel(dream.clarity)),
+                          MetaText(_statusLabel(dream.status)),
+                        ],
+                      ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.only(left: 12, top: 12),
-              child: Icon(Icons.arrow_forward, size: 17, color: MongColor.ink3),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, top: 12),
+                  child: Icon(
+                    Icons.arrow_forward,
+                    size: 17,
+                    color: context.metaInk,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ClarityDots extends StatelessWidget {
-  const _ClarityDots({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var index = 0; index < 3; index++)
-          Container(
-            width: 5,
-            height: 5,
-            margin: const EdgeInsets.only(right: 4),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: index < count ? MongColor.ink : MongColor.line,
-            ),
-          ),
-      ],
     );
   }
 }
@@ -495,18 +564,18 @@ String _filterLabel(DreamStatusFilter filter) => switch (filter) {
 };
 
 String _statusLabel(DreamStatus status) => switch (status) {
-  DreamStatus.queued => '처리 대기',
+  DreamStatus.queued => '저장됨 · 생성 전',
   DreamStatus.processing => '처리 중',
   DreamStatus.inManuscript => '원고에 반영',
   DreamStatus.archivedOnly => '기록만',
   DreamStatus.failed => '처리 실패',
 };
 
-int _clarityCount(DreamClarity? clarity) => switch (clarity) {
-  DreamClarity.fragment => 1,
-  DreamClarity.partial => 2,
-  DreamClarity.vivid => 3,
-  null => 0,
+String _clarityLabel(DreamClarity? clarity) => switch (clarity) {
+  DreamClarity.fragment => '흐릿한 기억',
+  DreamClarity.partial => '이어진 기억',
+  DreamClarity.vivid => '선명한 기억',
+  null => '기억 정리 전',
 };
 
 String _dateLabel(DateTime date) => '${date.month}월 ${date.day}일';

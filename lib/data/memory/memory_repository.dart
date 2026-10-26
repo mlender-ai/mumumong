@@ -18,15 +18,44 @@ abstract final class MemorySeedIds {
 }
 
 class MemoryRepository implements MumumongRepository, MockEngineStore {
-  MemoryRepository({DateTime Function()? now, Uuid? uuid})
-    : _now = now ?? DateTime.now,
-      _uuid = uuid ?? const Uuid(),
-      _volume = _seedVolume(),
-      _dreams = _seedDreams(),
-      _scenes = _seedScenes(),
-      _passages = _seedPassages(),
-      _progressEvents = _seedProgressEvents(),
-      _linkDecisions = _seedLinkDecisions();
+  MemoryRepository({
+    DateTime Function()? now,
+    Uuid? uuid,
+    bool seedPrototype = true,
+  }) : _now = now ?? DateTime.now,
+       _uuid = uuid ?? const Uuid(),
+       _volume = seedPrototype ? _seedVolume() : null,
+       _dreams = seedPrototype ? _seedDreams() : [],
+       _scenes = seedPrototype ? _seedScenes() : [],
+       _passages = seedPrototype ? _seedPassages() : [],
+       _progressEvents = seedPrototype ? _seedProgressEvents() : [],
+       _linkDecisions = seedPrototype ? _seedLinkDecisions() : [];
+
+  /// In-memory walkthrough setup only; production creation remains cloud-owned.
+  Future<void> createPreviewVolume({
+    required AdaptationLevel adaptation,
+    required WritingStyle style,
+    required NarrativeVoice narrativeVoice,
+  }) async {
+    _ensureOpen();
+    if (_volume != null) return;
+    _volume = Volume(
+      id: MemorySeedIds.volume,
+      volNo: 1,
+      title: null,
+      coverMotifId: null,
+      prologueSceneId: null,
+      format: VolumeFormat.short,
+      adaptation: adaptation,
+      style: style,
+      narrativeVoice: narrativeVoice,
+      status: VolumeStatus.active,
+      progressMu: 0,
+      targetMu: 20,
+      genreProfile: const {},
+    );
+    _notify();
+  }
 
   final DateTime Function() _now;
   final Uuid _uuid;
@@ -35,6 +64,96 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
   );
   final Map<String, JobProgress> _jobs = {};
   final Map<String, PassageOrigin> _originBeforeEdit = {};
+  final Map<String, ReaderPosition> _readerPositions = {};
+  final Set<(String, PresentationKind, String)> _presentations = {};
+
+  @override
+  Stream<GenerationSettingsState?> watchGenerationSettings(String volumeId) =>
+      _watch(() {
+        final volume = _volume;
+        if (volume == null || volume.id != volumeId) return null;
+        return GenerationSettingsState(
+          confirmed: GenerationSettings(
+            adaptation: volume.adaptation,
+            style: volume.style,
+            narrativeVoice: volume.narrativeVoice,
+          ),
+          version: volume.settingsVersion,
+        );
+      });
+  @override
+  Future<void> saveGenerationSettings(
+    String volumeId,
+    GenerationSettings settings,
+  ) async {
+    _ensureOpen();
+    final volume = _volume;
+    if (volume == null ||
+        volume.id != volumeId ||
+        (volume.status != VolumeStatus.active &&
+            volume.status != VolumeStatus.completable)) {
+      throw StateError('volume_settings_unavailable');
+    }
+    final current = GenerationSettings(
+      adaptation: volume.adaptation,
+      style: volume.style,
+      narrativeVoice: volume.narrativeVoice,
+    );
+    if (current == settings) return;
+    _volume = volume.copyWith(
+      adaptation: settings.adaptation,
+      style: settings.style,
+      narrativeVoice: settings.narrativeVoice,
+      settingsVersion: volume.settingsVersion + 1,
+    );
+    _notify();
+  }
+
+  @override
+  Future<void> retryGenerationSettings(String volumeId) async {
+    _ensureOpen();
+  }
+
+  @override
+  Future<void> resolveGenerationSettingsConflict(
+    String volumeId, {
+    required bool keepLocal,
+  }) async {
+    _ensureOpen();
+  }
+
+  @override
+  Future<bool> consumePresentation({
+    required String volumeId,
+    required PresentationKind kind,
+    required String sourceId,
+  }) async {
+    _ensureOpen();
+    if (_volume?.id != volumeId) {
+      throw StateError('presentation_source_unavailable');
+    }
+    var alreadyRead = false;
+    if (kind == PresentationKind.reveal) {
+      final scene = _scenes
+          .where((scene) => scene.id == sourceId && scene.volumeId == volumeId)
+          .firstOrNull;
+      final passages =
+          _passages.where((passage) => passage.sceneId == sourceId).toList()
+            ..sort((a, b) => a.orderKey.compareTo(b.orderKey));
+      if (scene == null || passages.isEmpty) {
+        throw StateError('presentation_source_unavailable');
+      }
+      alreadyRead = passages.first.firstReadAt != null;
+    } else if (!_progressEvents.any(
+      (event) =>
+          event.id == sourceId &&
+          event.volumeId == volumeId &&
+          event.deltaMu > 0,
+    )) {
+      throw StateError('presentation_source_unavailable');
+    }
+    return _presentations.add((volumeId, kind, sourceId)) && !alreadyRead;
+  }
 
   Volume? _volume;
   DreamDraft? _draft;
@@ -136,6 +255,29 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
   }
 
   @override
+  Future<ReaderPosition?> loadReaderPosition(String volumeId) async {
+    _ensureOpen();
+    return _volume?.id == volumeId ? _readerPositions[volumeId] : null;
+  }
+
+  @override
+  Future<void> saveReaderPosition(ReaderPosition position) async {
+    _ensureOpen();
+    final scene = _scenes.where((s) => s.id == position.sceneId).firstOrNull;
+    if (!position.hasValidGeometry ||
+        _volume?.id != position.volumeId ||
+        scene == null ||
+        scene.volumeId != position.volumeId ||
+        (position.passageId != null &&
+            !_passages.any(
+              (p) => p.id == position.passageId && p.sceneId == scene.id,
+            ))) {
+      throw StateError('invalid_reader_position');
+    }
+    _readerPositions[position.volumeId] = position;
+  }
+
+  @override
   Future<DreamDraft?> loadDraft() async {
     _ensureOpen();
     return _draft;
@@ -200,10 +342,30 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
   }
 
   @override
+  Future<void> saveRecallAnswers(
+    String dreamId,
+    Map<String, String> answers,
+  ) async {
+    _ensureOpen();
+    final index = _dreamIndex(dreamId);
+    final dream = _dreams[index];
+    if (dream.status != DreamStatus.queued) {
+      throw StateError('recall_already_processing');
+    }
+    _dreams[index] = dream.copyWith(recallAnswers: answers);
+    _notify();
+  }
+
+  @override
   Future<void> answerRecall(String dreamId, Map<String, String> answers) async {
     _ensureOpen();
     final index = _dreamIndex(dreamId);
     final dream = _dreams[index];
+    if (dream.status == DreamStatus.processing) return;
+    if (dream.status != DreamStatus.queued &&
+        dream.status != DreamStatus.failed) {
+      throw StateError('dream_already_completed');
+    }
     _dreams[index] = dream.copyWith(
       recallAnswers: answers,
       status: DreamStatus.processing,
@@ -484,6 +646,25 @@ class MemoryRepository implements MumumongRepository, MockEngineStore {
         createdAt: _now().toUtc(),
       ),
     );
+  }
+
+  @override
+  Future<void> recordJobProgress(JobProgress progress) async {
+    _ensureOpen();
+    final index = _dreamIndex(progress.dreamId);
+    final dream = _dreams[index];
+    final resumed =
+        dream.status == DreamStatus.failed &&
+        (progress.status == JobStatus.queued ||
+            progress.status == JobStatus.running);
+    if (dream.status != DreamStatus.processing && !resumed) return;
+    if (resumed) {
+      _dreams[index] = dream.copyWith(status: DreamStatus.processing);
+    }
+    if (progress.status == JobStatus.failed) {
+      _dreams[index] = dream.copyWith(status: DreamStatus.failed);
+    }
+    await writeEngineProgress(progress);
   }
 
   @override

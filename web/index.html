@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -18,10 +18,13 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#FFFFFF">
   <meta name="description" content="꿈을 기록할 때마다 나만의 소설이 자라는 창작 앱.">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="무무몽">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
@@ -33,6 +36,64 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <style>
+    html, body { background: #FFFFFF; }
+    body { margin: 0; }
+    #pwa-startup {
+      position: fixed; inset: 0; z-index: 2147483647; box-sizing: border-box;
+      display: grid; place-content: center; padding: 24px;
+      background: #FFFFFF; color: #1E1D1B;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      text-align: center; line-height: 1.55;
+    }
+    #pwa-startup[hidden], #pwa-retry[hidden] { display: none; }
+    #pwa-startup h1 { margin: 0 0 16px; font-size: 22px; font-weight: 600; }
+    #pwa-startup p { max-width: 360px; margin: 0 auto 24px; font-size: 16px; }
+    #pwa-retry {
+      min-height: 52px; width: min(280px, 100%); justify-self: center;
+      border-radius: 26px; border: 1px solid #D9DFE5; color: inherit;
+      background: linear-gradient(135deg, #F4F8FC, #FFFFFF);
+      font: inherit; font-weight: 600; cursor: pointer; touch-action: manipulation;
+    }
+    #pwa-retry:active { transform: scale(.975); }
+  </style>
+  <section id="pwa-startup" aria-labelledby="pwa-startup-title">
+    <h1 id="pwa-startup-title">무무몽을 여는 중이에요</h1>
+    <p id="pwa-startup-status" role="status" aria-live="polite">화면을 준비하고 있어요.</p>
+    <button id="pwa-retry" type="button" hidden>다시 열기</button>
+  </section>
+  <noscript>무무몽을 사용하려면 브라우저의 JavaScript를 켜 주세요.</noscript>
+  <script id="pwa-startup-guard">
+    (() => {
+      let ready = false;
+      const shell = document.getElementById('pwa-startup');
+      const title = document.getElementById('pwa-startup-title');
+      const status = document.getElementById('pwa-startup-status');
+      const retry = document.getElementById('pwa-retry');
+      const fail = () => {
+        if (ready) return;
+        title.textContent = '무무몽을 열지 못했어요';
+        status.textContent = '연결을 확인한 뒤 다시 열어 주세요. 이 동작은 저장된 기록을 지우지 않아요.';
+        retry.hidden = false;
+      };
+      const resourceError = (event) => {
+        if (event.target?.tagName === 'SCRIPT' || event.target === window) fail();
+      };
+      const timeout = window.setTimeout(fail, 20000);
+      retry.addEventListener('click', () => window.location.reload());
+      window.addEventListener('error', resourceError, true);
+      window.addEventListener('unhandledrejection', fail);
+      window.addEventListener('flutter-first-frame', () => {
+        ready = true;
+        window.clearTimeout(timeout);
+        window.removeEventListener('error', resourceError, true);
+        window.removeEventListener('unhandledrejection', fail);
+        shell.remove();
+      }, { once: true });
+      // Fixed startup messages only: never expose exception payloads or content.
+      window.mumumongStartup = { fail };
+    })();
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

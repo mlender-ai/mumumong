@@ -44,6 +44,89 @@ void runRepositoryContract(
       await harness.dispose();
     });
 
+    test(
+      'presentation reservation is atomic, per kind, and never marks reading',
+      () async {
+        final scenes = await repository.watchScenes(harness.volumeId).first;
+        final scene = scenes.last;
+        final before = await repository.watchPassages(scene.id).first;
+        final claims = await Future.wait(
+          List.generate(
+            8,
+            (_) => repository.consumePresentation(
+              volumeId: harness.volumeId,
+              kind: PresentationKind.reveal,
+              sourceId: scene.id,
+            ),
+          ),
+        );
+        expect(claims.where((fresh) => fresh), hasLength(1));
+        final after = await repository.watchPassages(scene.id).first;
+        expect(
+          after.map((p) => (p.id, p.text, p.origin, p.locked, p.firstReadAt)),
+          before.map((p) => (p.id, p.text, p.origin, p.locked, p.firstReadAt)),
+        );
+        final event =
+            (await repository.watchRecentProgress(harness.volumeId).first)
+                .firstWhere((e) => e.deltaMu > 0);
+        expect(
+          await repository.consumePresentation(
+            volumeId: harness.volumeId,
+            kind: PresentationKind.growth,
+            sourceId: event.id,
+          ),
+          isTrue,
+        );
+        expect(
+          await repository.consumePresentation(
+            volumeId: harness.volumeId,
+            kind: PresentationKind.growth,
+            sourceId: event.id,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'already read scene is not celebrated; foreign/missing sources are rejected',
+      () async {
+        final scene =
+            (await repository.watchScenes(harness.volumeId).first).last;
+        final first = (await repository.watchPassages(scene.id).first).first;
+        await repository.markPassageRead(first.id);
+        expect(
+          await repository.consumePresentation(
+            volumeId: harness.volumeId,
+            kind: PresentationKind.reveal,
+            sourceId: scene.id,
+          ),
+          isFalse,
+        );
+        for (final (volumeId, sourceId) in [
+          ('foreign-volume', scene.id),
+          (harness.volumeId, 'missing-scene'),
+        ]) {
+          await expectLater(
+            repository.consumePresentation(
+              volumeId: volumeId,
+              kind: PresentationKind.reveal,
+              sourceId: sourceId,
+            ),
+            throwsStateError,
+          );
+        }
+        await expectLater(
+          repository.consumePresentation(
+            volumeId: harness.volumeId,
+            kind: PresentationKind.growth,
+            sourceId: scene.id,
+          ),
+          throwsStateError,
+        );
+      },
+    );
+
     test('exposes the complete prototype fixture in stable order', () async {
       final volume = await repository.watchActiveVolume().first;
       expect(volume?.id, harness.volumeId);
@@ -103,6 +186,144 @@ void runRepositoryContract(
       expect(await repository.loadDraft(), isNull);
       await repository.clearDraft();
       expect(await repository.loadDraft(), isNull);
+    });
+
+    test(
+      'optional recall persists without starting processing and then locks',
+      () async {
+        final id = await repository.submitDream(_draft('p3-recall-only'));
+        await repository.saveRecallAnswers(id, {'light': '밝음'});
+        final dream =
+            (await repository.watchDreams(DreamStatusFilter.all).first)
+                .firstWhere((d) => d.id == id);
+        expect(dream.status, DreamStatus.queued);
+        expect(dream.recallAnswers, {'light': '밝음'});
+        expect((await repository.watchJob(id).first)?.status, JobStatus.queued);
+        await repository.answerRecall(id, dream.recallAnswers);
+        await expectLater(
+          repository.saveRecallAnswers(id, {'light': '어두움'}),
+          throwsStateError,
+        );
+      },
+    );
+
+    test(
+      'actual job failure persists; stale failures and starts cannot downgrade completed dreams',
+      () async {
+        final id = await repository.submitDream(_draft('p4-job-state'));
+        await repository.answerRecall(id, {'light': '밝음'});
+        await repository.answerRecall(id, {'light': '어두움'});
+        expect(
+          (await repository.watchDreams(DreamStatusFilter.all).first)
+              .singleWhere((d) => d.id == id)
+              .recallAnswers,
+          {'light': '밝음'},
+        );
+        await repository.recordJobProgress(
+          JobProgress(
+            dreamId: id,
+            type: JobType.validate,
+            status: JobStatus.failed,
+            attempt: 3,
+            stageLabel: '장면을 만들지 못했어요',
+          ),
+        );
+        expect((await repository.watchJob(id).first)?.status, JobStatus.failed);
+        expect(
+          (await repository.watchDreams(DreamStatusFilter.all).first)
+              .singleWhere((d) => d.id == id)
+              .status,
+          DreamStatus.failed,
+        );
+        // A real retry (including one started on another client) must rejoin
+        // shell recovery instead of remaining stuck in a cached failed state.
+        await repository.recordJobProgress(
+          JobProgress(
+            dreamId: id,
+            type: JobType.extract,
+            status: JobStatus.queued,
+            attempt: 0,
+            stageLabel: '재시도 접수됨',
+          ),
+        );
+        expect(
+          (await repository.watchDreams(DreamStatusFilter.all).first)
+              .singleWhere((d) => d.id == id)
+              .status,
+          DreamStatus.processing,
+        );
+        await repository.recordJobProgress(
+          JobProgress(
+            dreamId: harness.latestDreamId,
+            type: JobType.validate,
+            status: JobStatus.failed,
+            attempt: 3,
+            stageLabel: '오래된 실패',
+          ),
+        );
+        final completed =
+            (await repository.watchDreams(DreamStatusFilter.all).first)
+                .singleWhere((d) => d.id == harness.latestDreamId);
+        expect(completed.status, DreamStatus.inManuscript);
+        await expectLater(
+          repository.answerRecall(completed.id, {}),
+          throwsStateError,
+        );
+      },
+    );
+
+    test('stores a volume-specific scene and paragraph bookmark', () async {
+      expect(await repository.loadReaderPosition(harness.volumeId), isNull);
+      final scene = (await repository.watchScenes(harness.volumeId).first).last;
+      final passage = (await repository.watchPassages(scene.id).first).first;
+      final position = ReaderPosition(
+        volumeId: harness.volumeId,
+        sceneId: scene.id,
+        sceneOrderKey: scene.orderKey,
+        passageId: passage.id,
+        passageOrderKey: passage.orderKey,
+        passageFraction: .4,
+        offset: 120,
+        updatedAt: DateTime.utc(2026, 10, 15),
+      );
+      await repository.saveReaderPosition(position);
+      final loaded = await repository.loadReaderPosition(harness.volumeId);
+      expect(loaded?.sceneId, scene.id);
+      expect(loaded?.passageId, passage.id);
+      expect(loaded?.passageFraction, .4);
+      expect(
+        await repository.loadReaderPosition('another-owner-volume'),
+        isNull,
+      );
+    });
+
+    test('rejects foreign or invalid reading anchors', () async {
+      final scene = (await repository.watchScenes(harness.volumeId).first).last;
+      for (final position in [
+        ReaderPosition(
+          volumeId: 'foreign',
+          sceneId: scene.id,
+          updatedAt: DateTime.utc(2026),
+        ),
+        ReaderPosition(
+          volumeId: harness.volumeId,
+          sceneId: scene.id,
+          passageId: 'foreign-passage',
+          updatedAt: DateTime.utc(2026),
+        ),
+        ReaderPosition(
+          volumeId: harness.volumeId,
+          sceneId: scene.id,
+          passageFraction: 2,
+          updatedAt: DateTime.utc(2026),
+        ),
+      ]) {
+        await expectLater(
+          repository.saveReaderPosition(position),
+          throwsStateError,
+        );
+      }
+      expect(await repository.loadReaderPosition(harness.volumeId), isNull);
     });
 
     test('submits a dream idempotently and exposes its queued job', () async {

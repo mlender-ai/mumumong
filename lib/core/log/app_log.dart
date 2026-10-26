@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
+import '../env/env.dart';
 
 const _allowedKeys = {
   'dream_id',
@@ -19,6 +20,7 @@ const _allowedKeys = {
   'origin',
   'mode',
   'env',
+  'build',
 };
 
 typedef AppLogSink = void Function(String name, Map<String, Object?> fields);
@@ -39,7 +41,7 @@ abstract final class AppLog {
       if (value is String && value.length > 64) return;
       safe[key] = value;
     });
-    _sink(name, Map.unmodifiable(safe));
+    _sink(name, Map.unmodifiable({'build': AppEnv.buildId, ...safe}));
   }
 
   @visibleForTesting

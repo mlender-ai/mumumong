@@ -1,12 +1,16 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design_system.dart';
+import '../../core/design/thinking_orb.dart';
+import '../../core/design/dream_atmosphere.dart';
 import '../../data/auth/auth_controller.dart';
 import '../../core/env/env.dart';
 import '../../domain/model/enums.dart';
 import '../../di/providers.dart';
 import 'authenticated_consent_gate.dart';
+import 'auth_loading_screen.dart';
 import 'onboarding_screen.dart';
 
 class AuthGate extends ConsumerStatefulWidget {
@@ -37,18 +41,16 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     final state = controller.state;
 
     return switch (state.phase) {
-      AuthenticationPhase.restoring => const _QuietStatusScreen(
-        meta: 'ACCOUNT',
+      AuthenticationPhase.restoring => const AuthLoadingScreen(
         title: '원고를 여는 중',
       ),
       AuthenticationPhase.signedOut => OnboardingScreen(
-        onApplePressed: _signInWithApple,
-        onTrialPressed: AppEnv.environment == AppEnvironment.dev
+        onApplePressed: kIsWeb ? null : _signInWithApple,
+        onTrialPressed: AppEnv.environment != AppEnvironment.prod
             ? _signInAnonymously
             : null,
       ),
-      AuthenticationPhase.signingIn => const _QuietStatusScreen(
-        meta: 'ACCOUNT',
+      AuthenticationPhase.signingIn => const AuthLoadingScreen(
         title: '계정을 확인하는 중',
       ),
       AuthenticationPhase.failure => _AuthenticationFailureScreen(
@@ -111,9 +113,22 @@ class _AuthenticationFailureScreen extends StatelessWidget {
 }
 
 class VolumeSetupScreen extends ConsumerStatefulWidget {
-  const VolumeSetupScreen({super.key, required this.onComplete});
+  const VolumeSetupScreen({
+    super.key,
+    required this.onComplete,
+    this.createVolume,
+  });
 
   final VoidCallback onComplete;
+
+  /// Optional local walkthrough/test adapter. AuthGate leaves this null and
+  /// always uses the existing authenticated CloudSyncService.
+  final Future<void> Function({
+    required AdaptationLevel adaptation,
+    required WritingStyle style,
+    required NarrativeVoice narrativeVoice,
+  })?
+  createVolume;
 
   @override
   ConsumerState<VolumeSetupScreen> createState() => _VolumeSetupScreenState();
@@ -125,6 +140,7 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
   NarrativeVoice _narrativeVoice = NarrativeVoice.firstPersonPast;
   bool _saving = false;
   bool _failed = false;
+  bool _details = false;
 
   Future<void> _start() async {
     if (_saving) return;
@@ -133,13 +149,14 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
       _failed = false;
     });
     try {
-      await ref
-          .read(cloudSyncServiceProvider)
-          .createVolume(
-            adaptation: _adaptation,
-            style: _style,
-            narrativeVoice: _narrativeVoice,
-          );
+      final create =
+          widget.createVolume ??
+          ref.read(cloudSyncServiceProvider).createVolume;
+      await create(
+        adaptation: _adaptation,
+        style: _style,
+        narrativeVoice: _narrativeVoice,
+      );
       if (mounted) widget.onComplete();
     } on Object {
       if (mounted) {
@@ -153,96 +170,145 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return _AccountPage(
-      meta: 'VOL. 01 · SHORT',
-      title: '첫 원고의\n결을 정합니다.',
-      body: '기본값 그대로 바로 시작할 수 있어요.\n설정은 이후 생성분부터 바꿀 수 있습니다.',
-      middle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    if (_saving) {
+      return const AuthLoadingScreen(
+        title: '첫 원고를 준비하는 중',
+        orbState: DreamOrbState.composing,
+      );
+    }
+    return Scaffold(
+      body: Stack(
         children: [
-          const MetaText('ADAPTATION'),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChipEditorial(
-                label: '꿈에 충실하게',
-                selected: _adaptation == AdaptationLevel.faithful,
-                onTap: () =>
-                    setState(() => _adaptation = AdaptationLevel.faithful),
-              ),
-              ChoiceChipEditorial(
-                label: '균형 있게',
-                selected: _adaptation == AdaptationLevel.balanced,
-                onTap: () =>
-                    setState(() => _adaptation = AdaptationLevel.balanced),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const MetaText('WRITING STYLE'),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final option in const [
-                (WritingStyle.plain, '담백하게'),
-                (WritingStyle.lyrical, '서정적으로'),
-                (WritingStyle.cinematic, '영화적으로'),
-              ])
-                ChoiceChipEditorial(
-                  label: option.$2,
-                  selected: _style == option.$1,
-                  onTap: () => setState(() => _style = option.$1),
-                ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const MetaText('POINT OF VIEW'),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChipEditorial(
-                label: '나의 시점',
-                selected: _narrativeVoice == NarrativeVoice.firstPersonPast,
-                onTap: () => setState(
-                  () => _narrativeVoice = NarrativeVoice.firstPersonPast,
-                ),
-              ),
-              ChoiceChipEditorial(
-                label: '소설 속 인물 시점',
-                selected: _narrativeVoice == NarrativeVoice.thirdPersonPast,
-                onTap: () => setState(
-                  () => _narrativeVoice = NarrativeVoice.thirdPersonPast,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      footer: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_failed) ...[
-            const SizedBox(height: 10),
-            const Text(
-              '원고를 만들지 못했어요. 연결을 확인하고 다시 시도해 주세요.',
-              textAlign: TextAlign.center,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 240,
+            child: DreamAtmosphere(
+              animate: false,
+              night: context.isNight,
+              strength: .25,
             ),
-          ],
-          const SizedBox(height: 16),
-          EditorialButton(
-            label: _saving ? '원고를 여는 중' : '이 설정으로 시작',
-            onPressed: _saving ? null : _start,
+          ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: MongFlowPage(
+                  content: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '첫 이야기를\n시작해 볼까요?',
+                        style: Theme.of(context).textTheme.displayMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '기억나는 장면 하나면 충분해요.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: context.secondaryInk,
+                        ),
+                      ),
+                      if (_details) ...[
+                        const SizedBox(height: 24),
+                        _choiceSection('꿈과 이야기의 거리', [
+                          ChoiceChipEditorial(
+                            label: '꿈에 충실하게',
+                            selected: _adaptation == AdaptationLevel.faithful,
+                            onTap: () => setState(
+                              () => _adaptation = AdaptationLevel.faithful,
+                            ),
+                          ),
+                          ChoiceChipEditorial(
+                            label: '균형 있게',
+                            selected: _adaptation == AdaptationLevel.balanced,
+                            onTap: () => setState(
+                              () => _adaptation = AdaptationLevel.balanced,
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 28),
+                        _choiceSection('문장의 느낌', [
+                          for (final option in const [
+                            (WritingStyle.plain, '담백하게'),
+                            (WritingStyle.lyrical, '서정적으로'),
+                            (WritingStyle.cinematic, '영화적으로'),
+                          ])
+                            ChoiceChipEditorial(
+                              label: option.$2,
+                              selected: _style == option.$1,
+                              onTap: () => setState(() => _style = option.$1),
+                            ),
+                        ]),
+                        const SizedBox(height: 28),
+                        _choiceSection('이야기의 시점', [
+                          ChoiceChipEditorial(
+                            label: '나의 시점',
+                            selected:
+                                _narrativeVoice ==
+                                NarrativeVoice.firstPersonPast,
+                            onTap: () => setState(
+                              () => _narrativeVoice =
+                                  NarrativeVoice.firstPersonPast,
+                            ),
+                          ),
+                          ChoiceChipEditorial(
+                            label: '소설 속 인물 시점',
+                            selected:
+                                _narrativeVoice ==
+                                NarrativeVoice.thirdPersonPast,
+                            onTap: () => setState(
+                              () => _narrativeVoice =
+                                  NarrativeVoice.thirdPersonPast,
+                            ),
+                          ),
+                        ]),
+                      ],
+                    ],
+                  ),
+                  actions: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_failed) ...[
+                        Text(
+                          '원고를 만들지 못했어요. 연결을 확인하고 다시 시도해 주세요.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      MongActionGroup(
+                        primary: GlassActionButton(
+                          label: '시작하기',
+                          onPressed: _start,
+                        ),
+                        secondary: [
+                          TextButton(
+                            onPressed: () =>
+                                setState(() => _details = !_details),
+                            child: Text(_details ? '이야기 설정 접기' : '이야기 설정'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+
+  Widget _choiceSection(String title, List<Widget> choices) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(title, style: Theme.of(context).textTheme.titleMedium),
+      const SizedBox(height: 12),
+      Wrap(spacing: 8, runSpacing: 8, children: choices),
+    ],
+  );
 }
 
 class _CloudBootstrapGate extends ConsumerStatefulWidget {
@@ -276,10 +342,7 @@ class _CloudBootstrapGateState extends ConsumerState<_CloudBootstrapGate> {
       future: _loading,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const _QuietStatusScreen(
-            meta: 'ACCOUNT',
-            title: '원고를 동기화하는 중',
-          );
+          return const AuthLoadingScreen(title: '원고를 불러오는 중');
         }
         if (snapshot.hasError || snapshot.data != true) {
           return _AccountPage(
@@ -295,31 +358,17 @@ class _CloudBootstrapGateState extends ConsumerState<_CloudBootstrapGate> {
   }
 }
 
-class _QuietStatusScreen extends StatelessWidget {
-  const _QuietStatusScreen({required this.meta, required this.title});
-
-  final String meta;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return _AccountPage(meta: meta, title: title);
-  }
-}
-
 class _AccountPage extends StatelessWidget {
   const _AccountPage({
     required this.meta,
     required this.title,
     this.body,
-    this.middle,
     this.footer,
   });
 
   final String meta;
   final String title;
   final String? body;
-  final Widget? middle;
   final Widget? footer;
 
   @override
@@ -340,10 +389,9 @@ class _AccountPage extends StatelessWidget {
                   body!,
                   style: Theme.of(
                     context,
-                  ).textTheme.bodyMedium?.copyWith(color: MongColor.ink2),
+                  ).textTheme.bodyMedium?.copyWith(color: context.secondaryInk),
                 ),
               ],
-              if (middle != null) ...[const SizedBox(height: 34), middle!],
               const Spacer(flex: 3),
               ?footer,
             ],

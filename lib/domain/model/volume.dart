@@ -16,6 +16,7 @@ class Volume {
     required Map<String, double> genreProfile,
     required this.coverMotifId,
     required this.prologueSceneId,
+    this.settingsVersion = 1,
   }) : genreProfile = Map.unmodifiable(genreProfile);
 
   static const Object _unset = Object();
@@ -33,6 +34,7 @@ class Volume {
   final Map<String, double> genreProfile;
   final String? coverMotifId;
   final String? prologueSceneId;
+  final int settingsVersion;
 
   Volume copyWith({
     String? id,
@@ -48,6 +50,7 @@ class Volume {
     Map<String, double>? genreProfile,
     Object? coverMotifId = _unset,
     Object? prologueSceneId = _unset,
+    int? settingsVersion,
   }) {
     return Volume(
       id: id ?? this.id,
@@ -67,6 +70,7 @@ class Volume {
       prologueSceneId: identical(prologueSceneId, _unset)
           ? this.prologueSceneId
           : prologueSceneId as String?,
+      settingsVersion: settingsVersion ?? this.settingsVersion,
     );
   }
 
@@ -84,6 +88,7 @@ class Volume {
     'genre_profile': genreProfile,
     'cover_motif_id': coverMotifId,
     'prologue_scene_id': prologueSceneId,
+    'settings_version': settingsVersion,
   };
 
   factory Volume.fromJson(Map<String, dynamic> json) {
@@ -104,6 +109,7 @@ class Volume {
       genreProfile: jsonDoubleMap(json['genre_profile'], 'genre_profile'),
       coverMotifId: json['cover_motif_id'] as String?,
       prologueSceneId: json['prologue_scene_id'] as String?,
+      settingsVersion: (json['settings_version'] as num?)?.toInt() ?? 1,
     );
   }
 }

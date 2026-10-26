@@ -5,6 +5,10 @@ Future<void> clearLocalData(
 ) => database.transaction(() async {
   // Delete children before parents so the same code works with FK enforcement.
   for (final table in const [
+    'completed_books',
+    'completion_requests',
+    'presentation_receipts',
+    'generation_settings_changes',
     'reader_positions',
     'sync_state',
     'outbox',

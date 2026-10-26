@@ -1,4 +1,5 @@
 import { loadJob } from "../_shared/jobs.ts";
+import { pinnedGenerationVolume } from "../_shared/generation_settings.ts";
 import { createProductionLlm } from "../_shared/llm_adapter.ts";
 import { writeState } from "../_shared/scene_loop_policy.ts";
 import type { LockedPassage } from "../_shared/stage_context.ts";
@@ -58,7 +59,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const { isFallback, writeAttempt } = writeState(job.payload);
     const core = await runWrite({
       dream: dreamQuery.data,
-      volume: volumeQuery.data,
+      volume: pinnedGenerationVolume(volumeQuery.data, job.payload),
       memory: memoryQuery.data,
       entities: entitiesQuery.data ?? [],
       recentScenes: recentScenesQuery.data ?? [],

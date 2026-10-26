@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mumumong/core/design/design_system.dart';
+import 'package:mumumong/core/design/thinking_orb.dart';
 import 'package:mumumong/data/local/database.dart';
 import 'package:mumumong/data/local/drift_repository.dart';
 import 'package:mumumong/data/memory/memory_repository.dart';
@@ -50,6 +51,15 @@ class TestSpeech implements SpeechInput {
   Future<void> stop() async {}
 }
 
+class DelayedSpeech extends TestSpeech {
+  final firstStart = Completer<void>();
+  int starts = 0;
+  @override
+  Future<void> start() async {
+    if (++starts == 1) await firstStart.future;
+  }
+}
+
 class DelayedRepository extends MemoryRepository {
   final started = Completer<void>();
   final release = Completer<void>();
@@ -71,7 +81,37 @@ class FlakyRepository extends MemoryRepository {
   }
 }
 
+class CountingDraftRepository extends MemoryRepository {
+  int saves = 0;
+  @override
+  Future<void> saveDraft(DreamDraft draft) async {
+    saves++;
+    await super.saveDraft(draft);
+  }
+}
+
 void main() {
+  testWidgets(
+    'controller-based input autosaves but selection-only changes do not write',
+    (tester) async {
+      final repo = CountingDraftRepository();
+      await tester.pumpWidget(app(repo));
+      await tester.pumpAndSettle();
+      final controller = tester
+          .widget<TextField>(find.byType(TextField))
+          .controller!;
+      controller.text = '가상 꿈: 접근성으로 남긴 종이별';
+      await tester.pump(const Duration(milliseconds: 500));
+      expect((await repo.loadDraft())?.rawText, controller.text);
+      expect(repo.saves, 1);
+      controller.selection = const TextSelection.collapsed(offset: 2);
+      await tester.pump(const Duration(seconds: 1));
+      expect(repo.saves, 1);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      repo.dispose();
+    },
+  );
   testWidgets(
     'text saves only after 500ms and background flushes latest input',
     (tester) async {
@@ -130,7 +170,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('새로 쓰기'));
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
       expect(await repository.loadDraft(), isNull);
       expect(find.text('폐기할 기억'), findsNothing);
       await tester.tap(find.bySemanticsLabel('녹음 시작'));
@@ -144,7 +184,63 @@ void main() {
     },
   );
 
-  testWidgets('failed autosave silently retries the newest value', (
+  testWidgets('voice transcript appears without an orb or animated beam', (
+    tester,
+  ) async {
+    final repository = MemoryRepository();
+    addTearDown(repository.dispose);
+    final speech = TestSpeech();
+    addTearDown(speech.controller.close);
+    await tester.pumpWidget(app(repository, speech: speech));
+    await tester.pump();
+
+    await tester.tap(find.bySemanticsLabel('녹음 시작'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('목소리로 남긴 기억'), findsOneWidget);
+    expect(find.textContaining('녹음 중'), findsOneWidget);
+    expect(find.byType(ThinkingOrb), findsNothing);
+    expect(find.byType(BeamFrame), findsNothing);
+  });
+
+  testWidgets('late cancelled voice start cannot stop the next session', (
+    tester,
+  ) async {
+    final repo = MemoryRepository();
+    final speech = DelayedSpeech();
+    await tester.pumpWidget(app(repo, speech: speech));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('녹음 시작'));
+    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(speech.starts, 1);
+    await tester.tap(find.bySemanticsLabel('녹음 멈추기'));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('녹음 시작'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('녹음 시작'));
+    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.bySemanticsLabel('녹음 멈추기'), findsOneWidget);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    expect(
+      speech.starts,
+      2,
+      reason: 'second session must have started before the old failure',
+    );
+    speech.firstStart.completeError(StateError('test_cancelled_permission'));
+    await tester.pumpAndSettle();
+    expect(speech.starts, 2);
+    expect(find.bySemanticsLabel('녹음 멈추기'), findsOneWidget);
+    speech.controller.add(const SpeechUpdate(text: '가상 꿈: 종이별의 새 목소리'));
+    await tester.pumpAndSettle();
+    expect((await repo.loadDraft())?.rawText, '가상 꿈: 종이별의 새 목소리');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    await speech.controller.close();
+    repo.dispose();
+  });
+
+  testWidgets('failed autosave reports failure and retries the newest value', (
     tester,
   ) async {
     final repository = FlakyRepository();
@@ -152,13 +248,42 @@ void main() {
     autosave.changed(draft('처음'));
     await tester.pump(const Duration(milliseconds: 500));
     expect(await repository.loadDraft(), isNull);
+    expect(autosave.saveFailed.value, isTrue);
     autosave.changed(draft('최신'));
     await tester.pump(const Duration(milliseconds: 500));
     expect((await repository.loadDraft())?.rawText, '최신');
+    expect(autosave.saveFailed.value, isFalse);
     autosave.dispose();
     await tester.pump();
     repository.dispose();
   });
+
+  testWidgets(
+    'typing stops transcription before a late partial can overwrite edits',
+    (tester) async {
+      final repo = MemoryRepository();
+      final speech = TestSpeech();
+      await tester.pumpWidget(app(repo, speech: speech));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsLabel('녹음 시작'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '가상 꿈: 직접 고친 종이별');
+      speech.controller.add(const SpeechUpdate(text: '가상 꿈: 늦게 온 음성 조각'));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect((await repo.loadDraft())?.rawText, '가상 꿈: 직접 고친 종이별');
+      expect(find.textContaining('녹음 중'), findsNothing);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus,
+        isTrue,
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      await speech.controller.close();
+      repo.dispose();
+    },
+  );
 
   testWidgets('transient save failure retries without another edit', (
     tester,

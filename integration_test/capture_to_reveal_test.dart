@@ -9,6 +9,7 @@ import 'package:mumumong/data/local/database.dart';
 import 'package:mumumong/data/local/drift_repository.dart';
 import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/ui/capture/capture_flow.dart';
+import 'package:mumumong/ui/reader/reader_screen.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -38,16 +39,17 @@ void main() {
         ),
       );
       await tester.pump();
+      await _pumpUntil(tester, find.byType(TextField));
       await tester.enterText(find.byType(TextField), '복도 끝에 붉은 문이 있었다.');
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 500)),
       );
       await tester.pump();
-      await tester.tap(find.text('기록 저장'));
+      await tester.tap(find.text('꿈 저장하기'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      final skip = find.text('전체 건너뛰기');
+      final skip = find.text('장면 만들기');
       await tester.ensureVisible(skip);
       await tester.pump();
       await tester.tap(skip);
@@ -62,6 +64,18 @@ void main() {
 
       await _pumpUntil(tester, find.byKey(const ValueKey('reveal')));
       expect(find.text('DREAM 008  →  SCENE 12'), findsOneWidget);
+      await tester.ensureVisible(find.text('새 장면 읽기'));
+      await tester.tap(find.text('새 장면 읽기'));
+      for (var i = 0; i < 30; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)),
+        );
+        await tester.pump();
+        if (find.byType(ReaderPassage).evaluate().isNotEmpty) {
+          break;
+        }
+      }
+      await tester.pumpAndSettle();
       if (scenario == MockEngineCase.fallback) {
         expect(find.text('붉은 문'), findsOneWidget);
         expect(find.text('복도에 물이 차 있었다.'), findsOneWidget);

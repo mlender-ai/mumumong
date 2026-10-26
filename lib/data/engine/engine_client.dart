@@ -12,10 +12,20 @@ abstract interface class EngineClient {
   Stream<JobProgress> watch(String dreamId);
 }
 
+class TrialLimitException implements Exception {
+  const TrialLimitException(this.code);
+
+  final String code;
+}
+
 abstract interface class RemoteEngineSync {
   Future<void> pushDream(String dreamId);
 
   Future<void> pullDreamResult(String dreamId);
+}
+
+abstract interface class GenerationSettingsPinSource {
+  Future<int?> generationSettingsVersion(String dreamId);
 }
 
 abstract interface class MockEngineStore {
@@ -61,9 +71,11 @@ abstract interface class RemoteEngineGateway {
     required String dreamId,
     required String volumeId,
     required String idempotencyKey,
+    int? settingsVersion,
   });
   Future<String?> findJobByKey(String userId, String idempotencyKey);
-  Future<String?> findActiveExtractJob(String dreamId);
+  Future<String?> findActiveJob(String dreamId);
+  Future<List<RemoteJobRecord>> fetchJobs(String dreamId);
   Future<void> kickWorker();
   Stream<List<RemoteJobRecord>> watchJobs(String dreamId);
 }
@@ -90,6 +102,7 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
     required String dreamId,
     required String volumeId,
     required String idempotencyKey,
+    int? settingsVersion,
   }) async {
     try {
       await client.from('jobs').insert({
@@ -101,11 +114,18 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
         'status': 'queued',
         'attempt': 0,
         'idempotency_key': idempotencyKey,
-        'payload': <String, Object?>{},
+        'payload': <String, Object?>{
+          'generation_settings_version': ?settingsVersion,
+        },
       });
       return id;
     } on PostgrestException catch (error) {
       if (error.code == '23505') return null;
+      if (error.code == 'P0001' &&
+          (error.message == 'trial_user_daily_limit' ||
+              error.message == 'trial_global_daily_limit')) {
+        throw TrialLimitException(error.message);
+      }
       rethrow;
     }
   }
@@ -122,17 +142,26 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
   }
 
   @override
-  Future<String?> findActiveExtractJob(String dreamId) async {
+  Future<String?> findActiveJob(String dreamId) async {
     final row = await client
         .from('jobs')
         .select('id')
         .eq('dream_id', dreamId)
-        .eq('type', JobType.extract.databaseValue)
         .inFilter('status', const ['queued', 'running'])
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
     return row?['id'] as String?;
+  }
+
+  @override
+  Future<List<RemoteJobRecord>> fetchJobs(String dreamId) async {
+    final rows = await client
+        .from('jobs')
+        .select('id,dream_id,type,status,attempt,payload,updated_at')
+        .eq('dream_id', dreamId)
+        .order('updated_at');
+    return rows.map(_decodeRemoteJob).toList(growable: false);
   }
 
   @override
@@ -149,21 +178,15 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
     StreamSubscription<List<Map<String, dynamic>>>? realtime;
     Timer? polling;
     var consecutivePollFailures = 0;
+    var pollingInFlight = false;
+    var cancelled = false;
 
-    List<RemoteJobRecord> decode(List<Map<String, dynamic>> rows) => rows
-        .map(
-          (row) => RemoteJobRecord(
-            id: row['id'] as String,
-            dreamId: row['dream_id'] as String,
-            type: row['type'] as String,
-            status: row['status'] as String,
-            attempt: row['attempt'] as int,
-            archivedOnly: (row['payload'] as Map?)?['archived_only'] == true,
-          ),
-        )
-        .toList(growable: false);
+    List<RemoteJobRecord> decode(List<Map<String, dynamic>> rows) =>
+        rows.map(_decodeRemoteJob).toList(growable: false);
 
     Future<void> poll() async {
+      if (pollingInFlight || cancelled) return;
+      pollingInFlight = true;
       try {
         final rows = await client
             .from('jobs')
@@ -171,14 +194,18 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
             .eq('dream_id', dreamId)
             .order('updated_at');
         consecutivePollFailures = 0;
-        if (!controller.isClosed) {
+        if (!cancelled && !controller.isClosed) {
           controller.add(decode(List<Map<String, dynamic>>.from(rows)));
         }
       } on Object catch (error, stackTrace) {
         consecutivePollFailures++;
-        if (consecutivePollFailures >= 3 && !controller.isClosed) {
+        if (consecutivePollFailures >= 3 &&
+            !cancelled &&
+            !controller.isClosed) {
           controller.addError(error, stackTrace);
         }
+      } finally {
+        pollingInFlight = false;
       }
     }
 
@@ -190,7 +217,9 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
             .eq('dream_id', dreamId)
             .order('updated_at')
             .listen(
-              (rows) => controller.add(decode(rows)),
+              (rows) {
+                if (!cancelled) controller.add(decode(rows));
+              },
               onError: (_, _) {
                 // Polling remains authoritative when Realtime is unavailable.
               },
@@ -202,6 +231,7 @@ class SupabaseRemoteEngineGateway implements RemoteEngineGateway {
         );
       },
       onCancel: () async {
+        cancelled = true;
         polling?.cancel();
         await realtime?.cancel();
       },
@@ -234,6 +264,10 @@ class RemoteEngineClient implements EngineClient {
       dreamId: dreamId,
       volumeId: volumeId,
       idempotencyKey: idempotencyKey,
+      settingsVersion: sync is GenerationSettingsPinSource
+          ? await (sync as GenerationSettingsPinSource)
+                .generationSettingsVersion(dreamId)
+          : null,
     );
     if (inserted != null) {
       await gateway.kickWorker();
@@ -249,57 +283,77 @@ class RemoteEngineClient implements EngineClient {
   Future<String> retry(String dreamId) async {
     final userId = gateway.currentUserId;
     if (userId == null) throw StateError('authentication_required');
-    await sync?.pushDream(dreamId);
-    final active = await gateway.findActiveExtractJob(dreamId);
+    final rows = await gateway.fetchJobs(dreamId);
+    final completed = _committedJob(rows);
+    if (completed != null) {
+      await sync?.pullDreamResult(dreamId);
+      return completed.id;
+    }
+    final active = await gateway.findActiveJob(dreamId);
     if (active != null) {
       await gateway.kickWorker();
       return active;
     }
-    final volumeId = await gateway.findDreamVolume(dreamId);
-    final jobId = _idGenerator();
-    final inserted = await gateway.insertExtractJob(
-      id: jobId,
-      userId: userId,
-      dreamId: dreamId,
-      volumeId: volumeId,
-      idempotencyKey: _idGenerator(),
+    final failed = rows.where((row) => row.status == 'failed').lastOrNull;
+    if (failed == null) throw StateError('terminal_failure_required');
+    // Deterministic across clients and restarts. A lost insert/kick response
+    // cannot create a second retry; a genuinely new failed job gets a new key.
+    final retryKey = const Uuid().v5(
+      Namespace.url.value,
+      'mumumong:retry:$dreamId:${failed.id}',
     );
-    if (inserted != null) {
-      await gateway.kickWorker();
-      return inserted;
-    }
-    final concurrent = await gateway.findActiveExtractJob(dreamId);
-    if (concurrent == null) throw StateError('retry_job_missing');
-    await gateway.kickWorker();
-    return concurrent;
+    return enqueue(dreamId, retryKey);
   }
 
   @override
-  Stream<JobProgress> watch(String dreamId) => gateway
-      .watchJobs(dreamId)
-      .where((rows) => rows.isNotEmpty)
-      .asyncMap((rows) async {
-        final row = rows.last;
-        final type = enumFromDatabase(row.type, JobType.values);
-        final status = enumFromDatabase(row.status, JobStatus.values);
-        if (status == JobStatus.done &&
-            (type == JobType.commit || type == JobType.remember)) {
-          await sync?.pullDreamResult(dreamId);
-        }
-        return JobProgress(
-          dreamId: row.dreamId,
-          type: type,
-          status: status,
-          attempt: row.attempt,
-          stageLabel: _stageLabel(type, status),
-          archivedOnly: row.archivedOnly,
+  Stream<JobProgress> watch(String dreamId) {
+    String? pulledCommitId;
+    return gateway
+        .watchJobs(dreamId)
+        .where((rows) => rows.isNotEmpty)
+        .asyncMap((rows) async {
+          // A remember failure is not a failed manuscript after commit succeeds.
+          final row = _committedJob(rows) ?? rows.last;
+          final type = enumFromDatabase(row.type, JobType.values);
+          final status = enumFromDatabase(row.status, JobStatus.values);
+          if (status == JobStatus.done &&
+              (type == JobType.commit || type == JobType.remember)) {
+            if (pulledCommitId != row.id) {
+              await sync?.pullDreamResult(dreamId);
+              pulledCommitId = row.id;
+            }
+          }
+          return JobProgress(
+            dreamId: row.dreamId,
+            type: type,
+            status: status,
+            attempt: row.attempt,
+            stageLabel: _stageLabel(type, status),
+            archivedOnly: row.archivedOnly,
+          );
+        })
+        .distinct(
+          (a, b) =>
+              a.type == b.type &&
+              a.status == b.status &&
+              a.attempt == b.attempt &&
+              a.archivedOnly == b.archivedOnly,
         );
-      })
-      .distinct(
-        (a, b) =>
-            a.type == b.type && a.status == b.status && a.attempt == b.attempt,
-      );
+  }
 }
+
+RemoteJobRecord _decodeRemoteJob(Map<String, dynamic> row) => RemoteJobRecord(
+  id: row['id'] as String,
+  dreamId: row['dream_id'] as String,
+  type: row['type'] as String,
+  status: row['status'] as String,
+  attempt: row['attempt'] as int,
+  archivedOnly: (row['payload'] as Map?)?['archived_only'] == true,
+);
+
+RemoteJobRecord? _committedJob(List<RemoteJobRecord> rows) => rows
+    .where((row) => row.status == 'done' && row.type == 'commit')
+    .lastOrNull;
 
 String _stageLabel(JobType type, JobStatus status) {
   if (status == JobStatus.failed) return '장면을 만들지 못했어요';

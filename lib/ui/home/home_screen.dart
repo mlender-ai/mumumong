@@ -2,48 +2,93 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design_system.dart';
-import '../../core/design/dot_field.dart';
+import '../../core/design/dream_atmosphere.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../domain/progress.dart';
 import '../../domain/repository/mumumong_repository.dart';
-import '../reader/reader_screen.dart';
+import '../shared/content_state.dart';
+import '../library/library_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key, required this.onCapture});
+  const HomeScreen({
+    super.key,
+    required this.onCapture,
+    this.onRead,
+    this.onReadScene,
+    this.onArchive,
+    this.isActive = true,
+  });
 
   final VoidCallback onCapture;
+  final VoidCallback? onRead;
+  final ValueChanged<String>? onReadScene;
+  final VoidCallback? onArchive;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final volumeAsync = ref.watch(activeVolumeProvider);
     return volumeAsync.when(
       loading: () => const _HomeMessage('원고를 불러오는 중'),
-      error: (_, _) => const _HomeMessage('원고를 불러오지 못했어요.'),
+      error: (_, _) => ContentState(
+        message: '원고를 불러오지 못했어요.',
+        action: '다시 불러오기',
+        onAction: () => ref.invalidate(activeVolumeProvider),
+      ),
       data: (volume) {
         if (volume == null) {
-          return const _HomeMessage('첫 꿈에서 원고가 시작됩니다.');
+          return ContentState(
+            message: '첫 꿈에서 원고가 시작됩니다.',
+            action: '첫 꿈 기록하기',
+            onAction: onCapture,
+          );
         }
-        final dreamsAsync = ref.watch(dreamsProvider(DreamStatusFilter.all));
-        final scenesAsync = ref.watch(scenesProvider(volume.id));
         final progressAsync = ref.watch(recentProgressProvider(volume.id));
-        return dreamsAsync.when(
+        if ([
+          VolumeStatus.completed,
+          VolumeStatus.completing,
+        ].contains(volume.status)) {
+          return FinishedVolumeHome(volume: volume);
+        }
+        return progressAsync.when(
           loading: () => const _HomeMessage('원고를 불러오는 중'),
-          error: (_, _) => const _HomeMessage('원고를 불러오지 못했어요.'),
-          data: (dreams) => scenesAsync.when(
-            loading: () => const _HomeMessage('원고를 불러오는 중'),
-            error: (_, _) => const _HomeMessage('원고를 불러오지 못했어요.'),
-            data: (scenes) => progressAsync.when(
-              loading: () => const _HomeMessage('원고를 불러오는 중'),
-              error: (_, _) => const _HomeMessage('원고를 불러오지 못했어요.'),
-              data: (events) => _HomeContent(
-                volume: volume,
-                dreams: dreams,
-                scenes: scenes,
-                latestProgressEvent: events.isEmpty ? null : events.first,
-                onCapture: onCapture,
-              ),
-            ),
+          error: (_, _) => ContentState(
+            message: '원고를 불러오지 못했어요.',
+            action: '다시 불러오기',
+            onAction: () => ref.invalidate(recentProgressProvider(volume.id)),
+          ),
+          data: (events) => _HomeContent(
+            volume: volume,
+            latestProgressEvent: events.isEmpty ? null : events.first,
+            onCapture: onCapture,
+            isActive: isActive,
+            consumeGrowth: (eventId) => ref
+                .read(repositoryProvider)
+                .consumePresentation(
+                  volumeId: volume.id,
+                  kind: PresentationKind.growth,
+                  sourceId: eventId,
+                ),
+            onRead:
+                (ref.watch(scenesProvider(volume.id)).value?.isNotEmpty ??
+                    false)
+                ? onRead
+                : null,
+            newScene: ref.watch(newSceneProvider(volume.id)),
+            pending:
+                (ref.watch(dreamsProvider(DreamStatusFilter.all)).value ??
+                        const <Dream>[])
+                    .where(
+                      (d) =>
+                          d.volumeId == volume.id &&
+                          (d.status == DreamStatus.queued ||
+                              d.status == DreamStatus.processing ||
+                              d.status == DreamStatus.failed),
+                    )
+                    .toList(),
+            onReadScene: onReadScene,
+            onArchive: onArchive,
           ),
         );
       },
@@ -54,38 +99,51 @@ class HomeScreen extends ConsumerWidget {
 class _HomeContent extends StatefulWidget {
   const _HomeContent({
     required this.volume,
-    required this.dreams,
-    required this.scenes,
     required this.latestProgressEvent,
     required this.onCapture,
+    required this.consumeGrowth,
+    required this.isActive,
+    this.onRead,
+    this.newScene,
+    this.onReadScene,
+    this.onArchive,
+    this.pending = const [],
   });
 
   final Volume volume;
-  final List<Dream> dreams;
-  final List<Scene> scenes;
   final ProgressEvent? latestProgressEvent;
+  final Scene? newScene;
+  final ValueChanged<String>? onReadScene;
+  final VoidCallback? onArchive;
+  final List<Dream> pending;
   final VoidCallback onCapture;
+  final VoidCallback? onRead;
+  final Future<bool> Function(String) consumeGrowth;
+  final bool isActive;
 
   @override
   State<_HomeContent> createState() => _HomeContentState();
 }
 
 class _HomeContentState extends State<_HomeContent>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _growthController;
   String? _latestEventId;
   String? _pendingEventId;
   bool _animateGrowth = false;
   bool _animationScheduled = false;
+  bool _growthClaimInFlight = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _latestEventId = widget.latestProgressEvent?.id;
+    _pendingEventId = _latestEventId;
     _growthController =
         AnimationController(
           vsync: this,
-          duration: const Duration(milliseconds: 3000),
+          duration: const Duration(milliseconds: 900),
         )..addStatusListener((status) {
           if (status == AnimationStatus.completed && mounted) {
             setState(() => _animateGrowth = false);
@@ -100,39 +158,65 @@ class _HomeContentState extends State<_HomeContent>
     if (incomingId != null && incomingId != _latestEventId) {
       _latestEventId = incomingId;
       _pendingEventId = incomingId;
+      _growthController.stop();
+      _animateGrowth = false;
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _growthController.dispose();
     super.dispose();
   }
 
-  void _schedulePendingGrowth() {
-    if (_pendingEventId == null || _animationScheduled) {
-      return;
-    }
-    if (!(ModalRoute.of(context)?.isCurrent ?? true)) {
-      return;
-    }
-    _animationScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _animationScheduled = false;
-      if (!mounted || _pendingEventId == null) {
-        return;
-      }
-      if (!(ModalRoute.of(context)?.isCurrent ?? true)) {
-        return;
-      }
-      _pendingEventId = null;
-      setState(() => _animateGrowth = true);
-      _growthController.forward(from: 0);
-    });
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) setState(() {});
   }
 
-  void _openReader() {
-    Navigator.of(context).push(quietPageRoute(const ReaderScreen()));
+  bool get _canPresent =>
+      mounted &&
+      widget.isActive &&
+      (ModalRoute.of(context)?.isCurrent ?? true) &&
+      TickerMode.valuesOf(context).enabled &&
+      (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed);
+
+  void _schedulePendingGrowth() {
+    if (_pendingEventId == null ||
+        _animationScheduled ||
+        _growthClaimInFlight) {
+      return;
+    }
+    if (!_canPresent) return;
+
+    _animationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _animationScheduled = false;
+      if (!mounted || _pendingEventId == null) return;
+      if (!_canPresent) return;
+      final eventId = _pendingEventId!;
+      _growthClaimInFlight = true;
+      var fresh = false;
+      try {
+        fresh = await widget.consumeGrowth(eventId);
+      } on Object {
+        // Decoration is optional: do not hide real progress or loop on a
+        // failing device store. A later mount can retry the receipt.
+      } finally {
+        _growthClaimInFlight = false;
+      }
+      if (!mounted) return;
+      if (_pendingEventId == eventId) {
+        _pendingEventId = null;
+        if (fresh && _canPresent && !MediaQuery.disableAnimationsOf(context)) {
+          setState(() => _animateGrowth = true);
+          _growthController.forward(from: 0);
+        }
+      }
+      if (_pendingEventId != null) setState(() {});
+    });
   }
 
   @override
@@ -143,222 +227,226 @@ class _HomeContentState extends State<_HomeContent>
       progressMu: widget.volume.progressMu,
       targetMu: widget.volume.targetMu,
     );
-    final latestDream = widget.dreams.isEmpty ? null : widget.dreams.first;
-    final openScene = _latestOpenScene(widget.scenes);
-    final title = widget.volume.title ?? '이름 없는 원고';
+    final empty = widget.volume.progressMu == 0;
+    final hasSavedDream = widget.pending.isNotEmpty;
+    final title =
+        widget.volume.title ??
+        (empty
+            ? hasSavedDream
+                  ? '첫 꿈이 남아 있어요'
+                  : '첫 꿈을 기다리고 있어요'
+            : '이름 없는 원고');
+    final volumeLabel = 'VOL.${widget.volume.volNo.toString().padLeft(2, '0')}';
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return SafeArea(
-      bottom: false,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final coverWidth = (constraints.maxWidth - 96).clamp(220.0, 292.0);
-          return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight - 48,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SizedBox.expand(
+          child: SafeArea(
+            top: false,
+            // Scaffold.extendBody contributes the real GNB height here. Keep
+            // scroll/focus targets above it, including with enlarged text.
+            bottom: true,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final topInset = MediaQuery.paddingOf(context).top;
+                final heroHeight =
+                    ((constraints.maxHeight + bottomInset) * .54).clamp(
+                      340.0,
+                      440.0,
+                    ) +
+                    topInset;
+
+                return SingleChildScrollView(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      MetaText(
-                        'VOL.${widget.volume.volNo.toString().padLeft(2, '0')}',
-                      ),
-                      MetaText(
-                        latestDream == null
-                            ? 'YOUR FIRST DREAM'
-                            : _englishDate(latestDream.dreamDate),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  Center(
-                    child: GestureDetector(
-                      onTap: _openReader,
-                      child: SizedBox(
-                        width: coverWidth,
-                        child: AnimatedBuilder(
-                          animation: _growthController,
-                          builder: (context, _) {
-                            final value = !_animateGrowth || reduceMotion
-                                ? 1.0
-                                : MongMotion.form.transform(
-                                    (_growthController.value / .5).clamp(0, 1),
-                                  );
-                            return DotCover(
-                              clarity: (.10 + .70 * progress).clamp(0, .9),
-                              growth: value,
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: Theme.of(context).textTheme.displayMedium,
-                        ),
-                      ),
-                      AnimatedBuilder(
-                        animation: _growthController,
-                        builder: (context, _) {
-                          final completed = (progress * 100).round();
-                          final deltaPercent = _deltaPercent(
-                            widget.latestProgressEvent,
-                            widget.volume.targetMu,
-                          ).abs();
-                          final shown = _animateGrowth && !reduceMotion
-                              ? (completed -
-                                        deltaPercent +
-                                        deltaPercent *
-                                            Curves.easeOut.transform(
-                                              _growthController.value,
-                                            ))
-                                    .round()
-                              : completed;
-                          return Text(
-                            '$shown%',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(fontSize: 15, color: MongColor.ink),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  MetaText(
-                    '${widget.dreams.length} dreams     '
-                    '${widget.scenes.length} scenes     '
-                    '약 ${(progress * 84).round()}p',
-                  ),
-                  AnimatedSize(
-                    duration: MongMotion.base,
-                    alignment: Alignment.topCenter,
-                    child: _animateGrowth
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: _ProgressDeltaLine(
-                              event: widget.latestProgressEvent,
-                              targetMu: widget.volume.targetMu,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(MongRadius.panel),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: heroHeight,
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: DreamAtmosphere(
+                                    animate: _canPresent,
+                                    night: context.isNight,
+                                    memoryObject: true,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: topInset + 22,
+                                  left: 22,
+                                  child: Text(
+                                    'MUMUMONG',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(
+                                          letterSpacing: 2.4,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: topInset + 24,
+                                  right: 22,
+                                  child: MetaText(
+                                    volumeLabel,
+                                    color: context.secondaryInk,
+                                  ),
+                                ),
+                              ],
                             ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Divider(),
-                  ),
-                  Text(
-                    _genreLine(widget.volume.genreProfile),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: MongColor.ink2),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: EditorialButton(
-                          label: '꿈 기록하기',
-                          onPressed: widget.onCapture,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: EditorialButton(
-                          label: '이어 읽기',
-                          onPressed: _openReader,
-                          dark: false,
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          MongSpace.screen,
+                          MongSpace.lg,
+                          MongSpace.screen,
+                          MongSpace.xl,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  if (openScene != null)
-                    InkWell(
-                      onTap: _openReader,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Row(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 3,
-                              height: 42,
-                              margin: const EdgeInsets.only(right: 14, top: 2),
-                              color: MongColor.sky500,
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const MetaText('열린 장면'),
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    openScene.openImage!,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    title,
                                     style: Theme.of(
                                       context,
-                                    ).textTheme.bodyMedium,
+                                    ).textTheme.displayMedium,
                                   ),
-                                ],
-                              ),
+                                ),
+                                if (!empty)
+                                  AnimatedBuilder(
+                                    animation: _growthController,
+                                    builder: (context, _) {
+                                      final completed = (progress * 100)
+                                          .round();
+                                      final delta = _progressPercent(
+                                        widget.latestProgressEvent,
+                                        widget.volume.targetMu,
+                                      );
+                                      final shown =
+                                          _animateGrowth && !reduceMotion
+                                          ? (completed -
+                                                    delta +
+                                                    delta *
+                                                        Curves.easeOut
+                                                            .transform(
+                                                              _growthController
+                                                                  .value,
+                                                            ))
+                                                .round()
+                                          : completed;
+                                      return Text(
+                                        '$shown%',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge
+                                            ?.copyWith(
+                                              color: context.primaryInk,
+                                            ),
+                                      );
+                                    },
+                                  ),
+                              ],
                             ),
-                            const Padding(
-                              padding: EdgeInsets.only(top: 12),
-                              child: Icon(
-                                Icons.arrow_forward,
-                                size: 18,
-                                color: MongColor.ink,
-                              ),
+                            const SizedBox(height: MongSpace.xs),
+                            MetaText(
+                              empty
+                                  ? hasSavedDream
+                                        ? '기록한 기억은 보관함에서 다시 볼 수 있어요.'
+                                        : '기억나는 장면 하나로 시작해요.'
+                                  : '$volumeLabel  ·  원고 진행',
                             ),
+                            const OfflineNotice(),
+                            const SizedBox(height: MongSpace.xl),
+                            MongActionGroup(
+                              primary: EditorialButton(
+                                label:
+                                    widget.newScene != null &&
+                                        widget.onReadScene != null
+                                    ? '새 장면 읽기'
+                                    : widget.volume.status ==
+                                          VolumeStatus.completable
+                                    ? '원고 완성하기'
+                                    : '꿈 기록하기',
+                                onPressed:
+                                    widget.newScene != null &&
+                                        widget.onReadScene != null
+                                    ? () => widget.onReadScene!(
+                                        widget.newScene!.id,
+                                      )
+                                    : widget.volume.status ==
+                                          VolumeStatus.completable
+                                    ? () => Navigator.push(
+                                        context,
+                                        quietPageRoute(
+                                          CompletionScreen(
+                                            volumeId: widget.volume.id,
+                                          ),
+                                        ),
+                                      )
+                                    : widget.onCapture,
+                              ),
+                              secondary: [
+                                if (widget.volume.status ==
+                                        VolumeStatus.completable &&
+                                    widget.newScene == null)
+                                  TextButton(
+                                    onPressed: widget.onCapture,
+                                    child: const Text('계속 쌓기'),
+                                  ),
+                                if (widget.newScene != null &&
+                                    widget.onReadScene != null)
+                                  TextButton(
+                                    onPressed: widget.onCapture,
+                                    child: const Text('꿈 기록하기'),
+                                  )
+                                else if (widget.onRead != null)
+                                  TextButton(
+                                    onPressed: widget.onRead,
+                                    child: const Text('이어 읽기'),
+                                  ),
+                              ],
+                            ),
+                            if (widget.pending.isNotEmpty &&
+                                widget.onArchive != null) ...[
+                              const SizedBox(height: MongSpace.lg),
+                              Center(
+                                child: TextButton(
+                                  onPressed: widget.onArchive,
+                                  child: Text(
+                                    '보관함에서 확인 · ${_pendingSummary(widget.pending)}',
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: context.secondaryInk),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
-                    ),
-                ],
-              ),
+                    ],
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ),
       ),
-    );
-  }
-}
-
-class _ProgressDeltaLine extends StatelessWidget {
-  const _ProgressDeltaLine({required this.event, required this.targetMu});
-
-  final ProgressEvent? event;
-  final double targetMu;
-
-  @override
-  Widget build(BuildContext context) {
-    final current = event;
-    if (current == null) {
-      return const SizedBox.shrink();
-    }
-    final labels = current.reasons.map(_reasonLabel).whereType<String>();
-    final percent = _deltaPercent(current, targetMu);
-    return Row(
-      children: [
-        const MetaText('오늘', color: MongColor.ink3),
-        for (final label in labels.take(2)) ...[
-          const SizedBox(width: 18),
-          MetaText(label, color: MongColor.ink),
-        ],
-        const Spacer(),
-        MetaText('${percent >= 0 ? '+' : ''}$percent%', color: MongColor.ink),
-      ],
     );
   }
 }
@@ -369,63 +457,21 @@ class _HomeMessage extends StatelessWidget {
   final String message;
 
   @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(child: MetaText(message, color: MongColor.ink3)),
-    );
-  }
+  Widget build(BuildContext context) =>
+      SafeArea(child: Center(child: MetaText(message)));
 }
 
-Scene? _latestOpenScene(List<Scene> scenes) {
-  for (final scene in scenes.reversed) {
-    if (scene.openImage != null && scene.openImage!.isNotEmpty) {
-      return scene;
-    }
-  }
-  return null;
-}
-
-int _deltaPercent(ProgressEvent? event, double targetMu) {
-  if (event == null || targetMu <= 0) {
-    return 0;
-  }
+int _progressPercent(ProgressEvent? event, double targetMu) {
+  if (event == null || targetMu <= 0) return 0;
   return (event.deltaMu / targetMu * 100).round();
 }
 
-String? _reasonLabel(Map<String, dynamic> reason) {
-  final count = reason['n'] is num ? (reason['n'] as num).toInt() : 1;
-  return switch (reason['type']) {
-    'new_scene' => '새 장면 $count',
-    'recall' => '기억 보강 $count',
-    'link_decision' => '연결 $count 확정',
-    'dream_removed' => '꿈 $count 제외',
-    _ => null,
-  };
-}
-
-String _genreLine(Map<String, double> profile) {
-  if (profile.isEmpty) {
-    return '꿈이 쌓이면 원고의 성격이 보여요.';
-  }
-  final genres = profile.entries.toList()
-    ..sort((a, b) => b.value.compareTo(a.value));
-  return '${genres.take(2).map((entry) => entry.key).join('와 ')}의 성격이 보여요.';
-}
-
-String _englishDate(DateTime date) {
-  const months = [
-    'JAN',
-    'FEB',
-    'MAR',
-    'APR',
-    'MAY',
-    'JUN',
-    'JUL',
-    'AUG',
-    'SEP',
-    'OCT',
-    'NOV',
-    'DEC',
-  ];
-  return '${months[date.month - 1]} ${date.day} ${date.year}';
-}
+String _pendingSummary(List<Dream> dreams) => [
+  for (final (status, label) in [
+    (DreamStatus.queued, '생성 전'),
+    (DreamStatus.processing, '진행 중'),
+    (DreamStatus.failed, '재시도'),
+  ])
+    if (dreams.any((dream) => dream.status == status))
+      '${dreams.where((dream) => dream.status == status).length}개 $label',
+].join(' · ');

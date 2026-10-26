@@ -6,5 +6,7 @@ export 'job_progress.dart';
 export 'link_decision.dart';
 export 'passage.dart';
 export 'progress_event.dart';
+export 'reader_position.dart';
 export 'scene.dart';
 export 'volume.dart';
+export 'generation_settings.dart';

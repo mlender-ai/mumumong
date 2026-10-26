@@ -29,7 +29,10 @@ void main() {
         repositoryProvider.overrideWithValue(repository),
         if (engine != null) engineClientProvider.overrideWithValue(engine),
       ],
-      child: child,
+      child: MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: child,
+      ),
     );
   }
 
@@ -44,8 +47,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('42%'), findsOneWidget);
-    expect(find.text('7 dreams     11 scenes     약 35p'), findsOneWidget);
-    expect(find.text('문틈으로 물소리가 새어 나오고 있었다.'), findsOneWidget);
+    expect(find.text('VOL.01  ·  원고 진행'), findsOneWidget);
+    expect(find.text('7 dreams     11 scenes     약 35p'), findsNothing);
+    expect(find.text('문틈으로 물소리가 새어 나오고 있었다.'), findsNothing);
   });
 
   testWidgets('archive groups typed dreams by month and filters them', (
@@ -67,6 +71,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('SEPTEMBER 2026'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('AUGUST 2026'),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
     expect(find.text('AUGUST 2026'), findsOneWidget);
     expect(find.text('작은 열쇠가 손바닥 위에 있었다.'), findsOneWidget);
 
@@ -122,12 +131,13 @@ void main() {
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), '복도 끝에 파란 문이 있었다.');
-    await tester.tap(find.text('기록 저장'));
+    await tester.tap(find.text('꿈 저장하기'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('기억의 빈자리만\n조금 더 확인할게요.'), findsOneWidget);
+    expect(find.text('꿈이 저장됐어요'), findsOneWidget);
 
-    await tester.tap(find.text('전체 건너뛰기'));
+    await tester.ensureVisible(find.text('장면 만들기'));
+    await tester.tap(find.text('장면 만들기'));
     await tester.pump();
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
@@ -147,6 +157,11 @@ void main() {
     expect(find.byKey(const ValueKey('reveal')), findsOneWidget);
     expect(find.text('DREAM 008  →  SCENE 12'), findsOneWidget);
     expect(find.text('문 밖의 여자'), findsOneWidget);
+    expect(find.text('그때 문틈으로 물소리가 새어 나오기 시작했다.'), findsNothing);
+    await tester.ensureVisible(find.text('새 장면 읽기'));
+    await tester.tap(find.text('새 장면 읽기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ReaderScreen), findsOneWidget);
     expect(find.text('그때 문틈으로 물소리가 새어 나오기 시작했다.'), findsOneWidget);
   });
 }

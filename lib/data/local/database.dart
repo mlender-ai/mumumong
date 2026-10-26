@@ -23,6 +23,7 @@ class Volumes extends SyncTable {
   TextColumn get adaptation => text()();
   TextColumn get style => text()();
   TextColumn get narrativeVoice => text()();
+  IntColumn get settingsVersion => integer().withDefault(const Constant(1))();
   TextColumn get status => text()();
   RealColumn get targetMu => real()();
   RealColumn get progressMu => real()();
@@ -182,6 +183,12 @@ class Outbox extends Table {
 @DataClassName('LocalReaderPositionRow')
 class ReaderPositions extends Table {
   TextColumn get volumeId => text().references(Volumes, #id)();
+  // Keep soft anchors after passage/scene deletion, so Reader can find a neighbor.
+  TextColumn get sceneId => text().nullable()();
+  TextColumn get sceneOrderKey => text().nullable()();
+  TextColumn get passageId => text().nullable()();
+  TextColumn get passageOrderKey => text().nullable()();
+  RealColumn get passageFraction => real().withDefault(const Constant(0))();
   RealColumn get offset => real().withDefault(const Constant(0))();
   DateTimeColumn get updatedAt => dateTime()();
 
@@ -198,6 +205,58 @@ class SyncState extends Table {
   Set<Column<Object>> get primaryKey => {syncTableName};
 }
 
+@DataClassName('LocalPresentationReceiptRow')
+class PresentationReceipts extends Table {
+  TextColumn get volumeId =>
+      text().references(Volumes, #id, onDelete: KeyAction.cascade)();
+  TextColumn get kind => text()();
+  TextColumn get sourceId => text()();
+  DateTimeColumn get consumedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {volumeId, kind, sourceId};
+}
+
+@DataClassName('LocalGenerationSettingsChangeRow')
+class GenerationSettingsChanges extends Table {
+  TextColumn get volumeId =>
+      text().references(Volumes, #id, onDelete: KeyAction.cascade)();
+  TextColumn get mutationId => text()();
+  IntColumn get baseVersion => integer()();
+  TextColumn get adaptation => text()();
+  TextColumn get style => text()();
+  TextColumn get narrativeVoice => text()();
+  TextColumn get status => text()();
+  DateTimeColumn get updatedAt => dateTime()();
+  @override
+  Set<Column<Object>> get primaryKey => {volumeId};
+}
+
+@DataClassName('LocalCompletedBookRow')
+class CompletedBooks extends Table {
+  // Historical books can be cached without downloading every source volume.
+  TextColumn get volumeId => text()();
+  TextColumn get userId => text()();
+  TextColumn get snapshot => text()();
+  DateTimeColumn get completedAt => dateTime()();
+  @override
+  Set<Column<Object>> get primaryKey => {volumeId};
+}
+
+@DataClassName('LocalCompletionRequestRow')
+class CompletionRequests extends Table {
+  TextColumn get volumeId =>
+      text().references(Volumes, #id, onDelete: KeyAction.cascade)();
+  TextColumn get requestId => text()();
+  TextColumn get revision => text()();
+  TextColumn get title => text()();
+  TextColumn get authorNote => text().nullable()();
+  TextColumn get previousStatus => text()();
+  TextColumn get status => text()();
+  @override
+  Set<Column<Object>> get primaryKey => {volumeId};
+}
+
 @DriftDatabase(
   tables: [
     Volumes,
@@ -212,6 +271,10 @@ class SyncState extends Table {
     DreamDrafts,
     Outbox,
     ReaderPositions,
+    PresentationReceipts,
+    GenerationSettingsChanges,
+    CompletedBooks,
+    CompletionRequests,
     SyncState,
   ],
 )
@@ -230,12 +293,50 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async {
       await migrator.createAll();
+    },
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        await migrator.addColumn(readerPositions, readerPositions.sceneId);
+        await migrator.addColumn(
+          readerPositions,
+          readerPositions.sceneOrderKey,
+        );
+        await migrator.addColumn(readerPositions, readerPositions.passageId);
+        await migrator.addColumn(
+          readerPositions,
+          readerPositions.passageOrderKey,
+        );
+        await migrator.addColumn(
+          readerPositions,
+          readerPositions.passageFraction,
+        );
+      }
+      if (from < 3) {
+        await migrator.createTable(presentationReceipts);
+        // Historical growth must not be celebrated again after this upgrade.
+        // Unopened results remain available; this does not infer reading.
+        await customStatement(
+          "INSERT INTO presentation_receipts (volume_id, kind, source_id, consumed_at) "
+          "SELECT volume_id, 'growth', id, created_at FROM progress_events WHERE delta_mu > 0",
+        );
+      }
+      if (from < 4) {
+        await migrator.addColumn(volumes, volumes.settingsVersion);
+        await migrator.createTable(generationSettingsChanges);
+        await customStatement(
+          "UPDATE jobs SET payload = json_set(payload, '\$.generation_settings_version', 1) WHERE attempt > 0 AND json_extract(payload, '\$.generation_settings_version') IS NULL",
+        );
+      }
+      if (from < 5) {
+        await migrator.createTable(completedBooks);
+        await migrator.createTable(completionRequests);
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');

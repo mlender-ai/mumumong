@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/design/design_system.dart';
+import 'core/design/dream_atmosphere.dart';
 import 'core/env/env.dart';
 import 'data/auth/secure_session_storage.dart';
 import 'di/providers.dart';
@@ -13,6 +14,7 @@ import 'ui/archive/archive_screen.dart';
 import 'ui/auth/auth_gate.dart';
 import 'ui/capture/capture_flow.dart';
 import 'ui/home/home_screen.dart';
+import 'ui/reader/reader_screen.dart';
 import 'ui/settings/settings_screen.dart';
 import 'ui/settings/app_lock_gate.dart';
 
@@ -52,10 +54,29 @@ class MumumongApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final preferences = ref.watch(uiPreferencesProvider);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '무무몽',
       theme: mumumongTheme(),
+      darkTheme: dreamNightTheme(),
+      themeMode: preferences.themeMode,
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: context.isNight
+              ? Brightness.light
+              : Brightness.dark,
+          statusBarBrightness: context.isNight
+              ? Brightness.dark
+              : Brightness.light,
+          systemNavigationBarColor: context.canvas,
+          systemNavigationBarIconBrightness: context.isNight
+              ? Brightness.light
+              : Brightness.dark,
+        ),
+        child: child!,
+      ),
       home: AppLockGate(
         child: requireAuthentication
             ? const AuthGate(manuscript: MumumongShell())
@@ -66,7 +87,9 @@ class MumumongApp extends ConsumerWidget {
 }
 
 class MumumongShell extends ConsumerStatefulWidget {
-  const MumumongShell({super.key});
+  const MumumongShell({super.key, this.settingsPage});
+
+  final Widget? settingsPage;
 
   @override
   ConsumerState<MumumongShell> createState() => _MumumongShellState();
@@ -75,10 +98,28 @@ class MumumongShell extends ConsumerStatefulWidget {
 class _MumumongShellState extends ConsumerState<MumumongShell> {
   int _tab = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    // Auth/consent owns this shell. Keep recovery subscribed even while a
+    // pushed Reader/settings route pauses this shell's TickerMode consumers.
+    ref.listenManual(generationRecoveryProvider, (_, _) {});
+    ref.listenManual(libraryReturnHomeProvider, (_, _) {
+      if (mounted) setState(() => _tab = 0);
+    });
+  }
+
   Future<void> _openCapture() async {
-    final volume = ref.read(activeVolumeProvider).value;
+    var volume = ref.read(activeVolumeProvider).value;
     if (volume == null) {
-      return;
+      await Navigator.of(context).push(
+        quietPageRoute(
+          VolumeSetupScreen(onComplete: () => Navigator.of(context).pop()),
+        ),
+      );
+      if (!mounted) return;
+      volume = await ref.read(repositoryProvider).watchActiveVolume().first;
+      if (volume == null || !mounted) return;
     }
     final dreams = ref.read(dreamsProvider(DreamStatusFilter.all)).value;
     final scenes = ref.read(scenesProvider(volume.id)).value;
@@ -97,46 +138,81 @@ class _MumumongShellState extends ConsumerState<MumumongShell> {
     }
   }
 
+  Future<void> _openReader({String? sceneId}) async {
+    final volume = ref.read(activeVolumeProvider).value;
+    if (volume == null) return;
+    await Navigator.of(context).push(
+      quietPageRoute(
+        ReaderScreen(
+          volumeId: volume.id,
+          initialSceneId: sceneId,
+          onCapture: _openCapture,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // AuthGate only mounts the manuscript after current AI consent is confirmed.
     // Starting delivery before that would race the onboarding consent screen.
     ref.watch(outboxWorkerProvider);
     final pages = <Widget>[
-      HomeScreen(onCapture: _openCapture),
+      HomeScreen(
+        isActive: _tab == 0,
+        onCapture: _openCapture,
+        onRead: _openReader,
+        onReadScene: (id) => _openReader(sceneId: id),
+        onArchive: () => setState(() => _tab = 1),
+      ),
       ArchiveScreen(onCapture: _openCapture),
-      const SettingsScreen(),
+      widget.settingsPage ?? const SettingsScreen(),
     ];
 
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(index: _tab, children: pages),
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: MongColor.paper,
-          border: Border(top: BorderSide(color: MongColor.line, width: .5)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 58,
-            child: Row(
-              children: [
-                _BottomTab(
-                  label: '원고',
-                  selected: _tab == 0,
-                  onTap: () => setState(() => _tab = 0),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: ColoredBox(
+          color: context.canvas,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: context.canvas,
+                borderRadius: BorderRadius.circular(31),
+                border: Border.all(color: context.hairline),
+                boxShadow: [
+                  BoxShadow(
+                    color: MongColor.ink.withValues(alpha: .055),
+                    blurRadius: 18,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                height: 62,
+                child: Row(
+                  children: [
+                    _BottomTab(
+                      label: '원고',
+                      selected: _tab == 0,
+                      onTap: () => setState(() => _tab = 0),
+                    ),
+                    _BottomTab(
+                      label: '보관함',
+                      selected: _tab == 1,
+                      onTap: () => setState(() => _tab = 1),
+                    ),
+                    _BottomTab(
+                      label: '설정',
+                      selected: _tab == 2,
+                      onTap: () => setState(() => _tab = 2),
+                    ),
+                  ],
                 ),
-                _BottomTab(
-                  label: '보관함',
-                  selected: _tab == 1,
-                  onTap: () => setState(() => _tab = 1),
-                ),
-                _BottomTab(
-                  label: '설정',
-                  selected: _tab == 2,
-                  onTap: () => setState(() => _tab = 2),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -164,14 +240,23 @@ class _BottomTab extends StatelessWidget {
         button: true,
         child: InkWell(
           onTap: onTap,
-          child: Center(
-            child: AnimatedDefaultTextStyle(
-              duration: MongMotion.micro,
-              style: Theme.of(context).textTheme.labelLarge!.copyWith(
-                color: selected ? MongColor.ink : MongColor.ink3,
-                fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+          child: AnimatedContainer(
+            duration: MongMotion.base,
+            curve: MongMotion.enter,
+            margin: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: selected ? context.subtle : Colors.transparent,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Center(
+              child: AnimatedDefaultTextStyle(
+                duration: MongMotion.micro,
+                style: Theme.of(context).textTheme.labelLarge!.copyWith(
+                  color: selected ? context.primaryInk : context.metaInk,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+                child: Text(label),
               ),
-              child: Text(label),
             ),
           ),
         ),

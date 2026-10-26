@@ -5,6 +5,10 @@ enum EngineMode { mock, remote }
 enum AppAuthenticationMode { local, apple }
 
 abstract final class AppEnv {
+  static const buildId = String.fromEnvironment(
+    'BUILD_ID',
+    defaultValue: 'local',
+  );
   static const _environmentName = String.fromEnvironment(
     'ENV',
     defaultValue: 'dev',

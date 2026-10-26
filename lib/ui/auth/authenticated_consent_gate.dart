@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/design_system.dart';
 import 'ai_consent.dart';
+import 'auth_loading_screen.dart';
 import 'onboarding_screen.dart';
 
 /// Blocks every authenticated page until the current server policy is recorded
@@ -120,7 +121,7 @@ class _AuthenticatedConsentGateState
       future: _checking,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const _GateMessage(title: '동의 기록을 확인하는 중');
+          return const AuthLoadingScreen(title: '시작할 준비를 하고 있어요');
         }
         if (snapshot.hasError || !snapshot.hasData) {
           return _GateMessage(
@@ -136,19 +137,19 @@ class _AuthenticatedConsentGateState
             OnboardingScreen(
               key: ValueKey(check.policy.version),
               policy: check.policy,
-              initialPage: 2,
+              initialPage: 1,
               busy: _accepting,
               onConsentPressed: _accept,
             ),
             if (_acceptFailed)
-              const Positioned(
+              Positioned(
                 left: 20,
                 right: 20,
                 bottom: 4,
                 child: Material(
-                  color: MongColor.paper,
-                  child: Text(
-                    '동의를 기록하지 못했어요. 연결을 확인하고 다시 시도해 주세요.',
+                  color: context.canvas,
+                  child: const Text(
+                    '확인 내용을 저장하지 못했어요. 다시 시도해 주세요.',
                     textAlign: TextAlign.center,
                   ),
                 ),

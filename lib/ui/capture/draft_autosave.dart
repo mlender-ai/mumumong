@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../../domain/repository/mumumong_repository.dart';
 
 /// Serializes autosaves, discard and submission so a late save cannot restore
@@ -13,6 +15,14 @@ class DraftAutosave {
   DreamDraft? _pending;
   bool _disposed = false;
   bool _submitting = false;
+  final _saveFailed = ValueNotifier(false);
+
+  // Only failure/recovery changes notify the UI, never each keystroke/save.
+  ValueListenable<bool> get saveFailed => _saveFailed;
+
+  void _setFailed(bool failed) {
+    if (!_disposed) _saveFailed.value = failed;
+  }
 
   void changed(DreamDraft draft, {bool immediate = false}) {
     if (_disposed || _submitting) return;
@@ -39,7 +49,9 @@ class DraftAutosave {
       try {
         await repository.saveDraft(draft);
         if (identical(_pending, draft)) _pending = null;
+        _setFailed(false);
       } on Object {
+        _setFailed(true);
         if (!_disposed) {
           _timer = Timer(const Duration(seconds: 1), flush);
         }
@@ -50,7 +62,10 @@ class DraftAutosave {
   Future<void> discard() {
     _timer?.cancel();
     _pending = null;
-    return _serialize(repository.clearDraft);
+    return _serialize(() async {
+      await repository.clearDraft();
+      _setFailed(false);
+    });
   }
 
   Future<String> submit(DreamDraft draft) async {
@@ -59,6 +74,7 @@ class DraftAutosave {
     try {
       final id = await _serialize(() => repository.submitDream(draft));
       _pending = null;
+      _setFailed(false);
       return id;
     } on Object {
       _pending = draft;
@@ -75,5 +91,6 @@ class DraftAutosave {
     _disposed = true;
     _timer?.cancel();
     unawaited(flush());
+    _saveFailed.dispose();
   }
 }

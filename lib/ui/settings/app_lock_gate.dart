@@ -44,7 +44,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     final lock = ref.watch(appLockProvider);
     if (!lock.loaded || lock.unlocked) return widget.child;
     return Scaffold(
-      backgroundColor: MongColor.paper,
+      backgroundColor: context.canvas,
       body: SafeArea(
         child: Center(
           child: Padding(

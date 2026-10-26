@@ -365,6 +365,9 @@ on conflict (user_id) do update
       consented_at = excluded.consented_at,
       age_confirmed = true;
 
+-- Queue fixtures need an open volume now that completed books reject enqueue.
+update public.volumes set status='completed' where user_id='11111111-1111-4111-8111-111111111111';
+update public.volumes set status='active' where id='d1111111-1111-4111-8111-111111111111';
 insert into public.jobs (
   id,
   user_id,
@@ -431,6 +434,7 @@ select is((select status::text from public.jobs where id = 'daaaaaaa-aaaa-4aaa-8
 select is((select count(*)::integer from cron.job where jobname = 'reap-zombies'), 1, 'zombie reaper is scheduled once per minute');
 
 -- Account deletion fixture includes every public ownership path and a locked U passage.
+update public.volumes set status='completed' where id='d1111111-1111-4111-8111-111111111111';
 insert into auth.users (
   instance_id,
   id,
