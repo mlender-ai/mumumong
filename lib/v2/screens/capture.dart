@@ -14,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/design/design_system.dart' show mumumongTheme;
 import '../../core/log/app_log.dart';
 import '../../data/engine/engine_client.dart';
 import '../../data/speech/speech_input.dart';
@@ -22,7 +21,7 @@ import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../domain/repository/mumumong_repository.dart';
 import '../../ui/capture/draft_autosave.dart';
-import '../../ui/shared/web_install_guide.dart' show WebVoiceGuide;
+import 'settings.dart' show V2VoicePage;
 import '../components/buttons.dart';
 import '../components/feedback.dart';
 import '../components/inputs.dart';
@@ -1043,14 +1042,9 @@ class _V2CaptureFlowState extends ConsumerState<V2CaptureFlow>
                   V2IconButton(
                     icon: Icons.mic_none_rounded,
                     semanticLabel: '음성 입력 안내 · iPhone 앱 전용 녹음',
-                    onPressed: () => Navigator.of(context).push(
-                      v2Route(
-                        Theme(
-                          data: mumumongTheme(),
-                          child: const WebVoiceGuide(),
-                        ),
-                      ),
-                    ),
+                    onPressed: () => Navigator.of(
+                      context,
+                    ).push(v2Route(const V2VoicePage())),
                   ),
                   const SizedBox(width: V2Space.sm),
                 ],

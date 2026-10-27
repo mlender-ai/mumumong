@@ -21,11 +21,11 @@ V1이 기본 빌드인 동안 V1 테스트는 지우지 않는다. V2가 같은 
 | `ai_consent_test` | 3 | 공유 로직 | 정책·동의 기록 파싱은 V1·V2 공용 |
 | `auth_gate_test` | 8 | 대응 있음 7, 이번 이관 1 | `gates_test` 전부. “고지 응답이 늦어도 Apple 시작 화면은 즉시 보인다”는 이번에 옮겼다 |
 | `auth_transition_visual_test` | 2 | V1 시각 전용 | `gates_test` 가이드라인 |
-| `capture_keyboard_test` | 3 | 다음 이관 (1순위) | 자동저장 실패 표시, IME 조합 유지, 초안 읽기 실패 재시도 |
+| `capture_keyboard_test` | 3 | 이관 완료 (2차) | `capture_input_test`: 자동저장 실패 표시, IME 조합 유지(3개 화면 크기), 초안 읽기 실패 재시도(멈춤 포함) |
 | `design_foundation_test` | 9 | V1 시각 전용 | `design_test`, `components_test` |
 | `design_review_test` | 4 | V1 시각 전용 | V1 디자인 검토 도구 |
 | `design_system_test` | 5 | V1 시각 전용 | `components_test`, `quality_test` |
-| `draft_autosave_test` | 12 | 공유 로직 6, 다음 이관 6 | `DraftAutosave` 직접 테스트는 공용. 화면 테스트(이어쓰기 한 번만 묻기, 음성 전사 표시, 늦은 음성 시작, 저장 실패 재시도, 입력 시 전사 중단, 일시 실패 재시도)는 V2 기록 화면으로 옮긴다 |
+| `draft_autosave_test` | 12 | 공유 로직 5, 이관 완료 7 (2차) | `DraftAutosave`를 직접 부르는 5개(저장 실패 재시도, 일시 실패 재시도, 제출·폐기 대기, 파일 DB 재시작)는 공용. 화면 7개는 `capture_input_test`: 선택만 바뀌면 저장 안 함, 500ms·백그라운드 저장, 이어쓰기 한 번만 묻기, 새로 쓰기와 음성 즉시 저장, 음성 전사 표시, 늦은 음성 시작, 입력 시 전사 중단 |
 | `dream_flow_visual_test` | 4 | V1 시각 전용 | `quality_test` 동작 줄이기 |
 | `first_dream_experience_test` | 4 | 다음 이관 (2순위) | 첫 꿈만 저장, 첫 결과와 출처, 기존 원고에는 첫 결과 후기 없음 |
 | `flowing_gradient_test` | 5 | V1 시각 전용 4, 대응 있음 1 | 홈의 기록 진입은 `flow_test`·`quality_test` |
@@ -35,7 +35,7 @@ V1이 기본 빌드인 동안 V1 테스트는 지우지 않는다. V2가 같은 
 | `onboarding_visual_test` | 1 | V1 시각 전용 | `gates_test` 가이드라인 |
 | `p3_flow_test` | 6 | 이번 이관 1, 다음 이관 5 | 첫 원고 설정 실패 후 선택 유지는 이번에 옮겼다. 설정 후 리더 갱신, 문단 고치기 실패, 저장·보강·이어쓰기, 결과 후 행동 전환, 정책 링크 복사는 다음 |
 | `p3_system_visual_test` | 1 | V1 시각 전용 | `quality_test` |
-| `p4_generation_recovery_test` | 3 | 다음 이관 (1순위) | 재시도 확인 대기 중 닫기, 21초 이탈·복귀, 새 컨테이너 재연결 |
+| `p4_generation_recovery_test` | 3 | 이관 완료 2 (2차), 공유 로직 1 | `recovery_test`: 재시도 확인 대기 중 닫기, 21초 이탈·복귀. 새 컨테이너 재연결은 화면 없는 Provider 테스트라 공용 |
 | `presentation_consumption_test` | 5 | 이번 이관 | `presentation_test` 5개. V2는 공개가 공개 영수증만, 홈이 성장 영수증을 쓴다(DESIGN_V2 §11.1) |
 | `processing_state_test` | 3 | 이번 이관 | `processing_test` 3개 |
 | `quality_validation_test` | 4 | 대응 있음 | `quality_test` |
@@ -54,7 +54,7 @@ V1이 기본 빌드인 동안 V1 테스트는 지우지 않는다. V2가 같은 
 
 ## 다음 이관 순서
 
-1. 데이터 손실과 생성 중복을 막는 것: `capture_keyboard` 3, `p4_generation_recovery` 3, `draft_autosave` 화면 6.
+1. 완료(2차): 데이터 손실과 생성 중복을 막는 것 12개.
 2. 읽기 경험: `reader_navigation` 7, `reader_edit` 1.
 3. 첫 사용과 흐름: `first_dream_experience` 4, `p3_flow` 5, `repository_wiring` 1, `mobile_delivery` 3.
 4. 통합 테스트 8.
@@ -64,3 +64,6 @@ V1이 기본 빌드인 동안 V1 테스트는 지우지 않는다. V2가 같은 
 | 단계 | V2 테스트 | 옮긴 V1 테스트 |
 |---|---|---|
 | 1차 (2026-10-27) | `processing_test` 3, `presentation_test` 5, `home_setup_test` 2, `gates_test` +1 | 11 |
+| 2차 (2026-10-27) | `capture_input_test` 10(케이스 13), `recovery_test` 2 | 12 |
+
+1차 지도는 `draft_autosave` 화면 테스트를 6개, `p4` 이관 대상을 3개로 셌다. 2차에서 V1 코드를 다시 확인해 각각 7개와 2개로 고쳤다. 줄어든 1개는 화면 없는 Provider 테스트다.
