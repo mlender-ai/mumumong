@@ -5,7 +5,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/design/design_system.dart' show mumumongTheme;
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../domain/progress.dart';
@@ -19,9 +18,9 @@ import '../design/dot_matrix.dart';
 import '../design/halftone.dart';
 import '../design/press.dart';
 import '../design/surface.dart';
-import '../design/theme.dart';
 import '../design/tokens.dart';
 import 'format.dart';
+import 'v1_bridge.dart';
 
 class V2HomeScreen extends ConsumerWidget {
   const V2HomeScreen({
@@ -656,17 +655,10 @@ class _CompletableCard extends StatelessWidget {
   );
 }
 
-/// The completion request flow stays on the V1 screen until GO (it owns
-/// BookStore and server confirmation); it is shown in the V1 theme.
+/// The completion request flow stays on the V1 screen until it is redrawn
+/// (it owns BookStore and server confirmation).
 void openV1Completion(BuildContext context, String volumeId) {
-  Navigator.of(context).push(
-    v2Route(
-      Theme(
-        data: mumumongTheme(),
-        child: CompletionScreen(volumeId: volumeId),
-      ),
-    ),
-  );
+  openInV1(context, CompletionScreen(volumeId: volumeId));
 }
 
 class _PendingRow extends StatelessWidget {

@@ -1,7 +1,7 @@
 # MUMUMONG V2 — Design System
 
 > 브랜치 `redesign/mumumong-v2` 전용. `lib/v2/`의 단일 기준 문서다.
-> V1(`lib/ui`, `DESIGN.md`)은 그대로 두었다. GO 결정 전까지 이 문서는 V1을 바꾸지 않는다.
+> V1(`lib/ui`, `DESIGN.md`)은 그대로 두었다. 2026-10-27 GO 이후 실제 앱에 `UI=v2` 플래그로 연결했고, 기본값은 아직 V1이다.
 > 기준 문서 우선순위: 사용자 지시서(2026-10-27 FULL REDESIGN) > 이 문서 > `DESIGN.md`.
 
 **Atmospheric Editorial · Soft Glass · Warm Sky Blue · Halftone/Dot · Tactile Interaction · Digital Literature**
@@ -14,8 +14,9 @@
 |---|---|
 | 위치 | 워크트리 `../무무몽-v2`, 브랜치 `redesign/mumumong-v2` |
 | 기준선 | `884e1e8` = 공개 빌드 `20261026T143538Z`, 태그 `baseline/v1-20261026T143538Z` |
-| 실행 | `lib/main_v2.dart` (ENV=dev, ENGINE=mock 이외 실행 거부) |
-| 배포 | 없음. 프로덕션과 `main`은 변경하지 않았다 |
+| 실제 앱 | `lib/main.dart` + `--dart-define=UI=v2`. 기본값 `UI=v1`이라 플래그 없이 빌드하면 지금 배포본과 같다 |
+| 미리보기 | `lib/main_v2.dart` (ENV=dev, ENGINE=mock 이외 실행 거부) |
+| 배포 | 없음. 프로덕션과 `main`은 변경하지 않았다. `main` 병합과 배포는 단계마다 다시 확인받는다 |
 
 ## 1. 원칙
 
@@ -117,10 +118,11 @@ WCAG AA 4.5:1 이상을 테스트로 고정한 조합: 종이 위 ink·ink2·ink
 |---|---|
 | 버튼 | `V2Button` primary·secondary·glass·floating, `V2IconButton` glass·plain·ink, `V2RecordButton`, `V2TextAction` |
 | 표면 | `V2Surface` 6종 |
-| 입력 | `V2CaptureField`(입력량에 따라 색광이 모이는 유리 입력란), `V2ChoiceChip`, `V2CheckRow`, `V2Segmented` |
+| 입력 | `V2CaptureField`(입력량에 따라 색광이 모이는 유리 입력란), `V2ChoiceChip`, `V2CheckRow`, `V2Segmented`, `V2TextField`(확인 단어 같은 짧은 한 줄) |
+| 목록 | `V2GroupLabel`, `V2ListRow`(제목·한 줄 설명·꺾쇠, 위험 동작은 경고색), `V2SwitchRow`(켜짐은 하늘색 트랙). 모두 `V2Pressable` 위의 서리 유리라 버튼과 같은 물리를 쓴다 |
 | 내비게이션 | `V2FloatingNav`(가운데 기록 CTA), `V2ContextHeader`(스크롤 시 유리), `showV2Sheet`, `V2ReaderNav` |
 | 진행 | `V2DotProgress`, `V2StepProgress`, `V2Manuscript`, `V2CompletionReveal` |
-| 피드백 | `V2StatusPill`, `V2Notice`, `showV2Toast`, `showV2Dialog`, `V2Meta`, `V2EdgeFade`, `V2Page` |
+| 피드백 | `V2StatusPill`, `V2Notice`, `showV2Toast`, `showV2Dialog`(내용 슬롯, 행동은 오른쪽 정렬·주요 행동이 마지막), `V2Meta`, `V2EdgeFade`, `V2Page`, `V2LoadingDots`(멈춘 세 점, 반복 로더 없음), `V2PolicyLink` |
 
 **버튼 물리** (`V2Pressable`, 전 컨트롤 공통): 누르는 순간 단단한 스프링으로 가라앉고(크기 −3.2%, 그림자 축소, 상단 광택이 내려가며 어두워짐, 안쪽 그늘), 놓으면 살짝 넘쳐 돌아온다. 글라스는 색광이 모이며 손 쪽으로 흐른다. 상태: 기본·눌림·호버(웹/데스크톱)·포커스 링·비활성(42%)·로딩(문구 교체, 탭 차단, “진행 중” 의미 정보). 햅틱: 주요 light, 선택 selection, 녹음 시작 medium, 저장 성공 medium. 터치 영역 최소 44pt, 라벨 없는 버튼은 보이는 글자를 이름으로 병합한다.
 
@@ -138,6 +140,15 @@ WCAG AA 4.5:1 이상을 테스트로 고정한 조합: 종이 위 ink·ink2·ink
 | 장면 공개 | 〃 | 줄이 사라진 자리에 종이 카드의 제목·첫 문장이 위에서부터 드러남, 행동은 아래 |
 | 리더 | `screens/reader.dart` | 종이, 도트 매트릭스 장 번호, 세리프 본문, 여백 출처 표시, 문단 시트(출처+고치기), 밤의 종이, 리더 내비 |
 | 보관함 | `screens/archive.dart` | 기억 조각 카드, 선명도 덩어리, 상세 시트(원문 수정·생성 재개·장면 읽기·삭제) |
+| 관문 | `screens/gates.dart` | 대기(워드마크·문구·멈춘 세 점), 차단(무엇이 안 됐는지·왜 닫혀 있는지·다시 시도), 앱 잠금. 모두 홈과 같은 옅은 하늘 위 |
+| 설정 | `screens/settings.dart` | 홈 오른쪽 위에서 여는 페이지. 큰 세리프 제목, 스크롤하면 유리 헤더에 작은 제목. 읽기와 종이·완성한 책·이후 장면 설정·기록 관리·앱 잠금·AI 처리 고지·음성 기록 |
+| V1 브리지 | `screens/v1_bridge.dart` | 아직 다시 그리지 않은 V1 화면(완성한 책·완성 요청)을 V1 테마로 연다. 그 화면이 여는 하위 화면도 V1 테마를 유지하고, 첫 화면의 뒤로가기는 브리지를 닫는다 |
+
+### 8.1 관문 통합 원칙
+
+- 접근 규칙은 한 벌이다. `AuthGate`·`AuthenticatedConsentGate`·클라우드 부트스트랩(`lib/ui/auth`)과 `AppLockGate`(`lib/ui/settings`)가 어느 상태에서 무엇을 열지 정한다. V2는 그리기만 맡는다.
+- 그리기 계약은 `AuthPresentation`(`lib/ui/auth/auth_presentation.dart`): 대기, 로그인 전 온보딩, 동의, 차단, 첫 원고 설정. `V1AuthPresentation`이 기본값이고 V1 화면을 그대로 그린다. `V2AuthPresentation`이 V2 화면을 그린다. 잠금 화면은 `AppLockGate.lockedBuilder`로 넘긴다.
+- 기록 내보내기와 전체 삭제는 `RecordActions`(`lib/ui/settings/record_actions.dart`) 한 곳에서만 실행한다. V1과 V2 설정은 확인 절차만 그린다. 미리보기는 실행하지 않는 대체 구현을 쓰고 두 행을 비활성으로 보인다.
 
 ## 9. 레퍼런스 대응
 
@@ -152,7 +163,7 @@ WCAG AA 4.5:1 이상을 테스트로 고정한 조합: 종이 위 ink·ink2·ink
 
 ## 10. 실제 연결과 목
 
-**실제 앱 코드 그대로 연결**: `MumumongRepository`와 모든 Provider, 초안 자동저장, 제출, 기억 보강 저장, 엔진 enqueue/retry와 멱등키, 작업 진행 관찰과 복구, 공개·성장 영수증, 연결 판단·배치 변경·원고에서 빼기, 리더 위치 저장·복원, 첫 읽음 표시, 문장 고치기·되돌리기, 출처 보기, 원문 수정, 꿈 삭제, 읽기 설정(UiPreferences).
+**실제 앱 코드 그대로 연결**: 인증·동의·클라우드 부트스트랩·앱 잠금 관문(V1과 같은 코드), 서버 AI 처리 고지, 이후 장면 설정 저장·재시도·충돌 해결, 기록 내보내기·전체 삭제(`RecordActions`), `MumumongRepository`와 모든 Provider, 초안 자동저장, 제출, 기억 보강 저장, 엔진 enqueue/retry와 멱등키, 작업 진행 관찰과 복구, 공개·성장 영수증, 연결 판단·배치 변경·원고에서 빼기, 리더 위치 저장·복원, 첫 읽음 표시, 문장 고치기·되돌리기, 출처 보기, 원문 수정, 꿈 삭제, 읽기 설정(UiPreferences).
 
 **미리보기에서만 목**: 데이터(`MemoryRepository` 가상 시드 또는 빈 원고), AI(`MockEngineClient` 고정 장면, 성공·재시도·대체·실패 선택), 동의(로컬 정책, 제출 없음), 미리보기 음성(마이크 없이 가상 꿈 입력, 화면에 표시), 기기 저장소·앱 잠금·DB(메모리). 계정·서버·실제 AI·사용자 데이터는 쓰지 않는다. 화면 왼쪽 아래 `PREVIEW` 표식이 항상 보인다.
 
@@ -162,10 +173,18 @@ WCAG AA 4.5:1 이상을 테스트로 고정한 조합: 종이 위 ink·ink2·ink
 2. **리더 문단 조작**: V1은 짧게 누르면 출처, 길게 누르면 고치기, 점 메뉴가 따로 있었다. V2는 문단을 누르면 출처와 고치기·되돌리기가 한 시트에 나온다.
 3. **읽기 설정**: V1 팝업 메뉴 대신 시트(종이·글자 크기 4단계·출처 표시).
 4. **한국어 단어 단위 줄바꿈** 적용.
+5. **설정 위치**: V1은 하단 탭의 세 번째 칸이었다. V2는 홈 오른쪽 위에서 여는 페이지다. 하단 내비는 원고·꿈 기록·보관함만 둔다.
+6. **화면 테마**: V2 화면은 항상 밝다. 저장된 테마 값은 리더의 밤의 종이에만 쓰고, V1의 “기기 설정” 선택지는 없다.
+7. **글자 크기 단계**: V2는 작게·보통·크게·더 크게를 0.9·1.0·1.15·1.3으로 저장한다(V1은 0.9·1.0·1.2·1.4). 저장소와 허용 범위(0.85–1.5)는 같고, V1 값은 가장 가까운 단계로 표시하며 리더에는 저장값 그대로 쓴다.
+8. **전체 삭제 후**: V1은 기록 관리 페이지에 남았다. V2는 설정 페이지를 모두 닫아 관문이 다음 화면을 정하게 한다.
+9. **삭제 확인**: V1은 확인 단어가 틀려도 버튼이 눌리고 아무 일도 없었다. V2는 단어를 입력하기 전까지 “영구 삭제”가 비활성이다.
 
-## 12. 범위 밖과 GO 이후 작업
+## 12. 범위 밖과 다음 단계
 
-- V1 화면을 그대로 쓰는 곳: 설정(계정·앱 잠금·AI 처리·내보내기), 완성 요청(`CompletionScreen`), 웹 음성 안내. V2 미리보기 홈 설정 시트에서는 읽기 설정만 제공한다.
+- V1 화면을 브리지로 쓰는 곳: 완성한 책 서재(`LibraryScreen`), 완성 요청(`CompletionScreen`), 완성본 읽기·PDF 저장.
 - 앱 전체 다크 테마는 V2에 없다(리더의 밤의 종이만 있음).
 - 실기기 음성 진폭: 네이티브 채널이 `rms`를 보내지 않는다. 지금은 인식된 글자 증가량으로 반응한다. 진폭 반응은 iOS `SpeechChannel` 확장과 실기기 검증이 필요하다.
-- GO 시: `AuthGate`·동의 게이트·클라우드 부트스트랩을 V2 화면으로 연결(같은 생성자 계약), `main.dart` 전환, 설정·완성 화면 V2 이전, V1 테스트를 V2 기준으로 이관, 실기기·호스팅 검증 후 단계 배포.
+- GO 진행 상황
+  1. 완료: 브랜치 커밋, `UI=v2` 진입점, 인증·동의·부트스트랩·앱 잠금 관문 연결, 설정 V2 이전.
+  2. 다음: 완성 요청·서재·완성본 읽기 V2 이전, V1 UI 테스트를 V2 기준으로 이관.
+  3. 그다음: 실기기와 호스팅 환경 검증, 보호된 미리보기 배포, 단계 배포(기본값을 `v2`로 바꾸는 시점). `main` 병합과 배포는 단계마다 다시 확인받는다.

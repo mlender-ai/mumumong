@@ -125,3 +125,24 @@ Future<T> snapshot<T extends Object>(
   WidgetTester tester,
   Stream<T> stream,
 ) async => (await tester.runAsync(() => stream.first))!;
+
+/// Tap targets of 44pt, labels on every target, readable text contrast and
+/// no layout exception on the current frame.
+Future<void> expectGuidelines(WidgetTester tester, String screen) async {
+  await expectLater(
+    tester,
+    meetsGuideline(iOSTapTargetGuideline),
+    reason: '$screen: 44pt targets',
+  );
+  await expectLater(
+    tester,
+    meetsGuideline(labeledTapTargetGuideline),
+    reason: '$screen: labeled targets',
+  );
+  await expectLater(
+    tester,
+    meetsGuideline(textContrastGuideline),
+    reason: '$screen: text contrast',
+  );
+  expect(tester.takeException(), isNull, reason: '$screen: no layout errors');
+}

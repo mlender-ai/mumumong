@@ -25,31 +25,15 @@ Future<void> showV2ReadingSettings(
 }) => showV2Sheet<void>(
   context,
   night: night,
-  builder: (sheetContext) => const _ReadingSettings(),
+  builder: (sheetContext) => const V2ReadingSettingsPanel(),
 );
 
-/// Home settings: the reading settings plus optional extra rows.
-Future<void> showV2ReadingSettingsWithExtras(
-  BuildContext context, {
-  Widget? extras,
-}) => showV2Sheet<void>(
-  context,
-  builder: (sheetContext) => SingleChildScrollView(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _ReadingSettings(),
-        const SizedBox(height: V2Space.lg),
-        const V2Meta('계정·앱 잠금·AI 처리·내보내기 설정은 GO 이후 V2로 옮겨요. 지금은 V1 화면에 있어요.'),
-        if (extras != null) ...[const SizedBox(height: V2Space.md), extras],
-      ],
-    ),
-  ),
-);
+/// Paper, text size and origin marks. Used by the reader sheet and the
+/// settings page; values are the device-only UiPreferences.
+class V2ReadingSettingsPanel extends ConsumerWidget {
+  const V2ReadingSettingsPanel({super.key, this.showTitle = true});
 
-class _ReadingSettings extends ConsumerWidget {
-  const _ReadingSettings();
+  final bool showTitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,8 +55,10 @@ class _ReadingSettings extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('읽기 설정', style: V2Type.title.copyWith(color: ink)),
-        const SizedBox(height: V2Space.lg),
+        if (showTitle) ...[
+          Text('읽기 설정', style: V2Type.title.copyWith(color: ink)),
+          const SizedBox(height: V2Space.lg),
+        ],
         V2Meta('종이', color: night ? V2Color.nightMeta : null),
         const SizedBox(height: V2Space.xs),
         V2Segmented<bool>(

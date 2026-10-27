@@ -4,6 +4,10 @@ enum EngineMode { mock, remote }
 
 enum AppAuthenticationMode { local, apple }
 
+/// Which presentation layer lib/main.dart builds. V1 stays the default until
+/// the V2 rollout is approved; both share the same gates, data and engine.
+enum AppUi { v1, v2 }
+
 abstract final class AppEnv {
   static const buildId = String.fromEnvironment(
     'BUILD_ID',
@@ -18,6 +22,7 @@ abstract final class AppEnv {
     defaultValue: 'mock',
   );
   static const _authenticationName = String.fromEnvironment('AUTH');
+  static const _uiName = String.fromEnvironment('UI', defaultValue: 'v1');
   static const _mockCaseName = String.fromEnvironment(
     'MOCK_CASE',
     defaultValue: 'success',
@@ -47,6 +52,12 @@ abstract final class AppEnv {
   static String get mockCase => switch (_mockCaseName) {
     'success' || 'retry' || 'fallback' || 'fail' => _mockCaseName,
     _ => throw StateError('Unsupported MOCK_CASE: $_mockCaseName'),
+  };
+
+  static AppUi get ui => switch (_uiName) {
+    'v1' => AppUi.v1,
+    'v2' => AppUi.v2,
+    _ => throw StateError('Unsupported UI: $_uiName'),
   };
 
   static AppAuthenticationMode get authentication {

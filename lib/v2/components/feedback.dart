@@ -168,6 +168,7 @@ Future<T?> showV2Dialog<T>(
   BuildContext context, {
   required String title,
   String? body,
+  Widget? content,
   required List<Widget> Function(BuildContext dialogContext) actions,
   bool dismissible = true,
 }) {
@@ -204,12 +205,19 @@ Future<T?> showV2Dialog<T>(
                         const SizedBox(height: 10),
                         Text(body, style: V2Type.body),
                       ],
+                      if (content != null) ...[
+                        const SizedBox(height: 14),
+                        content,
+                      ],
                       const SizedBox(height: 18),
-                      Wrap(
-                        alignment: WrapAlignment.end,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: actions(dialogContext),
+                      SizedBox(
+                        width: double.infinity,
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: actions(dialogContext),
+                        ),
                       ),
                     ],
                   ),

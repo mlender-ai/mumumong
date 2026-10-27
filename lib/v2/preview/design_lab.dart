@@ -6,6 +6,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../data/privacy/app_lock.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
 import '../components/inputs.dart';
@@ -16,7 +17,10 @@ import '../design/dot_matrix.dart';
 import '../design/halftone.dart';
 import '../design/memory_swarm.dart';
 import '../design/surface.dart';
+import '../design/theme.dart';
 import '../design/tokens.dart';
+import '../screens/gates.dart';
+import 'preview_stores.dart';
 
 class V2DesignLab extends StatefulWidget {
   const V2DesignLab({super.key});
@@ -508,6 +512,49 @@ class _V2DesignLabState extends State<V2DesignLab>
                       value: _mood,
                       onChanged: (value) => setState(() => _mood = value),
                     ),
+                    _section(
+                      '07',
+                      '계정과 잠금',
+                      '실제 앱의 로그인·동의·잠금 관문이 V2로 그리는 화면이에요. 규칙은 V1과 같은 관문 코드가 정해요.',
+                    ),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 12,
+                      children: [
+                        for (final (label, page) in [
+                          ('대기', const V2WaitPage(title: '원고를 여는 중')),
+                          (
+                            '차단',
+                            V2GatePage(
+                              meta: 'ACCOUNT',
+                              title: '원고를 불러오지 못했어요.',
+                              body: '연결을 확인한 뒤 다시 시도해 주세요.',
+                              action: V2Button(
+                                label: '다시 시도',
+                                expand: true,
+                                onPressed: () {},
+                              ),
+                            ),
+                          ),
+                          (
+                            '잠금',
+                            V2LockedPage(
+                              lock: AppLockController(
+                                MemorySecureValueStore(),
+                                const PreviewAuthenticator(),
+                              ),
+                            ),
+                          ),
+                        ])
+                          V2Button.secondary(
+                            label: label,
+                            size: V2ButtonSize.compact,
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).push(v2Route(_LabFrame(child: page))),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -530,5 +577,28 @@ class _V2DesignLabState extends State<V2DesignLab>
         Text(body, style: V2Type.bodySmall),
       ],
     ),
+  );
+}
+
+/// A full page shown from the lab, with a close control on top.
+class _LabFrame extends StatelessWidget {
+  const _LabFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      child,
+      Positioned(
+        right: V2Space.sm,
+        bottom: MediaQuery.paddingOf(context).bottom + V2Space.xxl + 80,
+        child: V2IconButton(
+          icon: Icons.close_rounded,
+          semanticLabel: '랩으로 돌아가기',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+    ],
   );
 }

@@ -1,20 +1,25 @@
-// MUMUMONG V2 app shell. Same responsibilities as V1 MumumongShell (recovery
-// subscription, outbox worker, capture/reader routing); new presentation.
+// MUMUMONG V2 app. MumumongV2 is what lib/main.dart builds with UI=v2: the
+// same app-lock, authentication, consent and cloud-bootstrap gates as V1,
+// drawn by V2. V2Shell has the V1 shell's duties (recovery subscription,
+// outbox worker, capture/reader routing) with the new presentation.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../di/providers.dart';
 import '../domain/repository/mumumong_repository.dart';
+import '../ui/auth/auth_gate.dart';
+import '../ui/settings/app_lock_gate.dart';
 import 'components/navigation.dart';
 import 'design/atmosphere.dart';
 import 'design/theme.dart';
 import 'design/tokens.dart';
 import 'screens/archive.dart';
 import 'screens/capture.dart';
+import 'screens/gates.dart';
 import 'screens/home.dart';
 import 'screens/reader.dart';
-import 'screens/reading_settings.dart';
+import 'screens/settings.dart';
 import 'screens/volume_setup.dart';
 
 class MumumongV2App extends StatelessWidget {
@@ -53,10 +58,31 @@ class MumumongV2App extends StatelessWidget {
   }
 }
 
+/// The production composition of V2. Access rules live in the shared gates;
+/// only their drawing differs from V1.
+class MumumongV2 extends StatelessWidget {
+  const MumumongV2({super.key, this.requireAuthentication = false});
+
+  final bool requireAuthentication;
+
+  @override
+  Widget build(BuildContext context) => MumumongV2App(
+    home: AppLockGate(
+      lockedBuilder: (context, lock) => V2LockedPage(lock: lock),
+      child: requireAuthentication
+          ? const AuthGate(
+              presentation: V2AuthPresentation(),
+              manuscript: V2Shell(),
+            )
+          : const V2Shell(),
+    ),
+  );
+}
+
 class V2Shell extends ConsumerStatefulWidget {
   const V2Shell({super.key, this.extraSettings});
 
-  /// Extra rows for the settings sheet (the preview's restart action).
+  /// Extra rows at the end of settings (the preview's restart action).
   final Widget? extraSettings;
 
   @override
@@ -115,7 +141,9 @@ class _V2ShellState extends ConsumerState<V2Shell> {
   }
 
   void _openSettings() {
-    showV2ReadingSettingsWithExtras(context, extras: widget.extraSettings);
+    Navigator.of(
+      context,
+    ).push(v2Route(V2SettingsScreen(extras: widget.extraSettings)));
   }
 
   @override

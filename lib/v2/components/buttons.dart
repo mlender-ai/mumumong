@@ -141,7 +141,7 @@ class V2Button extends StatelessWidget {
             ),
             if (loading) ...[
               const SizedBox(width: 10),
-              _LoadingDots(color: foreground),
+              V2LoadingDots(color: foreground),
             ] else if (trailingIcon != null) ...[
               const SizedBox(width: 8),
               Icon(trailingIcon, size: 18, color: foreground),
@@ -500,8 +500,9 @@ class _ListeningRingPainter extends CustomPainter {
   bool shouldRepaint(_ListeningRingPainter old) => old.level != level;
 }
 
-class _LoadingDots extends StatelessWidget {
-  const _LoadingDots({required this.color});
+/// Three still dots of rising strength: a wait without a looping spinner.
+class V2LoadingDots extends StatelessWidget {
+  const V2LoadingDots({super.key, required this.color});
 
   final Color color;
 

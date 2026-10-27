@@ -17,6 +17,8 @@ import 'ui/home/home_screen.dart';
 import 'ui/reader/reader_screen.dart';
 import 'ui/settings/settings_screen.dart';
 import 'ui/settings/app_lock_gate.dart';
+import 'v2/app.dart';
+import 'v2/design/tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,20 +31,24 @@ Future<void> main() async {
       localStorage: kIsWeb ? null : SecureSessionStorage(),
     ),
   );
+  final v2 = AppEnv.ui == AppUi.v2;
   SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
+    SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: MongColor.paper,
+      systemNavigationBarColor: v2 ? V2Color.paper : MongColor.paper,
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
+  final requireAuthentication =
+      AppEnv.authentication == AppAuthenticationMode.apple;
   runApp(
     ProviderScope(
-      child: MumumongApp(
-        requireAuthentication:
-            AppEnv.authentication == AppAuthenticationMode.apple,
-      ),
+      // UI=v2 swaps only the presentation layer. Data, engine, sync and every
+      // gate rule are the same objects in both.
+      child: v2
+          ? MumumongV2(requireAuthentication: requireAuthentication)
+          : MumumongApp(requireAuthentication: requireAuthentication),
     ),
   );
 }

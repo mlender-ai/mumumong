@@ -14,6 +14,7 @@ import '../../data/memory/memory_repository.dart';
 import '../../data/privacy/app_lock.dart';
 import '../../di/providers.dart';
 import '../../ui/auth/ai_consent.dart';
+import '../../ui/settings/record_actions.dart';
 import '../app.dart';
 import '../components/brand.dart';
 import '../components/buttons.dart';
@@ -79,6 +80,7 @@ List<Override> previewOverrides(
       const PreviewAuthenticator(),
     ),
   ),
+  recordActionsProvider.overrideWithValue(const PreviewRecordActions()),
   aiConsentRepositoryProvider.overrideWithValue(
     const PreviewAiConsentRepository(),
   ),

@@ -332,3 +332,40 @@ class V2Segmented<T> extends StatelessWidget {
     );
   }
 }
+
+/// A short single-line field on paper (confirmation words, small edits).
+class V2TextField extends StatelessWidget {
+  const V2TextField({
+    super.key,
+    required this.controller,
+    required this.label,
+    this.autofocus = false,
+    this.fieldKey,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool autofocus;
+  final Key? fieldKey;
+
+  @override
+  Widget build(BuildContext context) => V2Surface(
+    kind: V2SurfaceKind.paper,
+    radius: V2Radius.small,
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+    child: TextField(
+      key: fieldKey,
+      controller: controller,
+      autofocus: autofocus,
+      style: V2Type.body.copyWith(color: V2Color.ink),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: V2Type.bodySmall.copyWith(color: V2Color.ink3),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        filled: false,
+      ),
+    ),
+  );
+}

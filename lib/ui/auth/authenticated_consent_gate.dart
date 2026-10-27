@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/design/design_system.dart';
 import 'ai_consent.dart';
-import 'auth_loading_screen.dart';
-import 'onboarding_screen.dart';
+import 'auth_presentation.dart';
 
 /// Blocks every authenticated page until the current server policy is recorded
 /// against the signed-in account. A failed read or write never grants access.
@@ -13,10 +11,14 @@ class AuthenticatedConsentGate extends ConsumerStatefulWidget {
     super.key,
     required this.child,
     this.pendingOnboardingVersion,
+    this.presentation = const V1AuthPresentation(),
   });
 
   final Widget child;
   final int? pendingOnboardingVersion;
+
+  /// Draws the wait, failure and consent states; never decides access.
+  final AuthPresentation presentation;
 
   @override
   ConsumerState<AuthenticatedConsentGate> createState() =>
@@ -117,79 +119,30 @@ class _AuthenticatedConsentGateState
 
   @override
   Widget build(BuildContext context) {
+    final presentation = widget.presentation;
     return FutureBuilder<_ConsentCheck>(
       future: _checking,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const AuthLoadingScreen(title: '시작할 준비를 하고 있어요');
+          return presentation.loading('시작할 준비를 하고 있어요');
         }
         if (snapshot.hasError || !snapshot.hasData) {
-          return _GateMessage(
+          return presentation.blocked(
+            reason: AuthBlockReason.aiNotice,
             title: 'AI 처리 고지를 확인하지 못했어요.',
-            detail: '연결을 확인하고 다시 시도해 주세요. 동의 상태를 확인하기 전에는 원고를 열 수 없어요.',
-            action: EditorialButton(label: '다시 시도', onPressed: _retry),
+            body: '연결을 확인하고 다시 시도해 주세요. 동의 상태를 확인하기 전에는 원고를 열 수 없어요.',
+            onRetry: _retry,
           );
         }
         final check = snapshot.requireData;
         if (check.accepted) return widget.child;
-        return Stack(
-          children: [
-            OnboardingScreen(
-              key: ValueKey(check.policy.version),
-              policy: check.policy,
-              initialPage: 1,
-              busy: _accepting,
-              onConsentPressed: _accept,
-            ),
-            if (_acceptFailed)
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: 4,
-                child: Material(
-                  color: context.canvas,
-                  child: const Text(
-                    '확인 내용을 저장하지 못했어요. 다시 시도해 주세요.',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-          ],
+        return presentation.consent(
+          policy: check.policy,
+          busy: _accepting,
+          failed: _acceptFailed,
+          onConsentPressed: _accept,
         );
       },
-    );
-  }
-}
-
-class _GateMessage extends StatelessWidget {
-  const _GateMessage({required this.title, this.detail, this.action});
-
-  final String title;
-  final String? detail;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const MetaText('AI NOTICE'),
-              const Spacer(),
-              Text(title, style: Theme.of(context).textTheme.displayMedium),
-              if (detail != null) ...[
-                const SizedBox(height: 16),
-                Text(detail!),
-              ],
-              const Spacer(),
-              ?action,
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

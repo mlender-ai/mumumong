@@ -1,16 +1,12 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/design/design_system.dart';
-import '../../data/local/data_export.dart';
-import '../../data/local/local_data_control.dart';
 import '../../di/providers.dart';
 import '../auth/ai_consent.dart';
+import 'record_actions.dart';
 import 'settings_components.dart';
 import 'appearance_screen.dart';
 import 'generation_settings_screen.dart';
@@ -77,22 +73,14 @@ class _RecordManagementScreenState
     if (confirmed != true || !mounted) return;
     setState(() => _exporting = true);
     try {
-      await ref.read(repositoryProvider).watchActiveVolume().first;
-      final content = await exportLocalManuscript(ref.read(databaseProvider));
-      if (!mounted) return;
       final box = context.findRenderObject() as RenderBox?;
-      await SharePlus.instance.share(
-        ShareParams(
-          title: '무무몽 내 기록',
-          files: [
-            XFile.fromData(utf8.encode(content), mimeType: 'application/json'),
-          ],
-          fileNameOverrides: ['mumumong-export.json'],
-          sharePositionOrigin: box == null
-              ? null
-              : box.localToGlobal(Offset.zero) & box.size,
-        ),
-      );
+      await ref
+          .read(recordActionsProvider)
+          .shareExport(
+            origin: box == null
+                ? null
+                : box.localToGlobal(Offset.zero) & box.size,
+          );
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -128,8 +116,10 @@ class _RecordManagementScreenState
           ),
           MongButton.ghost(
             label: '영구 삭제',
-            onPressed: () =>
-                Navigator.pop(context, controller.text.trim() == '삭제'),
+            onPressed: () => Navigator.pop(
+              context,
+              confirmsDeleteEverything(controller.text),
+            ),
           ),
         ],
       ),
@@ -138,19 +128,7 @@ class _RecordManagementScreenState
     if (confirmed != true || !mounted) return;
     setState(() => _deleting = true);
     try {
-      final client = Supabase.instance.client;
-      final session = client.auth.currentSession;
-      if (session != null) {
-        final response = await client.functions.invoke(
-          'delete-account',
-          headers: {'Authorization': 'Bearer ${session.accessToken}'},
-        );
-        if (response.status < 200 || response.status >= 300) {
-          throw StateError('remote_delete_failed');
-        }
-      }
-      await clearLocalData(ref.read(databaseProvider));
-      if (session != null) await client.auth.signOut();
+      await ref.read(recordActionsProvider).deleteEverything();
       if (mounted) {
         ScaffoldMessenger.of(
           context,

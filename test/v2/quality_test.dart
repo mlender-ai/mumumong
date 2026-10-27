@@ -8,25 +8,6 @@ import 'package:mumumong/v2/screens/reader.dart';
 
 import 'support.dart';
 
-Future<void> expectGuidelines(WidgetTester tester, String screen) async {
-  await expectLater(
-    tester,
-    meetsGuideline(iOSTapTargetGuideline),
-    reason: '$screen: 44pt targets',
-  );
-  await expectLater(
-    tester,
-    meetsGuideline(labeledTapTargetGuideline),
-    reason: '$screen: labeled targets',
-  );
-  await expectLater(
-    tester,
-    meetsGuideline(textContrastGuideline),
-    reason: '$screen: text contrast',
-  );
-  expect(tester.takeException(), isNull, reason: '$screen: no layout errors');
-}
-
 Future<void> openCapture(WidgetTester tester) async {
   await tester.tap(find.text('꿈 기록'));
   await tester.pumpAndSettle();

@@ -8,12 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ui/auth/ai_consent.dart';
-import '../../ui/shared/policy_link.dart' show policyLinkOpenerProvider;
 import '../components/brand.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
 import '../components/inputs.dart';
 import '../components/navigation.dart';
+import '../components/policy_link.dart';
 import '../components/progress.dart';
 import '../design/atmosphere.dart';
 import '../design/dot_matrix.dart';
@@ -35,6 +35,7 @@ class V2OnboardingScreen extends ConsumerStatefulWidget {
     this.consentActionLabel,
     this.entryCaption,
     this.consentNote,
+    this.consentError,
   });
 
   final AiConsentPolicy? policy;
@@ -49,6 +50,9 @@ class V2OnboardingScreen extends ConsumerStatefulWidget {
 
   /// Extra line under the consent action (the preview says it sends nothing).
   final String? consentNote;
+
+  /// Shown above the action when the last acceptance was not recorded.
+  final String? consentError;
 
   @override
   ConsumerState<V2OnboardingScreen> createState() => _V2OnboardingScreenState();
@@ -234,12 +238,12 @@ class _V2OnboardingScreenState extends ConsumerState<V2OnboardingScreen> {
               Text(policy.message, style: V2Type.bodySmall),
               const SizedBox(height: V2Space.sm),
               for (final provider in policy.providers) ...[
-                _PolicyLink(
+                V2PolicyLink(
                   label: '${provider.name} 이용 약관',
                   uri: provider.termsUrl,
                 ),
                 if (provider.dataUrl case final dataUrl?)
-                  _PolicyLink(
+                  V2PolicyLink(
                     label: '${provider.name} 데이터 처리 안내',
                     uri: dataUrl,
                   ),
@@ -261,6 +265,18 @@ class _V2OnboardingScreenState extends ConsumerState<V2OnboardingScreen> {
               onChanged: (value) => setState(() => _aiConsented = value),
             ),
             const SizedBox(height: V2Space.lg),
+            if (widget.consentError case final error?) ...[
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  error,
+                  key: const Key('v2-consent-error'),
+                  textAlign: TextAlign.center,
+                  style: V2Type.bodySmall.copyWith(color: V2Color.alert),
+                ),
+              ),
+              const SizedBox(height: V2Space.sm),
+            ],
             V2Button(
               label: label,
               icon: widget.onConsentPressed == null && !_webTrial
@@ -513,55 +529,4 @@ class _PolicyLoading extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _PolicyLink extends ConsumerWidget {
-  const _PolicyLink({required this.label, required this.uri});
-
-  final String label;
-  final Uri uri;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    Future<void> copy() async {
-      try {
-        await Clipboard.setData(ClipboardData(text: uri.toString()));
-        if (context.mounted) {
-          showV2Toast(context, '주소를 복사했어요. 브라우저에 붙여 넣어 확인할 수 있어요.');
-        }
-      } on Object {
-        if (context.mounted) showV2Toast(context, '복사하지 못했어요. 다시 시도해 주세요.');
-      }
-    }
-
-    return Row(
-      children: [
-        Flexible(
-          child: V2TextAction(
-            label: '$label 열기',
-            icon: Icons.open_in_new_rounded,
-            onPressed: () async {
-              try {
-                if ((uri.scheme == 'https' || uri.scheme == 'http') &&
-                    await ref.read(policyLinkOpenerProvider)(uri)) {
-                  return;
-                }
-              } on Object {
-                // Visible fallback below.
-              }
-              if (context.mounted) {
-                showV2Toast(context, '링크를 열지 못했어요. 주소 복사를 눌러 주세요.');
-              }
-            },
-          ),
-        ),
-        V2IconButton(
-          icon: Icons.copy_rounded,
-          semanticLabel: '$label 주소 복사',
-          variant: V2IconButtonVariant.plain,
-          onPressed: copy,
-        ),
-      ],
-    );
-  }
 }

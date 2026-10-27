@@ -9,14 +9,22 @@ import '../../data/auth/auth_controller.dart';
 import '../../core/env/env.dart';
 import '../../domain/model/enums.dart';
 import '../../di/providers.dart';
+import 'auth_presentation.dart';
 import 'authenticated_consent_gate.dart';
 import 'auth_loading_screen.dart';
-import 'onboarding_screen.dart';
 
 class AuthGate extends ConsumerStatefulWidget {
-  const AuthGate({super.key, required this.manuscript});
+  const AuthGate({
+    super.key,
+    required this.manuscript,
+    this.presentation = const V1AuthPresentation(),
+  });
 
   final Widget manuscript;
+
+  /// Draws each gate state. The rules below stay the same for every
+  /// presentation.
+  final AuthPresentation presentation;
 
   @override
   ConsumerState<AuthGate> createState() => _AuthGateState();
@@ -39,77 +47,73 @@ class _AuthGateState extends ConsumerState<AuthGate> {
   Widget build(BuildContext context) {
     final controller = ref.watch(authControllerProvider);
     final state = controller.state;
+    final presentation = widget.presentation;
 
     return switch (state.phase) {
-      AuthenticationPhase.restoring => const AuthLoadingScreen(
-        title: '원고를 여는 중',
-      ),
-      AuthenticationPhase.signedOut => OnboardingScreen(
+      AuthenticationPhase.restoring => presentation.loading('원고를 여는 중'),
+      AuthenticationPhase.signedOut => presentation.onboarding(
         onApplePressed: kIsWeb ? null : _signInWithApple,
         onTrialPressed: AppEnv.environment != AppEnvironment.prod
             ? _signInAnonymously
             : null,
       ),
-      AuthenticationPhase.signingIn => const AuthLoadingScreen(
-        title: '계정을 확인하는 중',
-      ),
-      AuthenticationPhase.failure => _AuthenticationFailureScreen(
-        failure: state.failure ?? AuthenticationFailure.unknown,
-        onRetry: controller.retry,
+      AuthenticationPhase.signingIn => presentation.loading('계정을 확인하는 중'),
+      AuthenticationPhase.failure => _failure(
+        presentation,
+        state.failure ?? AuthenticationFailure.unknown,
+        controller.retry,
       ),
       AuthenticationPhase.signedIn => AuthenticatedConsentGate(
+        presentation: presentation,
         pendingOnboardingVersion: _pendingOnboardingVersion,
         child: state.destination == AuthenticationDestination.manuscript
             ? AppEnv.engine == EngineMode.remote
-                  ? _CloudBootstrapGate(child: widget.manuscript)
+                  ? _CloudBootstrapGate(
+                      presentation: presentation,
+                      child: widget.manuscript,
+                    )
                   : widget.manuscript
-            : VolumeSetupScreen(onComplete: controller.completeVolumeSetup),
+            : presentation.volumeSetup(
+                onComplete: controller.completeVolumeSetup,
+              ),
       ),
     };
   }
 }
 
-class _AuthenticationFailureScreen extends StatelessWidget {
-  const _AuthenticationFailureScreen({
-    required this.failure,
-    required this.onRetry,
-  });
-
-  final AuthenticationFailure failure;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final copy = switch (failure) {
-      AuthenticationFailure.network => (
-        title: '연결을 확인해 주세요.',
-        body: '네트워크가 돌아오면 다시 시도할 수 있어요.',
-      ),
-      AuthenticationFailure.expiredSession => (
-        title: '세션이 만료되었습니다.',
-        body: '원고를 다시 열려면 Apple로 로그인해 주세요.',
-      ),
-      AuthenticationFailure.unavailable => (
-        title: 'Apple 로그인을 사용할 수 없어요.',
-        body: '기기의 Apple ID 설정을 확인해 주세요.',
-      ),
-      AuthenticationFailure.invalidCredential => (
-        title: 'Apple ID를 확인하지 못했어요.',
-        body: '잠시 후 다시 시도해 주세요.',
-      ),
-      AuthenticationFailure.unknown => (
-        title: '원고를 열지 못했어요.',
-        body: '잠시 후 다시 시도해 주세요.',
-      ),
-    };
-
-    return _AccountPage(
-      meta: 'ACCOUNT',
-      title: copy.title,
-      body: copy.body,
-      footer: EditorialButton(label: '다시 시도', onPressed: onRetry),
-    );
-  }
+Widget _failure(
+  AuthPresentation presentation,
+  AuthenticationFailure failure,
+  VoidCallback onRetry,
+) {
+  final copy = switch (failure) {
+    AuthenticationFailure.network => (
+      title: '연결을 확인해 주세요.',
+      body: '네트워크가 돌아오면 다시 시도할 수 있어요.',
+    ),
+    AuthenticationFailure.expiredSession => (
+      title: '세션이 만료되었습니다.',
+      body: '원고를 다시 열려면 Apple로 로그인해 주세요.',
+    ),
+    AuthenticationFailure.unavailable => (
+      title: 'Apple 로그인을 사용할 수 없어요.',
+      body: '기기의 Apple ID 설정을 확인해 주세요.',
+    ),
+    AuthenticationFailure.invalidCredential => (
+      title: 'Apple ID를 확인하지 못했어요.',
+      body: '잠시 후 다시 시도해 주세요.',
+    ),
+    AuthenticationFailure.unknown => (
+      title: '원고를 열지 못했어요.',
+      body: '잠시 후 다시 시도해 주세요.',
+    ),
+  };
+  return presentation.blocked(
+    reason: AuthBlockReason.account,
+    title: copy.title,
+    body: copy.body,
+    onRetry: onRetry,
+  );
 }
 
 class VolumeSetupScreen extends ConsumerStatefulWidget {
@@ -312,8 +316,9 @@ class _VolumeSetupScreenState extends ConsumerState<VolumeSetupScreen> {
 }
 
 class _CloudBootstrapGate extends ConsumerStatefulWidget {
-  const _CloudBootstrapGate({required this.child});
+  const _CloudBootstrapGate({required this.presentation, required this.child});
 
+  final AuthPresentation presentation;
   final Widget child;
 
   @override
@@ -342,62 +347,18 @@ class _CloudBootstrapGateState extends ConsumerState<_CloudBootstrapGate> {
       future: _loading,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const AuthLoadingScreen(title: '원고를 불러오는 중');
+          return widget.presentation.loading('원고를 불러오는 중');
         }
         if (snapshot.hasError || snapshot.data != true) {
-          return _AccountPage(
-            meta: 'ACCOUNT',
+          return widget.presentation.blocked(
+            reason: AuthBlockReason.account,
             title: '원고를 불러오지 못했어요.',
             body: '연결을 확인한 뒤 다시 시도해 주세요.',
-            footer: EditorialButton(label: '다시 시도', onPressed: _retry),
+            onRetry: _retry,
           );
         }
         return widget.child;
       },
-    );
-  }
-}
-
-class _AccountPage extends StatelessWidget {
-  const _AccountPage({
-    required this.meta,
-    required this.title,
-    this.body,
-    this.footer,
-  });
-
-  final String meta;
-  final String title;
-  final String? body;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              MetaText(meta),
-              const Spacer(flex: 4),
-              Text(title, style: Theme.of(context).textTheme.displayMedium),
-              if (body != null) ...[
-                const SizedBox(height: 20),
-                Text(
-                  body!,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: context.secondaryInk),
-                ),
-              ],
-              const Spacer(flex: 3),
-              ?footer,
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

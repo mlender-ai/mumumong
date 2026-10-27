@@ -2,11 +2,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/design/design_system.dart';
+import '../../data/privacy/app_lock.dart';
 import '../../di/providers.dart';
 
 class AppLockGate extends ConsumerStatefulWidget {
-  const AppLockGate({super.key, required this.child});
+  const AppLockGate({super.key, required this.child, this.lockedBuilder});
   final Widget child;
+
+  /// Draws the locked state. The lock rules (lock on pause, verify on
+  /// resume) stay here for every interface.
+  final Widget Function(BuildContext context, AppLockController lock)?
+  lockedBuilder;
   @override
   ConsumerState<AppLockGate> createState() => _AppLockGateState();
 }
@@ -43,6 +49,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   Widget build(BuildContext context) {
     final lock = ref.watch(appLockProvider);
     if (!lock.loaded || lock.unlocked) return widget.child;
+    if (widget.lockedBuilder case final builder?) return builder(context, lock);
     return Scaffold(
       backgroundColor: context.canvas,
       body: SafeArea(
