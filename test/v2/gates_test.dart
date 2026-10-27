@@ -104,6 +104,24 @@ void main() {
     expect(find.text('원고 화면'), findsNothing);
   });
 
+  // Migrated from test/ui/auth_gate_test.dart (V1).
+  testWidgets('a slow notice never hides the signed-out start', (tester) async {
+    final backend = _Backend();
+    final controller = AuthenticationController(const _Identity(), backend);
+    await controller.restore();
+    final pending = Completer<AiConsentPolicy>();
+    await _mount(
+      tester,
+      controller: controller,
+      consent: _Consent(policy: pending.future),
+    );
+    expect(v2TextContaining('이야기가 되는 곳'), findsOneWidget);
+    expect(v2Text('Apple로 시작하기'), findsOneWidget);
+    await _tapText(tester, 'Apple로 시작하기');
+    expect(v2Text('안내를 불러오는 중'), findsOneWidget);
+    expect(backend.hasSession, isFalse);
+  });
+
   testWidgets('a current consent record opens the manuscript', (tester) async {
     await _mount(tester, controller: await _signedIn(), consent: _Consent());
     expect(find.text('원고 화면'), findsOneWidget);

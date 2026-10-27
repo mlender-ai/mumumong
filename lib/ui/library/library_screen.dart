@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../core/design/design_system.dart';
 import '../../core/design/dot_cover.dart';
 import '../../core/design/dream_atmosphere.dart';
 import '../../core/log/app_log.dart';
-import '../../data/export/completed_volume_pdf.dart';
 import '../../di/providers.dart';
 import '../../domain/model/frozen_book.dart';
 import '../../domain/model/models.dart';
 import '../settings/settings_components.dart';
+import 'book_pdf.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -395,44 +393,15 @@ class _CompletedBookScreenState extends ConsumerState<CompletedBookScreen> {
       _message = null;
     });
     try {
-      final fonts = await Future.wait([
-        rootBundle.load('assets/fonts/MaruBuri-Regular.ttf'),
-        rootBundle.load('assets/fonts/MaruBuri-Bold.ttf'),
-      ]);
-      final bytes = await CompletedVolumePdfComposer(
-        maruRegular: fonts[0].buffer.asUint8List(),
-        maruBold: fonts[1].buffer.asUint8List(),
-      ).compose(widget.book.pdfSnapshot);
-      if (!mounted) return;
       final box = context.findRenderObject() as RenderBox?;
-      final result = await SharePlus.instance.share(
-        ShareParams(
-          title: widget.book.title,
-          files: [XFile.fromData(bytes, mimeType: 'application/pdf')],
-          fileNameOverrides: ['MUMUMONG_VOL${widget.book.volumeNo}.pdf'],
-          sharePositionOrigin: box == null
-              ? null
-              : box.localToGlobal(Offset.zero) & box.size,
-        ),
+      final status = await ref.read(bookPdfShareProvider)(
+        widget.book,
+        origin: box == null ? null : box.localToGlobal(Offset.zero) & box.size,
       );
       if (!mounted) return;
-      setState(
-        () => _message = result.status == ShareResultStatus.dismissed
-            ? '공유를 취소했어요. 완성본은 그대로 보관돼요.'
-            : 'PDF를 준비했어요. 저장 위치는 공유창이나 다운로드 목록에서 확인해 주세요.',
-      );
-      AppLog.event('pdf_export_success', {
-        'volume_id': widget.book.volumeId,
-        'status': result.status.name,
-      });
+      setState(() => _message = bookPdfShareMessage(status));
     } on Object {
-      if (mounted) {
-        setState(() => _message = 'PDF를 준비하지 못했어요. 완성본은 그대로예요. 다시 시도해 주세요.');
-      }
-      AppLog.event('pdf_export_failed', {
-        'volume_id': widget.book.volumeId,
-        'code': 'export_unavailable',
-      });
+      if (mounted) setState(() => _message = bookPdfFailedMessage);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }

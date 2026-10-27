@@ -1,7 +1,7 @@
 // V2 settings (DESIGN_V2.md §8.8). The same settings V1 offers, drawn with
 // V2 rows and pages. Behaviour comes from the shared providers: UiPreferences,
 // AppLockController, AiConsentRepository, the repository's generation
-// settings and RecordActions. Completed books still open in V1 for now.
+// settings and RecordActions. Completed books live in library.dart.
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../di/providers.dart';
 import '../../domain/model/models.dart';
 import '../../ui/auth/ai_consent.dart';
-import '../../ui/library/library_screen.dart' show LibraryScreen;
 import '../../ui/settings/record_actions.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
@@ -22,7 +21,7 @@ import '../design/theme.dart';
 import '../design/tokens.dart';
 import 'format.dart';
 import 'reading_settings.dart';
-import 'v1_bridge.dart';
+import 'library.dart';
 import 'v2_providers.dart';
 
 void _open(BuildContext context, Widget page) =>
@@ -50,7 +49,7 @@ class V2SettingsScreen extends ConsumerWidget {
       V2ListRow(
         title: '내가 완성한 책',
         subtitle: '완성본 읽기 · PDF 저장 · 다음 권',
-        onTap: () => openInV1(context, const LibraryScreen()),
+        onTap: () => _open(context, const V2LibraryScreen()),
       ),
       V2ListRow(
         title: '이후 장면 설정',
@@ -236,34 +235,6 @@ class _Info extends StatelessWidget {
   );
 }
 
-class _Status extends StatelessWidget {
-  const _Status(this.text, {this.action});
-
-  final String text;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: V2Space.xl),
-    child: Semantics(
-      liveRegion: true,
-      child: Column(
-        children: [
-          Text(
-            v2KeepAll(text),
-            textAlign: TextAlign.center,
-            style: V2Type.body.copyWith(color: V2Color.ink2),
-          ),
-          if (action case final widget?) ...[
-            const SizedBox(height: V2Space.md),
-            widget,
-          ],
-        ],
-      ),
-    ),
-  );
-}
-
 class V2ReadingSettingsPage extends ConsumerWidget {
   const V2ReadingSettingsPage({super.key});
 
@@ -352,12 +323,14 @@ class _V2AiNoticePageState extends ConsumerState<V2AiNoticePage> {
         future: _policy,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return _Status(
+            return V2InlineStatus(
               '현재 고지를 불러오지 못했어요.',
               action: V2Button.secondary(label: '다시 시도', onPressed: _retry),
             );
           }
-          if (!snapshot.hasData) return const _Status('현재 고지를 불러오는 중이에요.');
+          if (!snapshot.hasData) {
+            return const V2InlineStatus('현재 고지를 불러오는 중이에요.', waiting: true);
+          }
           final policy = snapshot.requireData;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -585,17 +558,18 @@ class _V2GenerationSettingsPageState
   Widget build(BuildContext context) {
     final volume = ref.watch(activeVolumeProvider);
     final content = volume.when(
-      loading: () => const _Status('설정을 불러오는 중이에요.'),
-      error: (_, _) => const _Status('원고 설정을 불러오지 못했어요.'),
+      loading: () => const V2InlineStatus('설정을 불러오는 중이에요.', waiting: true),
+      error: (_, _) => const V2InlineStatus('원고 설정을 불러오지 못했어요.'),
       data: (value) => value == null
-          ? const _Status('첫 원고를 시작한 뒤 설정할 수 있어요.')
+          ? const V2InlineStatus('첫 원고를 시작한 뒤 설정할 수 있어요.')
           : ref
                 .watch(generationSettingsProvider(value.id))
                 .when(
-                  loading: () => const _Status('설정을 불러오는 중이에요.'),
-                  error: (_, _) => const _Status('설정을 불러오지 못했어요.'),
+                  loading: () =>
+                      const V2InlineStatus('설정을 불러오는 중이에요.', waiting: true),
+                  error: (_, _) => const V2InlineStatus('설정을 불러오지 못했어요.'),
                   data: (state) => state == null
-                      ? const _Status('설정할 원고가 없어요.')
+                      ? const V2InlineStatus('설정할 원고가 없어요.')
                       : _editor(value, state),
                 ),
     );

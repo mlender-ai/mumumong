@@ -333,7 +333,7 @@ class V2Segmented<T> extends StatelessWidget {
   }
 }
 
-/// A short single-line field on paper (confirmation words, small edits).
+/// A text field on paper: confirmation words, titles, short notes.
 class V2TextField extends StatelessWidget {
   const V2TextField({
     super.key,
@@ -341,26 +341,41 @@ class V2TextField extends StatelessWidget {
     required this.label,
     this.autofocus = false,
     this.fieldKey,
+    this.hint,
+    this.maxLength,
+    this.minLines,
+    this.maxLines = 1,
   });
 
   final TextEditingController controller;
   final String label;
   final bool autofocus;
   final Key? fieldKey;
+  final String? hint;
+  final int? maxLength;
+  final int? minLines;
+  final int? maxLines;
 
   @override
   Widget build(BuildContext context) => V2Surface(
     kind: V2SurfaceKind.paper,
     radius: V2Radius.small,
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+    padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
     child: TextField(
       key: fieldKey,
       controller: controller,
       autofocus: autofocus,
+      maxLength: maxLength,
+      minLines: minLines,
+      maxLines: maxLines,
       style: V2Type.body.copyWith(color: V2Color.ink),
       decoration: InputDecoration(
         labelText: label,
+        hintText: hint,
+        alignLabelWithHint: (maxLines ?? 2) > 1,
         labelStyle: V2Type.bodySmall.copyWith(color: V2Color.ink3),
+        hintStyle: V2Type.bodySmall.copyWith(color: V2Color.ink3),
+        counterStyle: V2Type.meta.copyWith(color: V2Color.ink3),
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,

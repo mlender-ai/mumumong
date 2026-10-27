@@ -5,7 +5,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/memory/memory_repository.dart';
 import '../../data/privacy/app_lock.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
@@ -20,6 +22,9 @@ import '../design/surface.dart';
 import '../design/theme.dart';
 import '../design/tokens.dart';
 import '../screens/gates.dart';
+import '../screens/library.dart';
+import 'preview_books.dart';
+import 'preview_root.dart';
 import 'preview_stores.dart';
 
 class V2DesignLab extends StatefulWidget {
@@ -555,6 +560,18 @@ class _V2DesignLabState extends State<V2DesignLab>
                           ),
                       ],
                     ),
+                    _section(
+                      '08',
+                      '완성본',
+                      '가상 원고를 한 권으로 묶는 과정이에요. 제목을 붙이고 확인하면 표지가 마지막 선명도까지 인쇄돼요. 데이터는 이 화면 안에서만 있어요.',
+                    ),
+                    V2Button.secondary(
+                      label: '완성 요청과 완성본 열기',
+                      size: V2ButtonSize.compact,
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).push(v2Route(const _LabCompletion())),
+                    ),
                   ],
                 ),
               ),
@@ -600,5 +617,48 @@ class _LabFrame extends StatelessWidget {
         ),
       ),
     ],
+  );
+}
+
+/// The completion flow over invented data, scoped to this page only.
+class _LabCompletion extends StatefulWidget {
+  const _LabCompletion();
+
+  @override
+  State<_LabCompletion> createState() => _LabCompletionState();
+}
+
+class _LabCompletionState extends State<_LabCompletion> {
+  final _repository = MemoryRepository(seedPrototype: true);
+  DemoBookStore? _store;
+  String? _motif;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository.watchActiveVolume().first.then((volume) {
+      _motif = volume?.coverMotifId;
+    });
+  }
+
+  @override
+  void dispose() {
+    _store?.dispose();
+    _repository.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ProviderScope(
+    overrides: previewOverrides(
+      const PreviewConfig(start: PreviewStart.continued),
+      _repository,
+      books: (database) => _store ??= DemoBookStore(
+        database,
+        volumeId: MemorySeedIds.volume,
+        coverMotifId: () => _motif,
+      ),
+    ),
+    child: const V2CompletionScreen(volumeId: MemorySeedIds.volume),
   );
 }

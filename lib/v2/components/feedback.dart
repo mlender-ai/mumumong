@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../design/atmosphere.dart';
+import '../design/keep_all.dart';
 import '../design/surface.dart';
 import '../design/tokens.dart';
 import 'buttons.dart';
@@ -355,5 +356,45 @@ class V2PrimaryAction extends StatelessWidget {
     loadingLabel: loadingLabel,
     icon: icon,
     expand: true,
+  );
+}
+
+/// A centred line of state inside a page: a real wait (with still dots),
+/// an empty list, or a failure with one way forward.
+class V2InlineStatus extends StatelessWidget {
+  const V2InlineStatus(
+    this.message, {
+    super.key,
+    this.waiting = false,
+    this.action,
+  });
+
+  final String message;
+  final bool waiting;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: V2Space.xl),
+    child: Semantics(
+      liveRegion: true,
+      child: Column(
+        children: [
+          Text(
+            v2KeepAll(message),
+            textAlign: TextAlign.center,
+            style: V2Type.body.copyWith(color: V2Color.ink2),
+          ),
+          if (waiting) ...[
+            const SizedBox(height: V2Space.sm),
+            const ExcludeSemantics(child: V2LoadingDots(color: V2Color.sky600)),
+          ],
+          if (action case final widget?) ...[
+            const SizedBox(height: V2Space.md),
+            widget,
+          ],
+        ],
+      ),
+    ),
   );
 }

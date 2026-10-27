@@ -5,20 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mumumong/core/design/design_system.dart';
 import 'package:mumumong/data/memory/memory_repository.dart';
 import 'package:mumumong/data/privacy/app_lock.dart';
 import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/domain/model/models.dart';
 import 'package:mumumong/ui/auth/ai_consent.dart';
-import 'package:mumumong/ui/library/library_screen.dart';
 import 'package:mumumong/ui/settings/record_actions.dart';
 import 'package:mumumong/v2/app.dart';
 import 'package:mumumong/v2/components/inputs.dart';
 import 'package:mumumong/v2/design/theme.dart';
 import 'package:mumumong/v2/preview/preview_stores.dart';
+import 'package:mumumong/v2/screens/library.dart';
 import 'package:mumumong/v2/screens/settings.dart';
-import 'package:mumumong/v2/screens/v1_bridge.dart';
 import 'package:mumumong/v2/screens/v2_providers.dart';
 
 import 'support.dart';
@@ -421,19 +419,17 @@ void main() {
     expect(find.byType(V2TextField), findsNothing);
   });
 
-  testWidgets('completed books open in V1 and V1 back closes the bridge', (
+  testWidgets('completed books open the V2 shelf and back returns', (
     tester,
   ) async {
     await _mount(tester);
     await _tap(tester, v2Text('내가 완성한 책'));
-    expect(find.byType(V1Bridge), findsOneWidget);
-    expect(find.byType(LibraryScreen), findsOneWidget);
-    final theme = Theme.of(tester.element(find.byType(LibraryScreen)));
-    expect(v2Theme().colorScheme == mumumongTheme().colorScheme, isFalse);
-    expect(theme.colorScheme, mumumongTheme().colorScheme);
-    await tester.tap(find.byTooltip('설정으로 돌아가기'));
+    expect(find.byType(V2LibraryScreen), findsOneWidget);
+    expect(v2TextContaining('아직 완성한 책이 없어요'), findsOneWidget);
+    expect(v2Text('원고 완성 준비'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('설정으로 돌아가기').last);
     await tester.pumpAndSettle();
-    expect(find.byType(V1Bridge), findsNothing);
+    expect(find.byType(V2LibraryScreen), findsNothing);
     expect(find.byType(V2SettingsScreen), findsOneWidget);
   });
 

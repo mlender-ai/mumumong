@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../data/engine/mock_engine_client.dart';
+import '../../data/export/book_store.dart';
+import '../../data/local/database.dart';
 import '../../data/memory/memory_repository.dart';
 import '../../data/privacy/app_lock.dart';
 import '../../di/providers.dart';
@@ -31,6 +33,7 @@ import '../screens/onboarding.dart';
 import '../screens/v2_providers.dart';
 import '../screens/volume_setup.dart';
 import 'design_lab.dart';
+import 'preview_books.dart';
 import 'preview_consent.dart';
 import 'preview_database.dart';
 import 'preview_speech.dart';
@@ -58,8 +61,9 @@ class PreviewConfig {
 /// Overrides that isolate a preview session. Also used by tests.
 List<Override> previewOverrides(
   PreviewConfig config,
-  MemoryRepository repository,
-) => [
+  MemoryRepository repository, {
+  BookStore Function(AppDatabase database)? books,
+}) => [
   v2PreviewProvider.overrideWithValue(true),
   repositoryProvider.overrideWithValue(repository),
   engineClientProvider.overrideWith((ref) {
@@ -89,6 +93,9 @@ List<Override> previewOverrides(
     ref.onDispose(database.close);
     return database;
   }),
+  bookStoreProvider.overrideWith(
+    (ref) => (books ?? PreviewBookStore.new)(ref.watch(databaseProvider)),
+  ),
   v2CreateVolumeProvider.overrideWithValue(repository.createPreviewVolume),
   if (config.voice == PreviewVoice.scripted) ...[
     speechInputProvider.overrideWithValue(PreviewSpeechInput()),
