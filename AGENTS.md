@@ -7,6 +7,7 @@
 Read these before changing product behavior or visual language:
 
 0. `DESIGN.md` — **single source of truth for all UI** (tokens, surfaces, components, dot/motion system, Do/Don't, visual QA). Read it before any UI work. New styles go into `DESIGN.md` and a shared component first, never into a screen. Where it conflicts with the older design documents below, `DESIGN.md` §13 decisions (2026-10-26) win.
+   - On branch `redesign/mumumong-v2` only: `DESIGN_V2.md` governs `lib/v2/` (the V2 preview, run with `lib/main_v2.dart`). V1 screens under `lib/ui` still follow `DESIGN.md`. Do not mix V2 components into V1 screens or the reverse until the user gives GO.
 1. `docs/MUMUMONG_PRODUCT_PDR_v0.1.md`
 2. `docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md`
 3. `docs/MUMUMONG_VISUAL_DIRECTION_v0.4.md` — current visual direction; supersedes v0.1/v0.3 on presentation

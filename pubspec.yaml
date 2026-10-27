@@ -87,6 +87,8 @@ flutter:
   # (and downloading) this 3.35MB face during Flutter web initialization.
   assets:
     - assets/fonts/MaruBuri-Bold.ttf
+    # V2 preview key visual (tool/v2/gen_sky_key.py, seed 7).
+    - assets/v2/
 
   fonts:
     - family: MaruBuri
