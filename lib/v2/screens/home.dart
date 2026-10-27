@@ -12,6 +12,7 @@ import '../../domain/repository/mumumong_repository.dart';
 import '../components/brand.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
+import '../components/offline.dart';
 import '../components/progress.dart';
 import '../design/dot_matrix.dart';
 import '../design/halftone.dart';
@@ -373,6 +374,7 @@ class _HomeFrame extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: V2Space.lg),
+                  const V2OfflineNotice(),
                   ...children,
                 ],
               ),

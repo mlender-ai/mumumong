@@ -13,6 +13,7 @@ import '../../domain/model/models.dart';
 import '../../domain/repository/mumumong_repository.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
+import '../components/offline.dart';
 import '../components/inputs.dart';
 import '../components/navigation.dart';
 import '../design/dot_matrix.dart';
@@ -90,6 +91,7 @@ class _V2ArchiveScreenState extends ConsumerState<V2ArchiveScreen> {
                           ],
                         ),
                         const SizedBox(height: V2Space.lg),
+                        const V2OfflineNotice(),
                         V2Segmented<DreamStatusFilter>(
                           segments: const [
                             (DreamStatusFilter.all, '전체'),

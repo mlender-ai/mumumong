@@ -122,7 +122,7 @@ WCAG AA 4.5:1 이상을 테스트로 고정한 조합: 종이 위 ink·ink2·ink
 | 목록 | `V2GroupLabel`, `V2ListRow`(제목·한 줄 설명·꺾쇠, 위험 동작은 경고색), `V2SwitchRow`(켜짐은 하늘색 트랙). 모두 `V2Pressable` 위의 서리 유리라 버튼과 같은 물리를 쓴다 |
 | 내비게이션 | `V2FloatingNav`(가운데 기록 CTA), `V2ContextHeader`(스크롤 시 유리), `showV2Sheet`, `V2ReaderNav` |
 | 진행 | `V2DotProgress`, `V2StepProgress`, `V2Manuscript`, `V2CompletionReveal` |
-| 피드백 | `V2StatusPill`, `V2Notice`, `showV2Toast`, `showV2Dialog`(내용 슬롯, 행동은 오른쪽 정렬·주요 행동이 마지막), `V2Meta`, `V2EdgeFade`, `V2Page`, `V2LoadingDots`(멈춘 세 점, 반복 로더 없음), `V2PolicyLink` |
+| 피드백 | `V2StatusPill`, `V2Notice`, `showV2Toast`, `showV2Dialog`(내용 슬롯, 행동은 오른쪽 정렬·주요 행동이 마지막), `V2Meta`, `V2EdgeFade`, `V2Page`, `V2LoadingDots`(멈춘 세 점, 반복 로더 없음), `V2PolicyLink`, `V2InlineStatus`, `V2OfflineNotice`(홈·보관함·리더, V1과 같은 문구) |
 
 **버튼 물리** (`V2Pressable`, 전 컨트롤 공통): 누르는 순간 단단한 스프링으로 가라앉고(크기 −3.2%, 그림자 축소, 상단 광택이 내려가며 어두워짐, 안쪽 그늘), 놓으면 살짝 넘쳐 돌아온다. 글라스는 색광이 모이며 손 쪽으로 흐른다. 상태: 기본·눌림·호버(웹/데스크톱)·포커스 링·비활성(42%)·로딩(문구 교체, 탭 차단, “진행 중” 의미 정보). 햅틱: 주요 light, 선택 selection, 녹음 시작 medium, 저장 성공 medium. 터치 영역 최소 44pt, 라벨 없는 버튼은 보이는 글자를 이름으로 병합한다.
 

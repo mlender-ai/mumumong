@@ -18,6 +18,7 @@ import '../../domain/source_highlight.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
 import '../components/navigation.dart';
+import '../components/offline.dart';
 import '../design/dot_matrix.dart';
 import '../design/press.dart';
 import '../design/tokens.dart';
@@ -664,6 +665,7 @@ class _V2ReaderScreenState extends ConsumerState<V2ReaderScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      V2OfflineNotice(night: _night),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [

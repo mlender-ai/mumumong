@@ -39,8 +39,8 @@ V1이 기본 빌드인 동안 V1 테스트는 지우지 않는다. V2가 같은 
 | `presentation_consumption_test` | 5 | 이번 이관 | `presentation_test` 5개. V2는 공개가 공개 영수증만, 홈이 성장 영수증을 쓴다(DESIGN_V2 §11.1) |
 | `processing_state_test` | 3 | 이번 이관 | `processing_test` 3개 |
 | `quality_validation_test` | 4 | 대응 있음 | `quality_test` |
-| `reader_edit_test` | 2 | 대응 있음 1, 다음 이관 1 | 고치기·U 잠금은 `flow_test`. 취소 시 원고 유지와 출처 시트 스크롤은 다음 |
-| `reader_navigation_test` | 8 | 대응 있음 1, 다음 이관 7 (1순위) | 위치 저장은 `flow_test`. 큰 글자 복원, 저장 디바운스, 삭제된 문단·장면 대체, 글자 크기 변경 중 고정, 오류 재시도, 잘못된 장면 차단, 오프라인 읽기 |
+| `reader_edit_test` | 2 | 대응 있음 1, 이관 완료 1 (3차) | 고치기·U 잠금·되돌리기는 `flow_test`. 취소 시 원고 유지와 출처 시트는 `reader_test` |
+| `reader_navigation_test` | 8 | 이관 완료 8 (3차) | `reader_test`: 보관함 꿈별 장면, 큰 글자 복원, 저장 디바운스·백그라운드 저장, 삭제된 문단·장면 대체, 글자 크기 변경 중 고정, 오류 재시도, 잘못된 장면 차단, 홈 재시도·빈 필터·오프라인 읽기. 1차 지도의 “대응 있음 1”도 V2 화면에서 다시 증명했다 |
 | `repository_wiring_test` | 4 | 대응 있음 3, 다음 이관 1 | 홈·리더·기록→공개는 `flow_test`. 보관함 월별 묶음과 필터는 다음 |
 | `screen_quality_test` | 4 | V1 시각 전용 3, 대응 있음 1 | 진척 사유는 `design_test` |
 | `shell_layout_test` | 3 | V1 시각 전용 1, 대응 있음 1, 이번 이관 1 | 큰 글자 보관함은 `quality_test`. 홈 대기 요약은 `home_setup_test` |
@@ -55,7 +55,7 @@ V1이 기본 빌드인 동안 V1 테스트는 지우지 않는다. V2가 같은 
 ## 다음 이관 순서
 
 1. 완료(2차): 데이터 손실과 생성 중복을 막는 것 12개.
-2. 읽기 경험: `reader_navigation` 7, `reader_edit` 1.
+2. 완료(3차): 읽기 경험 9개.
 3. 첫 사용과 흐름: `first_dream_experience` 4, `p3_flow` 5, `repository_wiring` 1, `mobile_delivery` 3.
 4. 통합 테스트 8.
 
@@ -65,5 +65,8 @@ V1이 기본 빌드인 동안 V1 테스트는 지우지 않는다. V2가 같은 
 |---|---|---|
 | 1차 (2026-10-27) | `processing_test` 3, `presentation_test` 5, `home_setup_test` 2, `gates_test` +1 | 11 |
 | 2차 (2026-10-27) | `capture_input_test` 10(케이스 13), `recovery_test` 2 | 12 |
+| 3차 (2026-10-27) | `reader_test` 9 | 9 |
 
 1차 지도는 `draft_autosave` 화면 테스트를 6개, `p4` 이관 대상을 3개로 셌다. 2차에서 V1 코드를 다시 확인해 각각 7개와 2개로 고쳤다. 줄어든 1개는 화면 없는 Provider 테스트다.
+
+3차에서 이관하다 V2의 빠진 동작을 하나 찾았다. V1은 홈·보관함·리더에서 오프라인이면 “네트워크 연결이 없어요. 기기에 저장된 기록은 계속 읽을 수 있어요.”를 보였는데 V2에는 없었다. `V2OfflineNotice`로 세 화면에 넣었다.
