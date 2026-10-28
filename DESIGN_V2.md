@@ -16,7 +16,7 @@
 | 기준선 | `884e1e8` = 공개 빌드 `20261026T143538Z`, 태그 `baseline/v1-20261026T143538Z` |
 | 실제 앱 | `lib/main.dart`. 기본값 `UI=v2`. `--dart-define=UI=v1`이면 이전 V1 화면 |
 | 미리보기 | `lib/main_v2.dart` (ENV=dev, ENGINE=mock 이외 실행 거부) |
-| 배포 | 2026-10-29 공개 빌드 `20261028T150843Z`(`5aafb9b`), deployment `dpl_75v89uC8XMzjMZjAW4Pj5V1xa76N`, `https://mumumong-live-trial.vercel.app`. 직전: `20261028T141555Z` / `dpl_6mR4G2i6Ncc8E7X1zi4rx9yk25oy`. V1 기준선: `20261026T143538Z` / `dpl_8KFgZXVjiyTZiwc3tb9KdXrKpP69` |
+| 배포 | 2026-10-29 공개 빌드 `20261028T155624Z`(`d27a66f`), deployment `dpl_CLjKLYWgAEx8z3aJ6WqZSxaw8QLk`, `https://mumumong-live-trial.vercel.app`. 직전: `20261028T150843Z` / `dpl_75v89uC8XMzjMZjAW4Pj5V1xa76N`. V1 기준선: `20261026T143538Z` / `dpl_8KFgZXVjiyTZiwc3tb9KdXrKpP69` |
 
 ## 1. 원칙
 
