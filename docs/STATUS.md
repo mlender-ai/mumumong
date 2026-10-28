@@ -1,9 +1,10 @@
 # MUMUMONG Implementation Status
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ## Summary
 
+- 2026-10-28 V2 test migration batch 5: the 8 native integration test files have V2 versions in `integration_test/v2/` (10 tests, 13 cases with engine scenarios) and pass on the "MUMUMONG V2 QA" iOS simulator with native SQLite files, the platform preference channel and the real asset bundle; invented fixtures and the fixed mock engine only. No V1 UI test is left without a V2 counterpart; V1 tests stay while the default is `v1`. Not verified: a real OS app kill, a real microphone, the real share sheet, a physical device. Not deployed, default unchanged.
 - 2026-10-28 V2 test migration batch 4: first use and flow (first dream 4, p3 flow 6, archive months/filter 1, mobile delivery 3) run on V2 (`test/v2/first_use_test.dart`, 23 cases) and pass. 46 V1 UI tests now have V2 counterparts; only the 8 native integration tests remain, for the device-verification step. Not deployed, default unchanged.
 
 - 2026-10-27 V2 test migration batch 3: all 8 reader-navigation tests and the reader-edit cancel test run on V2 (`test/v2/reader_test.dart`) and pass. The migration found that V2 home, archive and reader had no offline line; `V2OfflineNotice` now shows V1's message on all three. Real network loss and system text size on a device are unverified. Not deployed, default unchanged.
