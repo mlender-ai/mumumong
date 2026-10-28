@@ -195,3 +195,10 @@ cd ../무무몽-v2 && flutter run -t lib/main.dart --dart-define=UI=v2 --dart-de
 - `reader_navigation` 8개 전부와 `reader_edit` 취소 1개를 `test/v2/reader_test.dart`로 옮겼다. 모두 통과한다.
 - **이관 중 찾아 고친 것**: V2 홈·보관함·리더에 오프라인 안내가 없었다. V1은 세 화면 모두에서 연결이 끊겼다고 알리고 기기에 저장된 기록은 계속 읽게 했다. 같은 문구의 `V2OfflineNotice`를 넣었다(리더에서는 밤의 종이 색도 따른다).
 - 미검증: 실기기에서 실제로 네트워크를 끊은 상태와 실제 큰 글자 설정은 확인하지 않았다. 위젯 테스트로만 확인했다.
+
+## 14. 테스트 이관 4차: 첫 사용과 흐름 (2026-10-28)
+
+- `first_dream_experience` 4, `p3_flow` 6, `repository_wiring` 1, `mobile_delivery` 3을 `test/v2/first_use_test.dart`로 옮겼다(케이스 23개). 모두 통과한다.
+- `V2VoicePage`에 `web` 인자를 두어 웹 안내 문구를 VM 테스트에서도 검사한다. 기본값은 지금처럼 플랫폼을 따른다.
+- 지도 정정: 1차에서 `p3_flow` 1개를 옮겼다고 적은 것은 `start_flow`의 테스트였다. 이번에 `p3_flow` 6개를 모두 옮겼다.
+- V1 UI 테스트 이관은 통합 테스트 8개만 남았다. 이것은 실기기·시뮬레이터에서 네이티브 SQLite·키체인·음성 채널을 써야 해서 다음 실기기 검증 단계와 함께 한다.

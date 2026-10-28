@@ -4,6 +4,8 @@ Last updated: 2026-10-27
 
 ## Summary
 
+- 2026-10-28 V2 test migration batch 4: first use and flow (first dream 4, p3 flow 6, archive months/filter 1, mobile delivery 3) run on V2 (`test/v2/first_use_test.dart`, 23 cases) and pass. 46 V1 UI tests now have V2 counterparts; only the 8 native integration tests remain, for the device-verification step. Not deployed, default unchanged.
+
 - 2026-10-27 V2 test migration batch 3: all 8 reader-navigation tests and the reader-edit cancel test run on V2 (`test/v2/reader_test.dart`) and pass. The migration found that V2 home, archive and reader had no offline line; `V2OfflineNotice` now shows V1's message on all three. Real network loss and system text size on a device are unverified. Not deployed, default unchanged.
 
 - 2026-10-27 V2 test migration batch 2: the 12 V1 screen tests that guard against input loss and duplicate generation now run on V2 (`test/v2/capture_input_test.dart`, `test/v2/recovery_test.dart`) and pass. Correction to step 2: the web capture mic help still opened the V1 `WebVoiceGuide`; it now opens the V2 voice page, so V2 imports only shared V1 rules and helpers. Not deployed, default unchanged.

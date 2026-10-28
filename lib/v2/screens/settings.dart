@@ -360,13 +360,17 @@ class _V2AiNoticePageState extends ConsumerState<V2AiNoticePage> {
 }
 
 class V2VoicePage extends StatelessWidget {
-  const V2VoicePage({super.key});
+  const V2VoicePage({super.key, this.web = kIsWeb});
+
+  /// The web copy: no recording here, keyboard dictation is a separate iOS
+  /// feature. Defaults to the platform; tests set it explicitly.
+  final bool web;
 
   @override
   Widget build(BuildContext context) => V2SettingsFrame(
     title: '음성 기록',
     description: '꿈을 말로 남길 때 음성이 어떻게 처리되는지 안내해요.',
-    children: kIsWeb
+    children: web
         ? const [
             _Info(
               '웹에서는 직접 적어요',
