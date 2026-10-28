@@ -9,6 +9,7 @@ import '../../ui/auth/auth_presentation.dart';
 import '../components/brand.dart';
 import '../components/buttons.dart';
 import '../components/feedback.dart';
+import '../components/orb.dart';
 import '../design/atmosphere.dart';
 import '../design/tokens.dart';
 import 'format.dart';
@@ -88,14 +89,15 @@ class V2WaitPage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const V2Wordmark(size: 22),
+                const SizedBox(height: V2Space.xl),
+                // V1's Thinking Orb while the app opens or checks access.
+                const V2ThinkingOrb(),
                 const SizedBox(height: V2Space.lg),
                 Text(
                   v2KeepAll(title),
                   textAlign: TextAlign.center,
                   style: V2Type.title,
                 ),
-                const SizedBox(height: V2Space.sm),
-                const V2LoadingDots(color: V2Color.sky600),
               ],
             ),
           ),

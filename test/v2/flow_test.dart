@@ -218,7 +218,7 @@ void main() {
   testWidgets(
     'fresh start: consent gates continue and setup creates a volume',
     (tester) async {
-      setV2View(tester);
+      setV2View(tester, reduceMotion: true);
       await tester.pumpWidget(
         V2PreviewSession(
           config: const PreviewConfig(start: PreviewStart.fresh),

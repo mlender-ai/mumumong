@@ -1,13 +1,16 @@
 // The V2 space (DESIGN_V2.md §3.3, References D and F). One continuous sky:
 // a base gradient, diffused light without edges, an optional blurred sky
-// photograph and a fine print grain. Light only moves when the mood or the
-// energy changes (a user action or a real state), never on an idle loop.
+// photograph and a fine print grain. Moods and real states move the light;
+// between them the light keeps drifting slowly, like V1's flowing gradient,
+// and stops in the background, on hidden routes and with Reduce Motion.
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
+import '../../core/design/sampled_motion.dart';
 import 'tokens.dart';
 
 enum V2Mood { intro, home, capture, processing, reveal, archive, quiet }
@@ -186,6 +189,18 @@ class V2AtmosphereSpec {
   }
 }
 
+/// How strongly V1's flowing light shows for each mood: fullest at home,
+/// quiet where reading or a result needs calm.
+double v2FlowingStrength(V2Mood mood) => switch (mood) {
+  V2Mood.intro => .55,
+  V2Mood.home => .85,
+  V2Mood.capture => .6,
+  V2Mood.processing => .7,
+  V2Mood.reveal => .4,
+  V2Mood.archive => .6,
+  V2Mood.quiet => .35,
+};
+
 class _AtmosphereSpecTween extends Tween<V2AtmosphereSpec> {
   _AtmosphereSpecTween({super.end});
 
@@ -193,13 +208,14 @@ class _AtmosphereSpecTween extends Tween<V2AtmosphereSpec> {
   V2AtmosphereSpec lerp(double t) => V2AtmosphereSpec.lerp(begin!, end!, t);
 }
 
-class V2Atmosphere extends StatelessWidget {
+class V2Atmosphere extends StatefulWidget {
   const V2Atmosphere({
     super.key,
     required this.mood,
     this.energy = 0,
     this.stage = 0,
     this.duration = V2Motion.page,
+    this.drift = true,
     this.child,
   });
 
@@ -207,22 +223,92 @@ class V2Atmosphere extends StatelessWidget {
   final double energy;
   final int stage;
   final Duration duration;
+
+  /// The slow idle drift of the light (V1's flowing gradient).
+  final bool drift;
   final Widget? child;
 
   static const skyAsset = 'assets/v2/sky_key.jpg';
 
+  /// One drift cycle, as in V1.
+  static const driftPeriod = Duration(seconds: 14);
+
+  @override
+  State<V2Atmosphere> createState() => _V2AtmosphereState();
+}
+
+class _V2AtmosphereState extends State<V2Atmosphere>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final _clock = AnimationController(
+    vsync: this,
+    duration: V2Atmosphere.driftPeriod,
+  );
+  // Decorative light needs no 120Hz invalidation stream.
+  late final _sampled = SampledMotion(_clock);
+  bool _foreground = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _sync();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(covariant V2Atmosphere oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _sync();
+  }
+
+  void _sync() {
+    if (!_foreground || !widget.drift || V2Motion.reduced(context)) {
+      _clock.stop();
+    } else if (!_clock.isAnimating) {
+      _clock.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _sampled.dispose();
+    _clock.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final target = V2AtmosphereSpec.of(mood, energy: energy, stage: stage);
+    final target = V2AtmosphereSpec.of(
+      widget.mood,
+      energy: widget.energy,
+      stage: widget.stage,
+    );
+    final drifting = widget.drift && !V2Motion.reduced(context);
     return TweenAnimationBuilder<V2AtmosphereSpec>(
       tween: _AtmosphereSpecTween(end: target),
-      duration: V2Motion.of(context, duration),
+      duration: V2Motion.of(context, widget.duration),
       curve: V2Motion.drift,
       builder: (context, spec, child) => Stack(
         fit: StackFit.expand,
         children: [
           RepaintBoundary(
-            child: CustomPaint(painter: _AtmospherePainter(spec)),
+            child: CustomPaint(
+              painter: _AtmospherePainter(
+                spec,
+                clock: drifting ? _sampled : null,
+              ),
+            ),
           ),
           if (spec.sky > .01)
             RepaintBoundary(
@@ -237,7 +323,7 @@ class V2Atmosphere extends StatelessWidget {
                     const [0, .42, .78],
                   ),
                   child: Image.asset(
-                    skyAsset,
+                    V2Atmosphere.skyAsset,
                     fit: BoxFit.cover,
                     alignment: Alignment.topCenter,
                     excludeFromSemantics: true,
@@ -246,19 +332,46 @@ class V2Atmosphere extends StatelessWidget {
                 ),
               ),
             ),
+          // V1's flowing gradient, kept in V2: four blue light pools that
+          // keep drifting across the upper sky.
+          TweenAnimationBuilder<double>(
+            tween: Tween(end: v2FlowingStrength(widget.mood)),
+            duration: V2Motion.of(context, widget.duration),
+            curve: V2Motion.drift,
+            builder: (context, strength, _) => RepaintBoundary(
+              child: CustomPaint(
+                painter: V2FlowingLightPainter(
+                  strength: strength,
+                  clock: drifting ? _sampled : null,
+                ),
+              ),
+            ),
+          ),
           const RepaintBoundary(child: CustomPaint(painter: V2GrainPainter())),
           ?child,
         ],
       ),
-      child: child,
+      child: widget.child,
     );
   }
 }
 
 class _AtmospherePainter extends CustomPainter {
-  const _AtmospherePainter(this.spec);
+  _AtmospherePainter(this.spec, {this.clock}) : super(repaint: clock);
 
   final V2AtmosphereSpec spec;
+  final ValueListenable<double>? clock;
+
+  /// V1's flowing light: each pool circles on its own phase. The third pool
+  /// is the bright content plane, so it barely moves.
+  static Offset drift(int index, double phase) {
+    final t = phase * 2 * math.pi;
+    return switch (index) {
+      0 => Offset(.10 * math.sin(t), .06 * math.cos(t)),
+      1 => Offset(.10 * math.cos(t), .06 * math.sin(t)),
+      _ => Offset(.04 * math.sin(t + 1), .025 * math.cos(t + 1)),
+    };
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -274,12 +387,14 @@ class _AtmospherePainter extends CustomPainter {
         ),
     );
     final longest = size.longestSide;
-    for (final light in spec.lights) {
+    final phase = clock?.value;
+    for (var i = 0; i < spec.lights.length; i++) {
+      final light = spec.lights[i];
       if (light.alpha <= 0) continue;
-      final center = Offset(
-        light.center.dx * size.width,
-        light.center.dy * size.height,
-      );
+      final moved = phase == null
+          ? light.center
+          : light.center + drift(i, phase);
+      final center = Offset(moved.dx * size.width, moved.dy * size.height);
       final radius = light.radius * longest;
       canvas.drawCircle(
         center,
@@ -300,7 +415,94 @@ class _AtmospherePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_AtmospherePainter old) => old.spec != spec;
+  bool shouldRepaint(_AtmospherePainter old) =>
+      old.spec != spec || old.clock != clock;
+}
+
+/// V1's DreamAtmosphere light, without its paper base: four blue pools
+/// circling on one 14s clock, fading out before the content plane. A still
+/// frame ([stillPhase]) is shown when the clock is off.
+@visibleForTesting
+class V2FlowingLightPainter extends CustomPainter {
+  V2FlowingLightPainter({
+    required this.strength,
+    this.clock,
+    this.stillPhase = .24,
+  }) : super(repaint: clock);
+
+  final double strength;
+  final ValueListenable<double>? clock;
+  final double stillPhase;
+
+  static const _sky = Color(0xFF72CBF2);
+  static const _soft = Color(0xFF5A8DD8);
+  static const _deep = Color(0xFF288FD4);
+  static const _haze = Color(0xFFE7F7FF);
+
+  double get phase => clock?.value ?? stillPhase;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final amount = strength.clamp(0.0, 1.0);
+    if (size.isEmpty || amount <= 0) return;
+    final t = phase * 2 * math.pi;
+    final bounds = Offset.zero & size;
+    // Everything fades out from 40% of the height: the lower part stays the
+    // calm content plane, as in V1.
+    canvas.saveLayer(bounds, Paint());
+    void light(double x, double y, double rx, double ry, Color c, double a) {
+      canvas.save();
+      canvas.translate(size.width * x, size.height * y);
+      canvas.scale(size.width * rx, size.height * ry);
+      canvas.drawCircle(
+        Offset.zero,
+        1,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            Offset.zero,
+            1,
+            [
+              c.withValues(alpha: a * amount),
+              c.withValues(alpha: a * amount * .55),
+              c.withValues(alpha: 0),
+            ],
+            const [0, .38, 1],
+          ),
+      );
+      canvas.restore();
+    }
+
+    light(.66 + .1 * math.sin(t), .17 + .06 * math.cos(t), .82, .65, _sky, .58);
+    // The two deeper pools pass behind the left text column: kept light so
+    // titles and meta stay readable at every phase.
+    light(.12 + .1 * math.cos(t), .24 + .06 * math.sin(t), .54, .53, _soft, .2);
+    light(
+      .38 + .12 * math.sin(t + 1),
+      .20 + .07 * math.cos(t + 1),
+      .51,
+      .50,
+      _deep,
+      .18,
+    );
+    light(.75 + .06 * math.cos(t + 2), .48, .54, .51, _haze, .6);
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.linear(
+          Offset(0, size.height * .40),
+          Offset(0, size.height * .78),
+          const [Colors.white, Color(0x00FFFFFF)],
+        ),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(V2FlowingLightPainter old) =>
+      old.strength != strength ||
+      old.clock != clock ||
+      old.stillPhase != stillPhase;
 }
 
 /// A fine, fixed print grain that keeps gradients from banding and gives the

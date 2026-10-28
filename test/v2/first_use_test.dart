@@ -629,13 +629,15 @@ void main() {
   // ---- mobile_delivery_test.dart (screen tests)
 
   testWidgets(
-    'the atmosphere runs no clock; background and resume keep input',
+    'the sky drift stops in the background and resumes; input is kept',
     (tester) async {
-      // V1 stopped a looping atmosphere clock in the background. V2's sky only
-      // moves on a state change, so nothing may keep scheduling frames.
-      await mountV2(tester);
-      expect(tester.binding.hasScheduledFrame, isFalse);
-      await _tap(tester, find.text('꿈 기록'));
+      // V1 stopped its looping atmosphere clock in the background; V2's
+      // drifting sky does the same.
+      await mountV2(tester, reduceMotion: false);
+      expect(tester.binding.hasScheduledFrame, isTrue);
+      await tester.tap(find.text('꿈 기록'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
       final editor = find.byKey(const ValueKey('v2-dream-editor'));
       await tester.enterText(editor, '가상 기록: 배경에서도 남는 종이별');
       await tester.pump(const Duration(milliseconds: 600));
@@ -655,12 +657,14 @@ void main() {
       ]) {
         tester.binding.handleAppLifecycleStateChanged(state);
       }
-      await tester.pumpAndSettle();
+      await tester.pump();
+      expect(tester.binding.hasScheduledFrame, isTrue);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         '가상 기록: 배경에서도 남는 종이별',
       );
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
     },
   );
 

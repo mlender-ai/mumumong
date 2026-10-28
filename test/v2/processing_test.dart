@@ -13,6 +13,7 @@ import 'package:mumumong/data/memory/memory_repository.dart';
 import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/domain/model/models.dart';
 import 'package:mumumong/v2/app.dart';
+import 'package:mumumong/v2/components/orb.dart';
 import 'package:mumumong/v2/preview/preview_stores.dart';
 import 'package:mumumong/v2/screens/capture.dart';
 
@@ -131,6 +132,8 @@ void main() {
     expect(engine.controller.hasListener, isTrue);
     expect(find.bySemanticsLabel(RegExp('^소설을 만들고 있어요')), findsOneWidget);
     expect(v2Text('다시 시도'), findsNothing);
+    // V1's Thinking Orb turns while the real job waits.
+    expect(find.byType(V2ThinkingOrb), findsOneWidget);
 
     engine.emit(JobType.write, JobStatus.running);
     await tester.pump();

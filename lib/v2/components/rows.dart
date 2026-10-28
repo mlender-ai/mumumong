@@ -16,7 +16,11 @@ class V2GroupLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(4, V2Space.lg, 4, V2Space.xs),
-    child: Semantics(header: true, child: V2Meta(label)),
+    // Hug the words, not the row: the label is short and sits on the sky.
+    child: Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Semantics(header: true, child: V2Meta(label)),
+    ),
   );
 }
 

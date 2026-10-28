@@ -115,11 +115,14 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('nothing moves at rest: screens settle without idle loops', (
+  testWidgets('at rest only the sky drifts; Reduce Motion settles all', (
     tester,
   ) async {
+    await mountV2(tester, reduceMotion: false);
+    // V1's flowing light: the atmosphere keeps a slow loop while visible.
+    expect(tester.binding.hasScheduledFrame, isTrue);
     await mountV2(tester);
-    // pumpAndSettle would time out on any perpetual animation.
+    // With Reduce Motion nothing loops; pumpAndSettle would time out.
     await tester.pumpAndSettle(const Duration(milliseconds: 100));
     await openCapture(tester);
     await tester.pumpAndSettle(const Duration(milliseconds: 100));

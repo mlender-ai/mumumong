@@ -74,12 +74,14 @@ class SilentSpeech implements SpeechInput {
 }
 
 /// Mounts the V2 shell (or [home]) with the preview isolation overrides.
+/// Motion is reduced by default: the sky drifts on a loop otherwise, so a
+/// test that turns motion on gets pumped frames instead of a settle.
 Future<MemoryRepository> mountV2(
   WidgetTester tester, {
   bool seeded = true,
   Size size = const Size(402, 874),
   double scale = 1,
-  bool reduceMotion = false,
+  bool reduceMotion = true,
   MockEngineCase engine = MockEngineCase.success,
   Widget? home,
   bool scriptedVoice = false,
@@ -103,7 +105,12 @@ Future<MemoryRepository> mountV2(
       child: MumumongV2App(home: home ?? const V2Shell()),
     ),
   );
-  await tester.pumpAndSettle();
+  if (reduceMotion) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+  }
   return repository;
 }
 

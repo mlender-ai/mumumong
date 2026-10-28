@@ -26,6 +26,7 @@ import '../components/buttons.dart';
 import '../components/feedback.dart';
 import '../components/inputs.dart';
 import '../components/navigation.dart';
+import '../components/orb.dart';
 import '../components/progress.dart';
 import '../design/atmosphere.dart';
 import '../design/dot_matrix.dart';
@@ -1239,7 +1240,14 @@ class _V2CaptureFlowState extends ConsumerState<V2CaptureFlow>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Spacer(),
+            const Spacer(flex: 5),
+            // V1's Thinking Orb keeps turning while the real job runs; it
+            // sits below the gathering dots so the stages stay readable.
+            const Center(
+              key: ValueKey('v2-processing-orb'),
+              child: V2ThinkingOrb(),
+            ),
+            const Spacer(flex: 3),
             V2StepProgress(
               steps: 4,
               current: _jobDone ? 4 : stage + .55,

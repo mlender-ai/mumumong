@@ -95,13 +95,15 @@ abstract final class V2Type {
     letterSpacing: -0.15,
     color: V2Color.ink,
   );
+  // ink2, not ink3: meta sits on the drifting sky and must stay readable
+  // under every phase of the light.
   static const meta = TextStyle(
     fontFamily: V2Font.sans,
     fontWeight: FontWeight.w500,
     fontSize: 12,
     height: 1.4,
     letterSpacing: 0.5,
-    color: V2Color.ink3,
+    color: V2Color.ink2,
   );
   static const reading = TextStyle(
     fontFamily: V2Font.serif,
