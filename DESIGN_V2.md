@@ -1,7 +1,7 @@
 # MUMUMONG V2 — Design System
 
 > 브랜치 `redesign/mumumong-v2` 전용. `lib/v2/`의 단일 기준 문서다.
-> V1(`lib/ui`, `DESIGN.md`)은 그대로 두었다. 2026-10-27 GO 이후 실제 앱에 `UI=v2` 플래그로 연결했고, 기본값은 아직 V1이다.
+> 2026-10-28 사용자 지시로 `main`에 병합하고 기본 화면을 V2로 바꿨다. V1(`lib/ui`, `DESIGN.md`)은 지우지 않고 `--dart-define=UI=v1`로 남겼다.
 > 기준 문서 우선순위: 사용자 지시서(2026-10-27 FULL REDESIGN) > 이 문서 > `DESIGN.md`.
 
 **Atmospheric Editorial · Soft Glass · Warm Sky Blue · Halftone/Dot · Tactile Interaction · Digital Literature**
@@ -12,9 +12,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 위치 | 워크트리 `../무무몽-v2`, 브랜치 `redesign/mumumong-v2` |
+| 위치 | `main` (작업 브랜치 `redesign/mumumong-v2`에서 병합) |
 | 기준선 | `884e1e8` = 공개 빌드 `20261026T143538Z`, 태그 `baseline/v1-20261026T143538Z` |
-| 실제 앱 | `lib/main.dart` + `--dart-define=UI=v2`. 기본값 `UI=v1`이라 플래그 없이 빌드하면 지금 배포본과 같다 |
+| 실제 앱 | `lib/main.dart`. 기본값 `UI=v2`. `--dart-define=UI=v1`이면 이전 V1 화면 |
 | 미리보기 | `lib/main_v2.dart` (ENV=dev, ENGINE=mock 이외 실행 거부) |
 | 배포 | 없음. 프로덕션과 `main`은 변경하지 않았다. `main` 병합과 배포는 단계마다 다시 확인받는다 |
 

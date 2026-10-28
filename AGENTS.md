@@ -6,8 +6,8 @@
 
 Read these before changing product behavior or visual language:
 
-0. `DESIGN.md` — **single source of truth for all UI** (tokens, surfaces, components, dot/motion system, Do/Don't, visual QA). Read it before any UI work. New styles go into `DESIGN.md` and a shared component first, never into a screen. Where it conflicts with the older design documents below, `DESIGN.md` §13 decisions (2026-10-26) win.
-   - On branch `redesign/mumumong-v2` only: `DESIGN_V2.md` governs `lib/v2/`. The real app shows V2 only when built with `--dart-define=UI=v2` (default `v1`); `lib/main_v2.dart` is the isolated mock preview. V1 screens under `lib/ui` still follow `DESIGN.md`. Access rules stay in `lib/ui/auth` and `AppLockGate`; V2 only draws them through `AuthPresentation`. Do not flip the default or deploy without the user's confirmation.
+0. `DESIGN_V2.md` — **single source of truth for the app UI since 2026-10-28** (V2 is the default build). It governs `lib/v2/` (tokens in `lib/v2/design`, components in `lib/v2/components`). Read it before any UI work. New styles go into `DESIGN_V2.md` and a shared V2 component first, never into a screen.
+   - `DESIGN.md` now governs only the legacy V1 screens under `lib/ui` and `lib/core/design`, still buildable with `--dart-define=UI=v1` until the user decides to remove them. Do not delete V1 code without that decision. `lib/main_v2.dart` is the isolated mock preview. Access rules stay in `lib/ui/auth` and `AppLockGate`; V2 only draws them through `AuthPresentation`. Merges and deploys still need the user's confirmation.
 1. `docs/MUMUMONG_PRODUCT_PDR_v0.1.md`
 2. `docs/MUMUMONG_VISUAL_SYSTEM_v0.1.md`
 3. `docs/MUMUMONG_VISUAL_DIRECTION_v0.4.md` — current visual direction; supersedes v0.1/v0.3 on presentation
@@ -46,7 +46,7 @@ Do not add a feature unless it makes one of these steps simpler or more compelli
 - Use focused blue/lilac light that fades into a clean canvas. Keep text, input and primary actions sharp; do not fill every screen with uniform blur.
 - The 2026-10-14 user direction permits a small pixel/ASCII memory object or state transition. Do not restore full-screen dot/halftone grids or overlap decoration with manuscript text.
 - Use one visually primary action per screen, soft rounded controls and selective glass. Supporting navigation remains accessible. Orbs represent actual processing/network waits; typing and transcription must stay responsive and visually still. Avoid card dashboards.
-- UI code uses only `DESIGN.md` tokens and `lib/core/design` components. No screen-local `Color(...)`, `Duration(...)`, `TextStyle(fontSize: ...)`, raw `TextButton`/`Switch` or hand-built button/panel widgets. Dots live only where `DESIGN.md` §8 allows and never move while the user types.
+- UI code uses only the tokens and components of its design system: `DESIGN_V2.md` with `lib/v2/design` and `lib/v2/components` for V2 (the default), `DESIGN.md` with `lib/core/design` for legacy V1. No screen-local `Color(...)`, `Duration(...)`, `TextStyle(fontSize: ...)`, raw `TextButton`/`Switch` or hand-built button/panel widgets.
 
 ## Current implementation boundary
 

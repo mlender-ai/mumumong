@@ -11,6 +11,9 @@ import 'package:mumumong/v2/design/theme.dart';
 
 import 'support.dart';
 
+// Found on the web consent page: 지우 / 면.
+const _meta = '이 브라우저에서 이어 쓸 수 있어요. 브라우저 데이터를 지우면 기록을 복구할 수 없어요.';
+
 Widget _host(Widget child) => MaterialApp(
   theme: v2Theme(),
   home: Scaffold(body: Center(child: child)),
@@ -173,7 +176,7 @@ void main() {
   });
 
   // Found on the simulator: a dialog body broke 화면에서 as 화면에 / 서.
-  testWidgets('dialog, notice and toast prose break only between words', (
+  testWidgets('dialog, notice, toast and meta prose break only between words', (
     tester,
   ) async {
     const body = '공유할 곳은 다음 화면에서 직접 선택해 주세요.';
@@ -184,6 +187,7 @@ void main() {
             mainAxisSize: MainAxisSize.min,
             children: [
               const V2Notice(message: '연결이 돌아오면 다시 확인해요.'),
+              const V2Meta(_meta),
               TextButton(
                 onPressed: () => showV2Toast(context, '파일을 저장하지 않았어요.'),
                 child: const Text('toast'),
@@ -206,7 +210,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('dialog'));
     await tester.pumpAndSettle();
-    for (final text in [body, '연결이 돌아오면 다시 확인해요.', '파일을 저장하지 않았어요.']) {
+    for (final text in [body, '연결이 돌아오면 다시 확인해요.', '파일을 저장하지 않았어요.', _meta]) {
       expect(tester.widget<Text>(v2Text(text)).data, v2KeepAll(text));
     }
   });

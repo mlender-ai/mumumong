@@ -97,7 +97,7 @@ void main() {
     await tester.ensureVisible(find.text('보강 마치기'));
     await tester.tap(find.text('보강 마치기'));
     await tester.pumpAndSettle();
-    expect(find.text('보강한 기억도 함께 사용할게요.'), findsOneWidget);
+    expect(v2Text('보강한 기억도 함께 사용할게요.'), findsOneWidget);
     final dreams = await snapshot(
       tester,
       repo.watchDreams(DreamStatusFilter.all),
@@ -144,7 +144,7 @@ void main() {
     });
     await tester.pumpAndSettle();
     expect(v2Text('꿈에서 온 문장'), findsOneWidget);
-    expect(find.text('9월 13일 기록한 꿈'), findsOneWidget);
+    expect(v2Text('9월 13일 기록한 꿈'), findsOneWidget);
     await tester.runAsync(() async {
       await tester.tap(find.text('내 문장으로 고치기'));
       await tester.pump(const Duration(milliseconds: 400));

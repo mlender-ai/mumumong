@@ -11,7 +11,7 @@ import '../design/surface.dart';
 import '../design/tokens.dart';
 import 'buttons.dart';
 
-/// Small uppercase/meta label.
+/// Small uppercase/meta label. Wrapped lines break between words.
 class V2Meta extends StatelessWidget {
   const V2Meta(this.text, {super.key, this.color, this.textAlign});
 
@@ -21,7 +21,7 @@ class V2Meta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-    text,
+    v2KeepAll(text),
     textAlign: textAlign,
     style: V2Type.meta.copyWith(color: color),
   );

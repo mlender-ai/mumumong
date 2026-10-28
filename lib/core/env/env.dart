@@ -22,7 +22,7 @@ abstract final class AppEnv {
     defaultValue: 'mock',
   );
   static const _authenticationName = String.fromEnvironment('AUTH');
-  static const _uiName = String.fromEnvironment('UI', defaultValue: 'v1');
+  static const _uiName = String.fromEnvironment('UI', defaultValue: 'v2');
   static const _mockCaseName = String.fromEnvironment(
     'MOCK_CASE',
     defaultValue: 'success',

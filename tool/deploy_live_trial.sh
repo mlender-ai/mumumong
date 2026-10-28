@@ -17,6 +17,8 @@ node --test tool/pwa_install_test.mjs
 # snapshots with a pre-set inset. A keyboard that opens then loses focus is a
 # release blocker even when every golden/build/resource hash passes.
 flutter test --no-pub --platform chrome test/ui/capture_keyboard_test.dart
+# V2 is the default UI since 2026-10-28; its web capture gets the same check.
+flutter test --no-pub --platform chrome test/v2/capture_web_test.dart
 bash tool/test_web_durability.sh
 vercel project inspect --non-interactive --scope "$SCOPE" --cwd "$OUTPUT_DIR"
 MM_SOURCE_HASH="$(node tool/release_manifest.mjs --hash)"
