@@ -67,11 +67,16 @@ class _V2ArchiveScreenState extends ConsumerState<V2ArchiveScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Semantics(
-                                    header: true,
-                                    child: const Text(
-                                      '꿈 보관함',
-                                      style: V2Type.display,
+                                  // Display type grows only so far, like
+                                  // the capture heading.
+                                  MediaQuery.withClampedTextScaling(
+                                    maxScaleFactor: 1.5,
+                                    child: Semantics(
+                                      header: true,
+                                      child: const Text(
+                                        '꿈 보관함',
+                                        style: V2Type.display,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: V2Space.xxs),

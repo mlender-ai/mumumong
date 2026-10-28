@@ -13,7 +13,9 @@ import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/domain/model/models.dart';
 import 'package:mumumong/domain/repository/mumumong_repository.dart';
 import 'package:mumumong/v2/app.dart';
+import 'package:mumumong/v2/components/feedback.dart';
 import 'package:mumumong/v2/design/press.dart';
+import 'package:mumumong/v2/design/tokens.dart';
 import 'package:mumumong/v2/preview/preview_stores.dart';
 import 'package:mumumong/v2/screens/archive.dart';
 import 'package:mumumong/v2/screens/home.dart';
@@ -353,6 +355,21 @@ void main() {
     expect(sheetScroll, findsWidgets);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
+  });
+  // Found on the simulator: scrolled prose showed through above the floating
+  // header, under the clock.
+  testWidgets('reader prose fades out before the status bar', (tester) async {
+    final book = _Book();
+    addTearDown(book.dispose);
+    await _mount(tester, book, const V2ReaderScreen(initialSceneId: 's2'));
+    final fade = tester.widget<V2EdgeFade>(
+      find.ancestor(
+        of: find.byType(SingleChildScrollView).first,
+        matching: find.byType(V2EdgeFade),
+      ),
+    );
+    expect(fade.inset, 62 + V2Space.xs, reason: 'status bar plus a gap');
+    await _unmount(tester);
   });
 }
 

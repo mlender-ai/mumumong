@@ -399,4 +399,22 @@ void main() {
       await _unmount(tester);
     },
   );
+
+  // Found on the simulator at the largest iOS text size (about 3.1x): the
+  // heading took the whole screen, the editor had no height and the save
+  // button overflowed.
+  testWidgets('the editor keeps its room at the largest system text size', (
+    tester,
+  ) async {
+    final repo = MemoryRepository();
+    addTearDown(repo.dispose);
+    await _mount(tester, repo, scale: 3.12);
+    expect(tester.takeException(), isNull);
+    final editor = tester.getSize(
+      find.byKey(const ValueKey('v2-capture-editor-slot')),
+    );
+    expect(editor.height, greaterThan(120));
+    expect(v2Text('꿈 저장하기').hitTestable(), findsOneWidget);
+    await _unmount(tester);
+  });
 }

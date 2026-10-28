@@ -3,6 +3,7 @@
 // user writes, which is the same signal the memory dots respond to.
 import 'package:flutter/material.dart';
 
+import '../design/keep_all.dart';
 import '../design/press.dart';
 import '../design/surface.dart';
 import '../design/tokens.dart';
@@ -111,7 +112,7 @@ class _V2CaptureFieldState extends State<V2CaptureField> {
           cursorWidth: 2,
           style: V2Type.capture,
           decoration: InputDecoration.collapsed(
-            hintText: widget.hint,
+            hintText: v2KeepAll(widget.hint),
             hintStyle: V2Type.capture.copyWith(color: V2Color.ink3),
           ),
         ),
@@ -277,57 +278,62 @@ class V2Segmented<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final index = segments.indexWhere((s) => s.$1 == value);
-    return V2Surface(
-      kind: V2SurfaceKind.frosted,
-      radius: V2Radius.chip,
-      padding: const EdgeInsets.all(4),
-      blur: 0,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth / segments.length;
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: V2Motion.of(context, V2Motion.base),
-                curve: V2Motion.settle,
-                left: width * index,
-                top: 0,
-                bottom: 0,
-                width: width,
-                child: const V2Surface(
-                  kind: V2SurfaceKind.paper,
-                  radius: V2Radius.chip,
-                  padding: EdgeInsets.zero,
+    // Equal segments in one row: like an iOS segmented control the labels
+    // grow only so far, so the largest system sizes still read in full.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.6,
+      child: V2Surface(
+        kind: V2SurfaceKind.frosted,
+        radius: V2Radius.chip,
+        padding: const EdgeInsets.all(4),
+        blur: 0,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth / segments.length;
+            return Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: V2Motion.of(context, V2Motion.base),
+                  curve: V2Motion.settle,
+                  left: width * index,
+                  top: 0,
+                  bottom: 0,
+                  width: width,
+                  child: const V2Surface(
+                    kind: V2SurfaceKind.paper,
+                    radius: V2Radius.chip,
+                    padding: EdgeInsets.zero,
+                  ),
                 ),
-              ),
-              Row(
-                children: [
-                  for (final segment in segments)
-                    Expanded(
-                      child: V2Pressable(
-                        onPressed: () => onChanged(segment.$1),
-                        selected: segment.$1 == value,
-                        semanticLabel: segment.$2,
-                        builder: (context, state) => Center(
-                          child: Text(
-                            segment.$2,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: V2Type.label.copyWith(
-                              fontSize: 14,
-                              color: segment.$1 == value
-                                  ? V2Color.ink
-                                  : V2Color.ink2,
+                Row(
+                  children: [
+                    for (final segment in segments)
+                      Expanded(
+                        child: V2Pressable(
+                          onPressed: () => onChanged(segment.$1),
+                          selected: segment.$1 == value,
+                          semanticLabel: segment.$2,
+                          builder: (context, state) => Center(
+                            child: Text(
+                              segment.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: V2Type.label.copyWith(
+                                fontSize: 14,
+                                color: segment.$1 == value
+                                    ? V2Color.ink
+                                    : V2Color.ink2,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ],
-          );
-        },
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

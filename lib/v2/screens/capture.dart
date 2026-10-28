@@ -984,9 +984,15 @@ class _V2CaptureFlowState extends ConsumerState<V2CaptureFlow>
           children: [
             SizedBox(height: layout.stageHeight),
             if (!keyboardOpen) ...[
-              Semantics(
-                header: true,
-                child: const Text('어젯밤,\n무엇을 보았나요?', style: V2Type.display),
+              // Display type is already large; like an iOS large title it
+              // grows only so far, so the editor keeps its room at the
+              // largest system text sizes.
+              MediaQuery.withClampedTextScaling(
+                maxScaleFactor: 1.5,
+                child: Semantics(
+                  header: true,
+                  child: const Text('어젯밤,\n무엇을 보았나요?', style: V2Type.display),
+                ),
               ),
             ],
             if (!keyboardOpen && (!largeType || _voiceNotice != null)) ...[

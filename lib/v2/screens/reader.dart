@@ -653,76 +653,81 @@ class _V2ReaderScreenState extends ConsumerState<V2ReaderScreen>
                 constraints: const BoxConstraints(
                   maxWidth: V2Space.readingMeasure + 80,
                 ),
-                child: SingleChildScrollView(
-                  key: _viewportKey,
-                  controller: _scroll,
-                  padding: EdgeInsets.fromLTRB(
-                    V2Space.gutter + 4,
-                    top + 84,
-                    V2Space.gutter + 4,
-                    bottom + 132,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      V2OfflineNotice(night: _night),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          V2DotMatrix(
-                            chapter.toString().padLeft(2, '0'),
-                            pitch: 4.4,
-                            color: _night ? V2Color.nightDot : V2Color.sky600,
-                            semanticsLabel: '$chapter장',
-                          ),
-                          const SizedBox(width: 12),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
-                            child: V2Meta(
-                              '장면 ${index + 1} / ${scenes.length}',
-                              color: _meta,
+                // Full bleed under a floating header: nothing scrolls into
+                // the status bar.
+                child: V2EdgeFade(
+                  inset: top + V2Space.xs,
+                  child: SingleChildScrollView(
+                    key: _viewportKey,
+                    controller: _scroll,
+                    padding: EdgeInsets.fromLTRB(
+                      V2Space.gutter + 4,
+                      top + 84,
+                      V2Space.gutter + 4,
+                      bottom + 132,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        V2OfflineNotice(night: _night),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            V2DotMatrix(
+                              chapter.toString().padLeft(2, '0'),
+                              pitch: 4.4,
+                              color: _night ? V2Color.nightDot : V2Color.sky600,
+                              semanticsLabel: '$chapter장',
+                            ),
+                            const SizedBox(width: 12),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 2),
+                              child: V2Meta(
+                                '장면 ${index + 1} / ${scenes.length}',
+                                color: _meta,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: V2Space.md),
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            scene.title ?? '제목 없는 장면',
+                            style: V2Type.display.copyWith(
+                              color: _ink,
+                              fontSize: 28 * math.min(_readerScale, 1.2),
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: V2Space.md),
-                      Semantics(
-                        header: true,
-                        child: Text(
-                          scene.title ?? '제목 없는 장면',
-                          style: V2Type.display.copyWith(
-                            color: _ink,
-                            fontSize: 28 * math.min(_readerScale, 1.2),
+                        ),
+                        const SizedBox(height: V2Space.xl),
+                        for (var i = 0; i < passages.length; i++) ...[
+                          if (i == passages.length - 1 && passages.length > 1)
+                            _SectionBreak(color: _meta),
+                          _Passage(
+                            key: _passageKeys[passages[i].id],
+                            passage: passages[i],
+                            index: i,
+                            showOrigin: _showOrigins,
+                            scale: _readerScale,
+                            ink: _ink,
+                            night: _night,
+                            onTap: () => _openPassage(passages[i], i),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: V2Space.xl),
-                      for (var i = 0; i < passages.length; i++) ...[
-                        if (i == passages.length - 1 && passages.length > 1)
-                          _SectionBreak(color: _meta),
-                        _Passage(
-                          key: _passageKeys[passages[i].id],
-                          passage: passages[i],
-                          index: i,
-                          showOrigin: _showOrigins,
-                          scale: _readerScale,
-                          ink: _ink,
-                          night: _night,
-                          onTap: () => _openPassage(passages[i], i),
-                        ),
+                        ],
+                        if (passages.isEmpty) ...[
+                          V2Meta('아직 문장이 없어요. 기록은 그대로 보관되어 있어요.', color: _meta),
+                          const SizedBox(height: V2Space.lg),
+                          V2Button(
+                            label: '다시 불러오기',
+                            onPressed: () =>
+                                ref.invalidate(passagesProvider(scene.id)),
+                          ),
+                        ],
+                        if (scenes.length == 1 && passages.isNotEmpty)
+                          _afterword(passages),
                       ],
-                      if (passages.isEmpty) ...[
-                        V2Meta('아직 문장이 없어요. 기록은 그대로 보관되어 있어요.', color: _meta),
-                        const SizedBox(height: V2Space.lg),
-                        V2Button(
-                          label: '다시 불러오기',
-                          onPressed: () =>
-                              ref.invalidate(passagesProvider(scene.id)),
-                        ),
-                      ],
-                      if (scenes.length == 1 && passages.isNotEmpty)
-                        _afterword(passages),
-                    ],
+                    ),
                   ),
                 ),
               ),

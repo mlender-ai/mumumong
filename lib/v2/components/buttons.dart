@@ -105,92 +105,98 @@ class V2Button extends StatelessWidget {
         ? V2Size.buttonCompact
         : V2Size.button;
     final horizontal = size == V2ButtonSize.compact ? 18.0 : 26.0;
-    return V2Pressable(
-      onPressed: onPressed,
-      loading: loading,
-      haptic: haptic ?? (_ink ? V2Haptic.light : V2Haptic.selection),
-      semanticLabel: semanticLabel ?? (loading ? loadingLabel ?? label : label),
-      minSize: Size(V2Size.touch, math.max(V2Size.touch, height)),
-      builder: (context, state) {
-        final kind = switch (variant) {
-          V2ButtonVariant.primary ||
-          V2ButtonVariant.floating => V2SurfaceKind.ink,
-          V2ButtonVariant.secondary => V2SurfaceKind.paper,
-          V2ButtonVariant.glass => V2SurfaceKind.frosted,
-        };
-        final foreground = _ink ? Colors.white : V2Color.ink;
-        final enabled = state.enabled;
-        final reduced = V2Motion.reduced(context);
-        final scale = reduced ? 1.0 : 1 - .032 * state.depth;
-        final text = loading ? (loadingLabel ?? label) : label;
-        final content = Row(
-          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 19, color: foreground),
-              const SizedBox(width: 9),
+    // A fixed-height control: its label grows only so far, like the nav,
+    // so it never clips at the largest system text sizes.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.6,
+      child: V2Pressable(
+        onPressed: onPressed,
+        loading: loading,
+        haptic: haptic ?? (_ink ? V2Haptic.light : V2Haptic.selection),
+        semanticLabel:
+            semanticLabel ?? (loading ? loadingLabel ?? label : label),
+        minSize: Size(V2Size.touch, math.max(V2Size.touch, height)),
+        builder: (context, state) {
+          final kind = switch (variant) {
+            V2ButtonVariant.primary ||
+            V2ButtonVariant.floating => V2SurfaceKind.ink,
+            V2ButtonVariant.secondary => V2SurfaceKind.paper,
+            V2ButtonVariant.glass => V2SurfaceKind.frosted,
+          };
+          final foreground = _ink ? Colors.white : V2Color.ink;
+          final enabled = state.enabled;
+          final reduced = V2Motion.reduced(context);
+          final scale = reduced ? 1.0 : 1 - .032 * state.depth;
+          final text = loading ? (loadingLabel ?? label) : label;
+          final content = Row(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 19, color: foreground),
+                const SizedBox(width: 9),
+              ],
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: V2Type.label.copyWith(color: foreground),
+                ),
+              ),
+              if (loading) ...[
+                const SizedBox(width: 10),
+                V2LoadingDots(color: foreground),
+              ] else if (trailingIcon != null) ...[
+                const SizedBox(width: 8),
+                Icon(trailingIcon, size: 18, color: foreground),
+              ],
             ],
-            Flexible(
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: V2Type.label.copyWith(color: foreground),
+          );
+          Widget surface = V2Surface(
+            kind: kind,
+            radius: height / 2,
+            height: height,
+            width: expand ? double.infinity : null,
+            padding: EdgeInsets.symmetric(horizontal: horizontal),
+            chroma: variant == V2ButtonVariant.glass ? .55 : 0,
+            sink: state.sink,
+            hover: state.hover,
+            blur: variant == V2ButtonVariant.glass ? V2Glass.blur : 0,
+            shadow: enabled && variant != V2ButtonVariant.floating,
+            child: Center(
+              widthFactor: expand ? null : 1,
+              child: Transform.translate(
+                offset: Offset(0, reduced ? 0 : .6 * state.sink),
+                child: content,
               ),
             ),
-            if (loading) ...[
-              const SizedBox(width: 10),
-              V2LoadingDots(color: foreground),
-            ] else if (trailingIcon != null) ...[
-              const SizedBox(width: 8),
-              Icon(trailingIcon, size: 18, color: foreground),
-            ],
-          ],
-        );
-        Widget surface = V2Surface(
-          kind: kind,
-          radius: height / 2,
-          height: height,
-          width: expand ? double.infinity : null,
-          padding: EdgeInsets.symmetric(horizontal: horizontal),
-          chroma: variant == V2ButtonVariant.glass ? .55 : 0,
-          sink: state.sink,
-          hover: state.hover,
-          blur: variant == V2ButtonVariant.glass ? V2Glass.blur : 0,
-          shadow: enabled && variant != V2ButtonVariant.floating,
-          child: Center(
-            widthFactor: expand ? null : 1,
-            child: Transform.translate(
-              offset: Offset(0, reduced ? 0 : .6 * state.sink),
-              child: content,
-            ),
-          ),
-        );
-        if (variant == V2ButtonVariant.floating) {
-          surface = DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(height / 2),
-              boxShadow: enabled
-                  ? BoxShadow.lerpList(
-                      V2Shadow.floating,
-                      V2Shadow.pressed,
-                      state.sink,
-                    )
-                  : null,
-            ),
-            child: surface,
           );
-        }
-        return Opacity(
-          opacity: enabled ? 1 : .42,
-          child: _FocusRing(
-            focused: state.focused,
-            radius: height / 2,
-            child: Transform.scale(scale: scale, child: surface),
-          ),
-        );
-      },
+          if (variant == V2ButtonVariant.floating) {
+            surface = DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(height / 2),
+                boxShadow: enabled
+                    ? BoxShadow.lerpList(
+                        V2Shadow.floating,
+                        V2Shadow.pressed,
+                        state.sink,
+                      )
+                    : null,
+              ),
+              child: surface,
+            );
+          }
+          return Opacity(
+            opacity: enabled ? 1 : .42,
+            child: _FocusRing(
+              focused: state.focused,
+              radius: height / 2,
+              child: Transform.scale(scale: scale, child: surface),
+            ),
+          );
+        },
+      ),
     );
   }
 }

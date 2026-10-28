@@ -122,7 +122,7 @@ class V2Notice extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    message,
+                    v2KeepAll(message),
                     style: V2Type.bodySmall.copyWith(color: V2Color.ink),
                   ),
                 ),
@@ -156,7 +156,7 @@ void showV2Toast(BuildContext context, String message) {
           radius: V2Radius.card - 6,
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
           child: Text(
-            message,
+            v2KeepAll(message),
             style: V2Type.bodySmall.copyWith(color: V2Color.ink),
           ),
         ),
@@ -204,7 +204,7 @@ Future<T?> showV2Dialog<T>(
                       ),
                       if (body != null) ...[
                         const SizedBox(height: 10),
-                        Text(body, style: V2Type.body),
+                        Text(v2KeepAll(body), style: V2Type.body),
                       ],
                       if (content != null) ...[
                         const SizedBox(height: 14),
@@ -286,12 +286,20 @@ class V2Page extends StatelessWidget {
 }
 
 /// Content fades into the space at the top edge instead of being cut off
-/// under the status bar.
+/// under the status bar. A full-bleed scroll view passes the status bar
+/// height as [inset]: nothing shows above it, then content fades in over
+/// [extent].
 class V2EdgeFade extends StatelessWidget {
-  const V2EdgeFade({super.key, required this.child, this.extent = 22});
+  const V2EdgeFade({
+    super.key,
+    required this.child,
+    this.extent = 22,
+    this.inset = 0,
+  });
 
   final Widget child;
   final double extent;
+  final double inset;
 
   @override
   Widget build(BuildContext context) => ShaderMask(
@@ -299,8 +307,18 @@ class V2EdgeFade extends StatelessWidget {
     shaderCallback: (rect) => LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
-      colors: const [Color(0x00FFFFFF), Colors.white, Colors.white],
-      stops: [0, (extent / rect.height).clamp(0.0, 1.0), 1],
+      colors: const [
+        Color(0x00FFFFFF),
+        Color(0x00FFFFFF),
+        Colors.white,
+        Colors.white,
+      ],
+      stops: [
+        0,
+        (inset / rect.height).clamp(0.0, 1.0),
+        ((inset + extent) / rect.height).clamp(0.0, 1.0),
+        1,
+      ],
     ).createShader(rect),
     child: child,
   );

@@ -193,7 +193,15 @@ class V2ContextHeader extends StatelessWidget {
               children: [
                 leading ?? const SizedBox(width: V2Size.touch),
                 const SizedBox(width: V2Space.xs),
-                Expanded(child: Center(child: title)),
+                // A fixed bar: its title grows only so far, like the nav.
+                Expanded(
+                  child: Center(
+                    child: MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: 1.6,
+                      child: title ?? const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
                 const SizedBox(width: V2Space.xs),
                 trailing ?? const SizedBox(width: V2Size.touch),
               ],
