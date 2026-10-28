@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mumumong/data/auth/auth_controller.dart';
 
@@ -39,6 +41,45 @@ void main() {
         AuthenticationDestination.volumeSetup,
       );
       expect(backend.anonymousSignInCalls, 1);
+    });
+
+    test('로그인 상태에서 세션이 밖에서 끝나면 시작 화면으로 돌아간다', () async {
+      final backend = _FakeAuthenticationBackend(
+        hasSession: true,
+        hasRemoteVolume: true,
+      );
+      final controller = AuthenticationController(
+        _FakeAppleIdentityProvider(result: credential),
+        backend,
+      );
+      addTearDown(controller.dispose);
+      await controller.restore();
+      expect(controller.state.phase, AuthenticationPhase.signedIn);
+
+      backend.signedOutEvents.add(null);
+      await pumpEventQueue();
+      expect(controller.state.phase, AuthenticationPhase.signedOut);
+    });
+
+    test('만료 세션 안내는 로그아웃 신호로 지워지지 않는다', () async {
+      final backend = _FakeAuthenticationBackend(
+        hasSession: true,
+        sessionIsExpired: true,
+        refreshError: const AuthenticationException(
+          AuthenticationFailure.expiredSession,
+        ),
+      );
+      final controller = AuthenticationController(
+        _FakeAppleIdentityProvider(result: credential),
+        backend,
+      );
+      addTearDown(controller.dispose);
+      await controller.restore();
+      expect(controller.state.phase, AuthenticationPhase.failure);
+
+      backend.signedOutEvents.add(null);
+      await pumpEventQueue();
+      expect(controller.state.failure, AuthenticationFailure.expiredSession);
     });
 
     test('기존 세션과 볼륨이 있으면 S03을 연다', () async {
@@ -186,6 +227,11 @@ class _FakeAppleIdentityProvider implements AppleIdentityProvider {
 }
 
 class _FakeAuthenticationBackend implements AuthenticationBackend {
+  final signedOutEvents = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get signedOut => signedOutEvents.stream;
+
   _FakeAuthenticationBackend({
     this.hasSession = false,
     this.sessionIsExpired = false,

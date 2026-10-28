@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 enum AuthenticationPhase { restoring, signedOut, signingIn, signedIn, failure }
@@ -52,6 +54,10 @@ abstract interface class AuthenticationBackend {
   Future<void> signInWithApple(AppleSignInResult credential);
   Future<void> signInAnonymously();
   Future<bool> hasRemoteVolume();
+
+  /// Fires when the session ends outside sign-in, for example after the
+  /// account was deleted or a refresh token was revoked.
+  Stream<void> get signedOut;
 }
 
 class AuthenticationCancelled implements Exception {
@@ -65,11 +71,22 @@ class AuthenticationException implements Exception {
 }
 
 class AuthenticationController extends ChangeNotifier {
-  AuthenticationController(this._appleIdentityProvider, this._backend);
+  AuthenticationController(this._appleIdentityProvider, this._backend) {
+    // A signed-in person whose session ends elsewhere (delete-everything)
+    // returns to the start instead of staying on a manuscript that is gone.
+    // Other phases keep their own message, such as an expired session.
+    _signedOutSubscription = _backend.signedOut.listen((_) {
+      if (_state.phase == AuthenticationPhase.signedIn) {
+        _setState(const AuthenticationState.signedOut());
+      }
+    });
+  }
 
   final AppleIdentityProvider _appleIdentityProvider;
   final AuthenticationBackend _backend;
   bool _lastAttemptWasAnonymous = false;
+
+  late final StreamSubscription<void> _signedOutSubscription;
 
   AuthenticationState _state = const AuthenticationState.restoring();
   AuthenticationState get state => _state;
@@ -200,5 +217,11 @@ class AuthenticationController extends ChangeNotifier {
   void _setState(AuthenticationState value) {
     _state = value;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_signedOutSubscription.cancel());
+    super.dispose();
   }
 }

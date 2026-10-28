@@ -129,6 +129,23 @@ void main() {
     expect(find.text('원고 화면'), findsOneWidget);
   });
 
+  // Found on the simulator: after delete-everything the gate stayed signed
+  // in over a manuscript that no longer existed until relaunch.
+  testWidgets('a session ended elsewhere returns to the V2 start', (
+    tester,
+  ) async {
+    final backend = _Backend(hasSession: true, remoteVolume: true);
+    final controller = AuthenticationController(const _Identity(), backend);
+    await controller.restore();
+    await _mount(tester, controller: controller, consent: _Consent());
+    expect(find.text('원고 화면'), findsOneWidget);
+
+    backend.signedOutEvents.add(null);
+    await tester.pumpAndSettle();
+    expect(find.text('원고 화면'), findsNothing);
+    expect(find.byType(V2OnboardingScreen), findsOneWidget);
+  });
+
   testWidgets('no consent keeps the manuscript closed', (tester) async {
     await _mount(
       tester,
@@ -378,6 +395,11 @@ class _Identity implements AppleIdentityProvider {
 }
 
 class _Backend implements AuthenticationBackend {
+  final signedOutEvents = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get signedOut => signedOutEvents.stream;
+
   _Backend({
     this.hasSession = false,
     this.remoteVolume = false,

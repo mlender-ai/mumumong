@@ -18,6 +18,7 @@ import 'package:mumumong/di/providers.dart';
 import 'package:mumumong/ui/auth/auth_gate.dart';
 import 'package:mumumong/v2/app.dart';
 import 'package:mumumong/v2/screens/gates.dart';
+import 'package:mumumong/v2/screens/onboarding.dart';
 import 'package:mumumong/v2/screens/volume_setup.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -103,6 +104,11 @@ void main() {
         await tapNative(tester, v2Text('영구 삭제'));
         await waitFor(tester, v2Text('모든 기록을 삭제했어요.'), attempts: 300);
 
+        // Without a relaunch: the deleted manuscript is gone and the gate is
+        // back at the signed-out start.
+        await waitFor(tester, find.byType(V2OnboardingScreen), attempts: 100);
+        expect(find.text('꿈 기록'), findsNothing);
+        expect(v2Text('문 밖의 여자'), findsNothing);
         expect(client.auth.currentSession, isNull);
         expect(await db.select(db.volumes).get(), isEmpty);
         expect(await db.select(db.dreams).get(), isEmpty);

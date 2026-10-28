@@ -56,6 +56,13 @@ class SupabaseAuthenticationBackend implements AuthenticationBackend {
   bool get sessionIsExpired => _client.auth.currentSession?.isExpired ?? false;
 
   @override
+  Stream<void> get signedOut => _client.auth.onAuthStateChange
+      // Refresh failures arrive as errors and are handled by restore().
+      .handleError((Object _) {})
+      .where((state) => state.event == AuthChangeEvent.signedOut)
+      .map((_) {});
+
+  @override
   Future<void> refreshSession() async {
     try {
       final response = await _client.auth.refreshSession();

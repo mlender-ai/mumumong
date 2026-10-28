@@ -82,6 +82,22 @@ void main() {
     expect(find.text('원고 화면'), findsOneWidget);
   });
 
+  testWidgets('계정 삭제처럼 세션이 밖에서 끝나면 원고 대신 시작 화면을 보인다', (tester) async {
+    final backend = _FakeBackend(hasSession: true, hasRemoteVolume: true);
+    final controller = AuthenticationController(const _FakeIdentity(), backend);
+    await controller.restore();
+    await tester.pumpWidget(
+      _TestApp(controller: controller, consent: _FakeConsentRepository()),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('원고 화면'), findsOneWidget);
+
+    backend.signedOutEvents.add(null);
+    await tester.pumpAndSettle();
+    expect(find.text('원고 화면'), findsNothing);
+    expect(controller.state.phase, AuthenticationPhase.signedOut);
+  });
+
   testWidgets('신규 계정은 동의 후 기본값이 선택된 S02 볼륨 설정으로 보낸다', (tester) async {
     final controller = AuthenticationController(
       const _FakeIdentity(),
@@ -292,6 +308,11 @@ class _FakeIdentity implements AppleIdentityProvider {
 }
 
 class _FakeBackend implements AuthenticationBackend {
+  final signedOutEvents = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get signedOut => signedOutEvents.stream;
+
   _FakeBackend({
     this.hasSession = false,
     bool hasRemoteVolume = false,

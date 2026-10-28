@@ -50,4 +50,30 @@ void main() {
       expect(count.read<int>('n'), 0, reason: table);
     }
   });
+
+  // Found on the simulator and the public web app: after delete-everything
+  // the screens kept showing the deleted manuscript until relaunch, because
+  // the raw deletes never reached Drift's watched queries.
+  test('clearLocalData tells open queries that the rows are gone', () async {
+    final database = AppDatabase.forTesting(NativeDatabase.memory());
+    addTearDown(database.close);
+    final repository = DriftRepository(database);
+    await repository.ready;
+    final volumes = <Volume?>[];
+    final dreams = <List<Dream>>[];
+    final volumeSub = repository.watchActiveVolume().listen(volumes.add);
+    final dreamSub = repository
+        .watchDreams(DreamStatusFilter.all)
+        .listen(dreams.add);
+    addTearDown(volumeSub.cancel);
+    addTearDown(dreamSub.cancel);
+    await pumpEventQueue();
+    expect(volumes.last, isNotNull);
+    expect(dreams.last, isNotEmpty);
+
+    await clearLocalData(database);
+    await pumpEventQueue();
+    expect(volumes.last, isNull);
+    expect(dreams.last, isEmpty);
+  });
 }

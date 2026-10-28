@@ -124,7 +124,8 @@ class _RecordManagementScreenState
         ],
       ),
     );
-    controller.dispose();
+    // The dialog route may still be animating out; let it finish first.
+    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
     if (confirmed != true || !mounted) return;
     setState(() => _deleting = true);
     try {
@@ -133,6 +134,8 @@ class _RecordManagementScreenState
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('모든 기록을 삭제했어요.')));
+        // Leave the settings pages: the gate below now decides what to show.
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } on Object {
       if (mounted) {
