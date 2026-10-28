@@ -20,6 +20,8 @@ import 'package:mumumong/v2/screens/gates.dart';
 import 'package:mumumong/v2/screens/onboarding.dart';
 import 'package:mumumong/v2/screens/volume_setup.dart';
 
+import 'package:mumumong/v2/design/keep_all.dart';
+
 import 'support.dart';
 
 const _manuscript = Text('원고 화면');
@@ -143,6 +145,10 @@ void main() {
     expect(find.text('원고 화면'), findsNothing);
     await _check(tester, 'v2-consent-details-toggle');
     expect(v2Text('고지 버전 2'), findsOneWidget);
+    // Found on the simulator with the hosted notice: server text broke
+    // mid-word (전송 / 됩니다) until keep-all was applied.
+    const message = '꿈 내용은 원고 생성을 위해 AI 모델 제공사로 전송됩니다.';
+    expect(tester.widget<Text>(v2Text(message)).data, v2KeepAll(message));
     await _check(tester, 'v2-age-confirmation');
     await _check(tester, 'v2-ai-consent');
     await _tapText(tester, '동의하고 계속');

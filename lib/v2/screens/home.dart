@@ -368,7 +368,7 @@ class _HomeFrame extends StatelessWidget {
                       if (onSettings != null)
                         V2IconButton(
                           icon: Icons.tune_rounded,
-                          semanticLabel: '읽기 설정',
+                          semanticLabel: '설정',
                           onPressed: onSettings,
                         ),
                     ],

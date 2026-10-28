@@ -8,6 +8,7 @@ import 'package:mumumong/domain/model/models.dart';
 import 'package:mumumong/domain/repository/mumumong_repository.dart';
 import 'package:mumumong/v2/preview/preview_root.dart';
 import 'package:mumumong/v2/screens/reader.dart';
+import 'package:mumumong/v2/screens/settings.dart';
 
 import 'support.dart';
 
@@ -33,6 +34,18 @@ void main() {
     expect(find.bySemanticsLabel('원고 42%'), findsWidgets);
     expect(v2Text('붉은 문'), findsOneWidget);
     expect(find.text('새 장면 읽기'), findsOneWidget);
+  });
+
+  // Found with VoiceOver labels on the simulator: the home button that opens
+  // every setting was announced as reading settings.
+  testWidgets('the home settings button is named for what it opens', (
+    tester,
+  ) async {
+    await mountV2(tester);
+    expect(find.bySemanticsLabel('읽기 설정'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('설정'));
+    await tester.pumpAndSettle();
+    expect(find.byType(V2SettingsScreen), findsOneWidget);
   });
 
   testWidgets('capture → save → process → reveal → reader → home growth', (

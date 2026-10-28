@@ -235,7 +235,7 @@ class _V2OnboardingScreenState extends ConsumerState<V2OnboardingScreen> {
               ),
             ),
             if (_details) ...[
-              Text(policy.message, style: V2Type.bodySmall),
+              Text(v2KeepAll(policy.message), style: V2Type.bodySmall),
               const SizedBox(height: V2Space.sm),
               for (final provider in policy.providers) ...[
                 V2PolicyLink(
