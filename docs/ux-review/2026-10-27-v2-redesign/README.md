@@ -342,4 +342,7 @@ cd ../무무몽-v2 && flutter run -t lib/main.dart --dart-define=UI=v2 --dart-de
 - **테스트** (모두 고치기 전 코드에서 실패하는 것을 확인): 열린 조회가 삭제를 받는지(`local_data_control_test`), 컨트롤러 전환과 만료 안내 유지(`auth_controller_test` 2), V1·V2 관문이 시작 화면으로 돌아가는지(`auth_gate_test`, `gates_test`), V1 삭제 뒤 첫 화면(`record_management_test`).
 - **호스팅 확인**: `hosted_account_test`에 “다시 열지 않아도 원고가 사라지고 시작 화면”을 더해 QA 시뮬레이터에서 일회용 계정으로 다시 돌렸다. 통과했고 계정은 서버에서 사라졌다.
 - **검증**: `flutter test` 499개, format·analyze·로그 안전·평가 데이터, 웹 release 빌드 통과. 호스팅이 아닌 V2 통합 테스트 묶음은 이번 변경 경로(인증·삭제)를 쓰지 않아 다시 돌리지 않았다.
-- **배포하지 않았다.** 공개 주소는 아직 `20261028T141555Z`다.
+- **병합·push·배포 (사용자 지시)**: `main`을 `5aafb9b`로 fast-forward하고 push했다(`3ae4949..5aafb9b`). 배포 스크립트 테스트 통과 → release `20261028T150843Z`(source SHA256 `f77acf51…3aef`, `working_tree_dirty: false`) → 준비 배포 `dpl_75v89uC8XMzjMZjAW4Pj5V1xa76N` 24개 리소스 일치 → promote → 공개 주소 24개 일치.
+- **공개 주소 확인** (390×844, 일회용 계정, 생성 없음): 체험 시작 → 권 생성 → 설정 → 기록 관리 → 모든 기록 삭제. **새로고침 없이** 바로 시작 화면과 “모든 기록을 삭제했어요.”가 보였고 브라우저 세션이 남지 않았다. 계정은 지워졌다.
+- 콘솔 오류 2건은 `auth/v1/logout`의 403이다. 계정이 먼저 지워져 서버가 로그아웃 요청을 거절한 것이고, 기기 쪽 로그아웃은 끝났다. 수정 전에도 같았고 사용자에게 보이는 영향은 없다.
+- 되돌리기: 직전 V2 빌드 `dpl_6mR4G2i6Ncc8E7X1zi4rx9yk25oy`, V1 기준선 `dpl_8KFgZXVjiyTZiwc3tb9KdXrKpP69`.
